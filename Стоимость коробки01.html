@@ -1,0 +1,2870 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Калькулятор стоимости коробки</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           MATERIAL DESIGN THEME
+           ============================================================ */
+        
+        :root {
+            --md-primary: #1a73e8;
+            --md-primary-dark: #1557b0;
+            --md-primary-light: #e8f0fe;
+            --md-secondary: #fbbc04;
+            --md-surface: #ffffff;
+            --md-background: #f8f9fa;
+            --md-error: #d93025;
+            --md-on-surface: #202124;
+            --md-on-surface-medium: #5f6368;
+            --md-on-surface-light: #9aa0a6;
+            --md-shadow: 0 2px 8px rgba(0,0,0,0.12);
+            --md-shadow-hover: 0 4px 16px rgba(0,0,0,0.16);
+            --md-radius: 12px;
+            --md-radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--md-background);
+            padding: 24px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            color: var(--md-on-surface);
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: var(--md-surface);
+            padding: 32px 40px 40px;
+            border-radius: var(--md-radius);
+            box-shadow: var(--md-shadow);
+            transition: box-shadow 0.3s ease;
+        }
+        .container:hover {
+            box-shadow: var(--md-shadow-hover);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 4px;
+        }
+        .header .material-icons {
+            font-size: 32px;
+            color: var(--md-primary);
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            letter-spacing: -0.01em;
+        }
+
+        .subtitle {
+            color: var(--md-on-surface-medium);
+            font-size: 14px;
+            font-weight: 400;
+            margin-bottom: 28px;
+            padding: 12px 16px;
+            background: var(--md-primary-light);
+            border-radius: var(--md-radius-sm);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .subtitle .material-icons {
+            font-size: 18px;
+            color: var(--md-primary);
+        }
+        .subtitle .chip {
+            background: var(--md-primary);
+            color: white;
+            padding: 2px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* ============================================================
+           CONSTRUCTION SELECTOR
+           ============================================================ */
+        .construction-selector {
+            background: var(--md-background);
+            border-radius: var(--md-radius);
+            padding: 16px 24px;
+            margin-bottom: 28px;
+            border: 1px solid #e8eaed;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .construction-selector label {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-on-surface-medium);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .construction-selector label .material-icons {
+            font-size: 20px;
+            color: var(--md-primary);
+        }
+        .construction-selector select {
+            padding: 10px 16px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            background: white;
+            cursor: pointer;
+            min-width: 200px;
+            transition: border-color 0.2s;
+        }
+        .construction-selector select:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .construction-selector .hint {
+            font-size: 13px;
+            color: var(--md-on-surface-light);
+        }
+        .construction-selector .import-badge {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--md-on-surface-medium);
+        }
+        .construction-selector .import-badge .material-icons {
+            font-size: 16px;
+            color: var(--md-primary);
+        }
+
+        .settings-panel {
+            background: var(--md-background);
+            border-radius: var(--md-radius);
+            padding: 20px 24px 24px;
+            margin-bottom: 28px;
+            border: 1px solid #e8eaed;
+        }
+        .settings-panel .panel-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--md-on-surface-medium);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .settings-panel .panel-title .material-icons {
+            font-size: 20px;
+            color: var(--md-primary);
+        }
+
+        /* ============================================================
+           РАСКЛАДКА - ТАБЛИЦА
+           ============================================================ */
+        .layout-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .layout-table th {
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--md-on-surface-medium);
+            padding: 6px 8px 6px 0;
+            border-bottom: 2px solid #e8eaed;
+        }
+        .layout-table td {
+            padding: 6px 8px 6px 0;
+            border-bottom: 1px solid #f1f3f4;
+            vertical-align: middle;
+        }
+        .layout-table tr:last-child td {
+            border-bottom: none;
+        }
+        .layout-table .part-name {
+            font-weight: 500;
+            color: var(--md-on-surface);
+            white-space: nowrap;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .layout-table .part-name .md-checkbox-small {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            user-select: none;
+        }
+        .layout-table .part-name .md-checkbox-small input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            accent-color: var(--md-primary);
+            cursor: pointer;
+        }
+        .layout-table .part-input {
+            width: 60px;
+            padding: 6px 8px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            background: white;
+            transition: border-color 0.2s;
+        }
+        .layout-table .part-input:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .layout-table .part-input.input-zero {
+            color: var(--md-on-surface-light);
+            background: #f8f9fa;
+        }
+        .layout-table .md-checkbox-small-op {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            cursor: pointer;
+            font-size: 10px;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .layout-table .md-checkbox-small-op input[type="checkbox"] {
+            width: 13px;
+            height: 13px;
+            accent-color: var(--md-primary);
+            cursor: pointer;
+        }
+        .layout-table .col-center {
+            text-align: center;
+        }
+        .layout-table .add-row-btn {
+            background: transparent;
+            border: 1px dashed var(--md-primary);
+            border-radius: var(--md-radius-sm);
+            color: var(--md-primary);
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+        .layout-table .add-row-btn:hover {
+            background: var(--md-primary-light);
+        }
+        .layout-table .remove-row-btn {
+            background: transparent;
+            border: none;
+            color: var(--md-error);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0 4px;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        .layout-table .remove-row-btn:hover {
+            opacity: 1;
+        }
+        /* Строка неактивна - затемнена */
+        .layout-table tr.part-disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .layout-table tr.part-disabled .part-input {
+            background: #f1f3f4;
+            color: var(--md-on-surface-light);
+        }
+        .layout-table tr.part-disabled .md-checkbox-small-op {
+            cursor: default;
+        }
+        .layout-table tr.part-disabled .md-checkbox-small-op input[type="checkbox"] {
+            cursor: default;
+            pointer-events: none;
+        }
+        /* Активная строка */
+        .layout-table tr.part-enabled-row {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .layout-table tr.part-enabled-row .part-input {
+            background: white;
+            color: var(--md-on-surface);
+        }
+        .layout-table tr.part-enabled-row .md-checkbox-small-op {
+            cursor: pointer;
+        }
+        .layout-table tr.part-enabled-row .md-checkbox-small-op input[type="checkbox"] {
+            cursor: pointer;
+            pointer-events: auto;
+        }
+
+        .btn-md {
+            background: var(--md-primary);
+            color: white;
+            border: none;
+            padding: 10px 28px;
+            border-radius: 24px;
+            font-weight: 500;
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            letter-spacing: 0.01em;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        .btn-md:hover {
+            background: var(--md-primary-dark);
+            box-shadow: 0 4px 12px rgba(26, 115, 232, 0.35);
+            transform: translateY(-1px);
+        }
+        .btn-md:active {
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+        }
+        .btn-md .material-icons {
+            font-size: 18px;
+        }
+        .btn-md-success {
+            background: #137333;
+        }
+        .btn-md-success:hover {
+            background: #0d5a28;
+        }
+        .btn-md-warning {
+            background: #e37400;
+        }
+        .btn-md-warning:hover {
+            background: #b85d00;
+        }
+
+        .btn-md-outline {
+            background: transparent;
+            color: var(--md-primary);
+            border: 1px solid var(--md-primary);
+            padding: 8px 20px;
+            border-radius: 24px;
+            font-weight: 500;
+            font-size: 13px;
+            font-family: 'Roboto', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-md-outline:hover {
+            background: var(--md-primary-light);
+        }
+
+        .settings-actions {
+            margin-top: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .settings-actions .hint {
+            font-size: 13px;
+            color: var(--md-on-surface-light);
+        }
+
+        .grid-2col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+        }
+        @media (max-width: 860px) {
+            .grid-2col {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+
+        .section {
+            background: var(--md-background);
+            border-radius: var(--md-radius);
+            padding: 20px 22px 24px;
+            border: 1px solid #e8eaed;
+        }
+        .section h2 {
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e8eaed;
+        }
+        .section h2 .material-icons {
+            font-size: 20px;
+            color: var(--md-primary);
+        }
+        .section h2 .badge {
+            background: var(--md-primary);
+            color: white;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 0 12px;
+            border-radius: 16px;
+            line-height: 22px;
+            margin-left: auto;
+        }
+        .section h2 .badge-success {
+            background: #137333;
+        }
+
+        /* ----- Param Row (основной) ----- */
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #e8eaed;
+        }
+        .param-row:last-child {
+            border-bottom: none;
+        }
+        .param-label {
+            font-size: 14px;
+            color: var(--md-on-surface);
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .param-value {
+            font-size: 15px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            background: white;
+            padding: 2px 16px;
+            border-radius: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+        .param-value small {
+            font-weight: 400;
+            color: var(--md-on-surface-light);
+            font-size: 12px;
+            margin-left: 4px;
+        }
+
+        /* ----- Work Block ----- */
+        .work-block {
+            margin-top: 12px;
+            padding: 14px 18px;
+            background: white;
+            border-radius: var(--md-radius-sm);
+            border: 1px solid #e8eaed;
+        }
+        .work-block .work-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .work-block .work-row label {
+            font-weight: 500;
+            color: var(--md-on-surface);
+            font-size: 14px;
+        }
+        .work-block .work-row input[type="number"] {
+            width: 70px;
+            padding: 8px 10px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 14px;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        .work-block .work-row input[type="number"]:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .work-block .work-row span {
+            color: var(--md-on-surface-medium);
+            font-size: 13px;
+        }
+
+        /* ============================================================
+           EXTRAS BLOCK
+           ============================================================ */
+        .extras-block .param-row {
+            padding: 4px 0;
+        }
+        .extras-block .param-label {
+            font-size: 12px;
+            color: var(--md-on-surface);
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .extras-block .param-value {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--md-on-surface);
+            background: white;
+            padding: 2px 12px;
+            border-radius: 20px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+        .extras-block .param-value small,
+        .extras-block .param-label .label-text {
+            font-size: 11px;
+            color: var(--md-on-surface-light);
+        }
+        .extras-block .print-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .extras-block .print-controls select {
+            padding: 4px 8px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .extras-block .print-controls select:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .extras-block .print-controls input[type="number"] {
+            width: 65px;
+            padding: 4px 6px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        .extras-block .print-controls input[type="number"]:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .extras-block .print-controls .label-text {
+            font-size: 11px;
+            color: var(--md-on-surface-medium);
+        }
+        .extras-block .print-detail {
+            font-size: 11px;
+            color: var(--md-on-surface-light);
+        }
+        .extras-block .print-result {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--md-primary);
+            background: var(--md-primary-light);
+            padding: 2px 12px;
+            border-radius: 20px;
+        }
+        .extras-block .print-separator {
+            border-bottom: 2px solid var(--md-primary) !important;
+            padding-bottom: 8px !important;
+            margin-bottom: 2px;
+        }
+        .extras-block .add-op-btn {
+            background: transparent;
+            border: 1px dashed var(--md-primary);
+            border-radius: var(--md-radius-sm);
+            color: var(--md-primary);
+            padding: 4px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+            margin-top: 4px;
+        }
+        .extras-block .add-op-btn:hover {
+            background: var(--md-primary-light);
+        }
+        .extras-block .remove-op-btn {
+            background: transparent;
+            border: none;
+            color: var(--md-error);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 4px;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        .extras-block .remove-op-btn:hover {
+            opacity: 1;
+        }
+        .extras-block .op-cost-input {
+            width: 40px;
+            padding: 4px 4px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+        .extras-block .op-cost-input:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .extras-block .op-name-input {
+            width: 70px;
+            padding: 4px 6px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            transition: border-color 0.2s;
+        }
+        .extras-block .op-name-input:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+
+        /* ============================================================
+           PRICE TABLE
+           ============================================================ */
+        .price-table {
+            margin-top: 12px;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .price-table th {
+            text-align: left;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--md-on-surface-medium);
+            padding: 8px 12px 8px 0;
+            border-bottom: 1px solid #e8eaed;
+        }
+        .price-table th:last-child {
+            text-align: right;
+            padding-right: 0;
+        }
+        .price-table td {
+            padding: 10px 12px 10px 0;
+            border-bottom: 1px solid #f1f3f4;
+        }
+        .price-table td:last-child {
+            padding-right: 0;
+        }
+        .price-table .price-cell {
+            text-align: right;
+            font-weight: 500;
+            color: var(--md-on-surface);
+        }
+        .price-table .price-cell-vat {
+            text-align: right;
+            font-weight: 600;
+            color: #137333;
+        }
+        .price-table .base-row td {
+            background: #fff8e6;
+            border-radius: var(--md-radius-sm);
+        }
+        .price-table .base-row td:first-child {
+            border-radius: var(--md-radius-sm) 0 0 var(--md-radius-sm);
+        }
+        .price-table .base-row td:last-child {
+            border-radius: 0 var(--md-radius-sm) var(--md-radius-sm) 0;
+        }
+        .price-table .base-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .price-table .base-label .material-icons {
+            font-size: 16px;
+            color: var(--md-secondary);
+        }
+
+        /* ============================================================
+           PRINTING TABLE (для отображения выбранных параметров печати)
+           ============================================================ */
+        .print-info {
+            font-size: 12px;
+            color: var(--md-on-surface-medium);
+            padding: 6px 12px;
+            background: white;
+            border-radius: var(--md-radius-sm);
+            margin-top: 4px;
+            border: 1px solid #e8eaed;
+        }
+        .print-info span {
+            font-weight: 500;
+            color: var(--md-on-surface);
+        }
+
+        .hidden-block {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 16px 18px 24px;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+            .layout-table td,
+            .layout-table th {
+                padding: 4px 4px 4px 0;
+                font-size: 11px;
+            }
+            .layout-table .part-input {
+                width: 45px;
+                padding: 4px 4px;
+                font-size: 11px;
+            }
+            .layout-table .part-name {
+                font-size: 11px;
+            }
+            .layout-table .md-checkbox-small {
+                font-size: 10px;
+            }
+            .layout-table .md-checkbox-small input[type="checkbox"] {
+                width: 12px;
+                height: 12px;
+            }
+            .layout-table .md-checkbox-small-op {
+                font-size: 9px;
+            }
+            .layout-table .md-checkbox-small-op input[type="checkbox"] {
+                width: 11px;
+                height: 11px;
+            }
+            .param-label {
+                font-size: 13px;
+                gap: 6px;
+            }
+            .param-value {
+                font-size: 13px;
+                padding: 2px 10px;
+            }
+            .extras-block .param-label {
+                font-size: 11px;
+            }
+            .extras-block .param-value {
+                font-size: 12px;
+                padding: 2px 8px;
+            }
+            .extras-block .print-controls select {
+                font-size: 11px;
+                padding: 3px 6px;
+            }
+            .extras-block .print-controls input[type="number"] {
+                width: 55px;
+                font-size: 11px;
+                padding: 3px 4px;
+            }
+            .price-table td {
+                font-size: 13px;
+                padding: 8px 8px 8px 0;
+            }
+            .price-table td input.price-input {
+                width: 50px !important;
+                font-size: 11px !important;
+                padding: 2px 4px !important;
+            }
+            .import-export-actions {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+            .import-export-actions .btn-md {
+                justify-content: center;
+            }
+            .construction-selector {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .construction-selector select {
+                width: 100%;
+            }
+            .import-section {
+                flex-direction: column;
+                align-items: stretch !important;
+            }
+            .import-section .btn-md {
+                justify-content: center;
+            }
+        }
+        @media (max-width: 480px) {
+            .layout-table td,
+            .layout-table th {
+                padding: 3px 2px 3px 0;
+                font-size: 10px;
+            }
+            .layout-table .part-input {
+                width: 38px;
+                padding: 3px 2px;
+                font-size: 10px;
+            }
+            .layout-table .part-name {
+                font-size: 10px;
+            }
+            .layout-table .md-checkbox-small {
+                font-size: 9px;
+                gap: 3px;
+            }
+            .layout-table .md-checkbox-small input[type="checkbox"] {
+                width: 10px;
+                height: 10px;
+            }
+            .layout-table .md-checkbox-small-op {
+                font-size: 8px;
+            }
+            .layout-table .md-checkbox-small-op input[type="checkbox"] {
+                width: 10px;
+                height: 10px;
+            }
+            .extras-block .op-cost-input {
+                width: 32px;
+                font-size: 10px;
+            }
+            .extras-block .op-name-input {
+                width: 55px;
+                font-size: 10px;
+            }
+        }
+
+        /* Highlight for selected branch */
+        .branch-info {
+            font-size: 13px;
+            padding: 8px 12px;
+            background: #e8f0fe;
+            border-radius: var(--md-radius-sm);
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .branch-info .branch-label {
+            font-weight: 500;
+            color: var(--md-primary);
+        }
+        .branch-info .branch-value {
+            font-weight: 600;
+        }
+
+        /* Прайс-лист стили */
+        .price-list-info {
+            font-size: 12px;
+            color: var(--md-on-surface-medium);
+            padding: 6px 12px;
+            background: #f1f3f4;
+            border-radius: var(--md-radius-sm);
+            margin-top: 8px;
+            border: 1px solid #e8eaed;
+        }
+        .price-list-info .price-selected {
+            font-weight: 600;
+            color: var(--md-primary);
+        }
+        .price-list-info .price-calc {
+            font-weight: 500;
+            color: var(--md-on-surface);
+        }
+        .price-list-info .price-list {
+            font-weight: 500;
+            color: #137333;
+        }
+
+        /* Поля ввода прайса в таблице */
+        .price-input {
+            width: 60px;
+            padding: 4px 6px;
+            border: 1px solid #dadce0;
+            border-radius: var(--md-radius-sm);
+            font-size: 12px;
+            font-family: 'Roboto', sans-serif;
+            text-align: center;
+            transition: border-color 0.2s;
+            background: white;
+        }
+        .price-input:focus {
+            outline: none;
+            border-color: var(--md-primary);
+            box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+        }
+        .price-input.price-active {
+            border-color: #d93025;
+            background: #fce8e6;
+        }
+        .price-cell-highlight {
+            color: #d93025;
+            font-weight: 700;
+        }
+        .final-cell-highlight {
+            color: #d93025;
+            font-weight: 700;
+        }
+        .final-cell-calc {
+            color: #137333;
+            font-weight: 700;
+        }
+
+        /* ============================================================
+           IMPORT / EXPORT
+           ============================================================ */
+        .import-export-section {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid #e8eaed;
+        }
+        .import-export-section .section-title {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--md-on-surface-medium);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .import-export-section .section-title .material-icons {
+            font-size: 18px;
+            color: var(--md-primary);
+        }
+        .import-export-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .import-export-actions .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .import-export-actions .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .import-status {
+            font-size: 12px;
+            padding: 4px 12px;
+            border-radius: var(--md-radius-sm);
+        }
+        .import-status.success {
+            color: #137333;
+            background: #e6f4ea;
+        }
+        .import-status.error {
+            color: #d93025;
+            background: #fce8e6;
+        }
+        .import-status.info {
+            color: var(--md-on-surface-medium);
+            background: #f1f3f4;
+        }
+
+        /* ============================================================
+           ИМПОРТ JSON (Прайс, Параметры, Таблица печати)
+           ============================================================ */
+        .import-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+            padding: 8px 12px;
+            background: #f1f3f4;
+            border-radius: var(--md-radius-sm);
+            border: 1px solid #e8eaed;
+        }
+        .import-section .import-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--md-on-surface-medium);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .import-section .import-label .material-icons {
+            font-size: 16px;
+            color: var(--md-primary);
+        }
+        .import-section .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .import-section .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .import-section .btn-sm {
+            padding: 4px 14px;
+            font-size: 12px;
+            border-radius: 16px;
+        }
+        .import-section .import-status-sm {
+            font-size: 11px;
+            padding: 2px 10px;
+            border-radius: 12px;
+        }
+        .import-section .import-status-sm.success {
+            color: #137333;
+            background: #e6f4ea;
+        }
+        .import-section .import-status-sm.error {
+            color: #d93025;
+            background: #fce8e6;
+        }
+        .import-section .import-status-sm.info {
+            color: var(--md-on-surface-medium);
+            background: #f1f3f4;
+        }
+        .import-section .file-name {
+            font-size: 11px;
+            color: var(--md-on-surface-light);
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- HEADER -->
+    <div class="header">
+        <span class="material-icons">inventory_2</span>
+        <h1>Калькулятор стоимости коробки</h1>
+    </div>
+    <div class="subtitle">
+        <span class="material-icons">info</span>
+        Выбор базовой конструкции · Печать (на деталь) · Лак · Конгрев · Тиснение        <span class="chip">НДС 11%</span>
+        <span class="chip" style="background:#137333;">Новая логика ценообразования</span>
+        <span class="chip" style="background:#d93025;">Сравнение с прайсом</span>
+        <span class="chip" style="background:#e37400;">JSON импорт/экспорт</span>
+    </div>
+
+    <!-- CONSTRUCTION SELECTOR -->
+    <div class="construction-selector">
+        <label>
+            <span class="material-icons">layers</span>
+            Базовая коробка
+        </label>
+        <select id="constructionSelect">
+            <option value="Этне 2 (шубер)">Этне 2 (шубер)</option>
+            <option value="Этне 3 (шубер)">Этне 3 (шубер)</option>
+            <option value="Элара 4">Элара 4</option>
+            <option value="Этне 5 (шубер)">Этне 5 (шубер)</option>
+            <option value="Этне 6 (шубер)">Этне 6 (шубер)</option>
+            <option value="Паллена 9">Паллена 9</option>
+            <option value="Этне 12 (шубер)">Этне 12 (шубер)</option>
+            <option value="Паллена 16">Паллена 16</option>
+            <option value="Паллена 25">Паллена 25</option>
+            <option value="Атлас">Атлас</option>
+        </select>
+        <span class="hint">выберите конструкцию, и раскладка деталей обновится</span>
+        <span class="import-badge">
+            <span class="material-icons">cloud_upload</span>
+            <span id="dataStatus">данные загружены</span>
+        </span>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-panel">
+        <div class="panel-title">
+            <span class="material-icons">grid_on</span>
+            Раскладка на лист 100×70
+        </div>
+        <div style="overflow:visible; border-radius:var(--md-radius-sm);">
+            <table class="layout-table" id="layoutTable">
+                <thead>
+                    <tr>
+                        <th style="width:16%;">Деталь</th>
+                        <th style="width:14%;text-align:center;">шт./лист</th>
+                        <th style="width:14%;text-align:center;">руб./лист</th>
+                        <th style="width:36%;text-align:center;font-size:10px;letter-spacing:0.02em;">Опции</th>
+                        <th style="width:20%;text-align:center;"></th>
+                    </tr>
+                </thead>
+                <tbody id="layoutBody"></tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="5" style="padding:8px 0 0 0;">
+                            <button class="add-row-btn" id="addDetailRowBtn">
+                                <span class="material-icons" style="font-size:16px;">add</span>
+                                Добавить деталь
+                            </button>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- ИМПОРТ JSON -->
+        <div class="import-section" style="margin-top:12px;">
+            <span class="import-label">
+                <span class="material-icons">file_upload</span>
+                Импорт данных:
+            </span>
+            <span class="file-input-wrapper">
+                <button class="btn-md btn-md-warning btn-sm" style="padding:4px 16px;font-size:12px;">
+                    <span class="material-icons" style="font-size:14px;">upload_file</span>
+                    Параметры коробок
+                </button>
+                <input type="file" id="importConstructionFile" accept=".json">
+            </span>
+            <span class="file-input-wrapper">
+                <button class="btn-md btn-md-warning btn-sm" style="padding:4px 16px;font-size:12px;">
+                    <span class="material-icons" style="font-size:14px;">price_change</span>
+                    Прайс
+                </button>
+                <input type="file" id="importPriceListFile" accept=".json">
+            </span>
+            <span class="file-input-wrapper">
+                <button class="btn-md btn-md-warning btn-sm" style="padding:4px 16px;font-size:12px;">
+                    <span class="material-icons" style="font-size:14px;">print</span>
+                    Печать
+                </button>
+                <input type="file" id="importPrintFile" accept=".json">
+            </span>
+            <span id="importStatus" class="import-status-sm info">готов</span>
+            <span id="fileNameDisplay" class="file-name"></span>
+        </div>
+
+        <div class="settings-actions">
+            <button class="btn-md" id="applySettingsBtn">
+                <span class="material-icons">refresh</span>
+                Применить настройки
+            </button>
+            <span class="hint">измените количество деталей на листе и нажмите кнопку</span>
+        </div>
+    </div>
+
+    <!-- GRID 2 COLUMNS -->
+    <div class="grid-2col">
+        <!-- LEFT COLUMN -->
+        <div>
+            <!-- DETAILS -->
+            <div class="section">
+                <h2>
+                    <span class="material-icons">extension</span>
+                    Детали
+                    <span class="badge">материал + работа</span>
+                </h2>
+                <div id="detailsContainer"></div>
+
+                <div class="work-block">
+                    <div class="work-row">
+                        <label>🔧 Работа</label>
+                        <input type="number" id="workPrice" value="5" step="0.5" min="0">
+                        <span>руб./деталь</span>
+                        <button class="btn-md-outline" id="applyWorkBtn">
+                            <span class="material-icons" style="font-size:16px;">check</span>
+                            Применить
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EXTRAS -->
+            <div class="section" style="margin-top: 20px;">
+                <h2>
+                    <span class="material-icons">palette</span>
+                    Дополнительные операции
+                </h2>
+                <div class="extras-block" id="extrasContainer"></div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: PRICES -->
+        <div class="section">
+            <h2>
+                <span class="material-icons">price_change</span>
+                Цены для клиента
+                <span class="badge">с НДС 11%</span>
+            </h2>
+            <div id="branchInfo" class="branch-info"></div>
+            <div id="priceListInfo" class="price-list-info"></div>
+            <table class="price-table" id="priceTable">
+                <thead>
+                    <tr>
+                        <th>Тираж</th>
+                        <th style="text-align:right;">Без НДС</th>
+                        <th style="text-align:right;">С НДС 11%</th>
+                        <th style="text-align:right;color:#d93025;">Прайс (₽)</th>
+                        <th style="text-align:right;color:#1a73e8;">Итог</th>
+                    </tr>
+                </thead>
+                <tbody id="priceBody"></tbody>
+            </table>
+            <div id="printInfo" class="print-info" style="margin-top:12px;"></div>
+
+            <!-- IMPORT / EXPORT -->
+            <div class="import-export-section">
+                <div class="section-title">
+                    <span class="material-icons">swap_horiz</span>
+                    Импорт / Экспорт расчета (JSON)
+                </div>
+                <div class="import-export-actions">
+                    <button class="btn-md btn-md-success" id="exportBtn">
+                        <span class="material-icons">download</span>
+                        Экспорт JSON
+                    </button>
+                    <span class="file-input-wrapper">
+                        <button class="btn-md btn-md-warning">
+                            <span class="material-icons">upload</span>
+                            Импорт JSON
+                        </button>
+                        <input type="file" id="importFileInput" accept=".json">
+                    </span>
+                    <span id="importStatus2" class="import-status info">готов к импорту</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        // ============================================================
+        // БАЗА КОНСТРУКЦИЙ (по умолчанию - встроенная)
+        // ============================================================
+        const DEFAULT_CONSTRUCTIONS = {
+            'Этне 2 (шубер)': {
+                parts: {
+                    'Дно': 0,
+                    'Дно+Разделитель': 6,
+                    'Крышка': 0,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 30
+                }
+            },
+            'Этне 3 (шубер)': {
+                parts: {
+                    'Дно': 0,
+                    'Дно+Разделитель': 6,
+                    'Крышка': 0,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 20
+                }
+            },
+            'Элара 4': {
+                parts: {
+                    'Дно': 8,
+                    'Дно+Разделитель': 0,
+                    'Крышка': 12,
+                    'Крышка с окном': 0,
+                    'Разделитель': 42,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 0
+                }
+            },
+            'Этне 5 (шубер)': {
+                parts: {
+                    'Дно': 0,
+                    'Дно+Разделитель': 4,
+                    'Крышка': 0,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 12
+                }
+            },
+            'Этне 6 (шубер)': {
+                parts: {
+                    'Дно': 0,
+                    'Дно+Разделитель': 6,
+                    'Крышка': 0,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 6
+                }
+            },
+            'Паллена 9': {
+                parts: {
+                    'Дно': 6,
+                    'Дно+Разделитель': 0,
+                    'Крышка': 6,
+                    'Крышка с окном': 0,
+                    'Разделитель': 15,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 0
+                }
+            },
+            'Этне 12 (шубер)': {
+                parts: {
+                    'Дно': 0,
+                    'Дно+Разделитель': 4,
+                    'Крышка': 0,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 6
+                }
+            },
+            'Паллена 16': {
+                parts: {
+                    'Дно': 4,
+                    'Дно+Разделитель': 0,
+                    'Крышка': 6,
+                    'Крышка с окном': 0,
+                    'Разделитель': 9,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 0
+                }
+            },
+            'Паллена 25': {
+                parts: {
+                    'Дно': 2,
+                    'Дно+Разделитель': 0,
+                    'Крышка': 2,
+                    'Крышка с окном': 0,
+                    'Разделитель': 4,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 0
+                }
+            },
+            'Атлас': {
+                parts: {
+                    'Дно': 1,
+                    'Дно+Разделитель': 0,
+                    'Крышка': 2,
+                    'Крышка с окном': 0,
+                    'Разделитель': 0,
+                    'Дно-лайнер': 0,
+                    'Крышка-лайнер': 0,
+                    'Шубер': 0
+                }
+            }
+        };
+
+        // ============================================================
+        // ПРАЙС-ЛИСТ ПО УМОЛЧАНИЮ
+        // ============================================================
+        const DEFAULT_PRICE_LIST = {
+            'Этне 2 (шубер)': {
+                'до 9': 34,
+                '10–49': 27,
+                '50–199': 25,
+                '200–499': 23,
+                '500–699': 21,
+                '700–1499': 19,
+                'от 1500': 17
+            },
+            'Этне 3 (шубер)': {
+                'до 9': 70,
+                '10–49': 63,
+                '50–199': 61,
+                '200–499': 59,
+                '500–699': 57,
+                '700–1499': 55,
+                'от 1500': 53
+            },
+            'Элара 4': {
+                'до 9': 0,
+                '10–49': 0,
+                '50–199': 0,
+                '200–499': 0,
+                '500–699': 0,
+                '700–1499': 0,
+                'от 1500': 0
+            },
+            'Этне 5 (шубер)': {
+                'до 9': 76,
+                '10–49': 69,
+                '50–199': 67,
+                '200–499': 65,
+                '500–699': 63,
+                '700–1499': 61,
+                'от 1500': 59
+            },
+            'Этне 6 (шубер)': {
+                'до 9': 76,
+                '10–49': 69,
+                '50–199': 67,
+                '200–499': 65,
+                '500–699': 63,
+                '700–1499': 61,
+                'от 1500': 59
+            },
+            'Паллена 9': {
+                'до 9': 86,
+                '10–49': 79,
+                '50–199': 77,
+                '200–499': 75,
+                '500–699': 73,
+                '700–1499': 71,
+                'от 1500': 69
+            },
+            'Этне 12 (шубер)': {
+                'до 9': 86,
+                '10–49': 79,
+                '50–199': 77,
+                '200–499': 75,
+                '500–699': 73,
+                '700–1499': 71,
+                'от 1500': 69
+            },
+            'Паллена 16': {
+                'до 9': 110,
+                '10–49': 103,
+                '50–199': 101,
+                '200–499': 99,
+                '500–699': 97,
+                '700–1499': 95,
+                'от 1500': 93
+            },
+            'Паллена 25': {
+                'до 9': 165,
+                '10–49': 158,
+                '50–199': 156,
+                '200–499': 154,
+                '500–699': 152,
+                '700–1499': 150,
+                'от 1500': 148
+            },
+            'Атлас': {
+                'до 9': 93,
+                '10–49': 86,
+                '50–199': 84,
+                '200–499': 82,
+                '500–699': 80,
+                '700–1499': 78,
+                'от 1500': 76
+            }
+        };
+
+        // ============================================================
+        // ТАБЛИЦА ПЕЧАТИ ПО УМОЛЧАНИЮ
+        // ============================================================
+        const DEFAULT_PRINT_TABLES = {
+            1: {
+                name: 'Малый формат (до 350×500)',
+                steps: [
+                    { minQty: 100, price: 5500 },
+                    { minQty: 300, price: 7500 },
+                    { minQty: 500, price: 9000 },
+                    { minQty: 1000, price: 10500 },
+                    { minQty: 1500, price: 12000 },
+                    { minQty: 2000, price: 13500 },
+                    { minQty: 3000, price: 15000 }
+                ],
+                stepAfter3000: 1500
+            },
+            2: {
+                name: 'Средний формат (до 500×700)',
+                steps: [
+                    { minQty: 100, price: 22000 },
+                    { minQty: 300, price: 23000 },
+                    { minQty: 500, price: 25000 },
+                    { minQty: 1000, price: 27000 },
+                    { minQty: 1500, price: 29000 },
+                    { minQty: 2000, price: 31000 },
+                    { minQty: 3000, price: 36000 }
+                ],
+                stepAfter3000: 5000
+            },
+            3: {
+                name: 'Крупный формат (до 700×1000)',
+                steps: [
+                    { minQty: 500, price: 31000 },
+                    { minQty: 1000, price: 33000 },
+                    { minQty: 1500, price: 39000 },
+                    { minQty: 2000, price: 49000 },
+                    { minQty: 3000, price: 55000 }
+                ],
+                stepAfter3000: 5000
+            }
+        };
+
+        // ============================================================
+        // ПЕРЕМЕННЫЕ
+        // ============================================================
+        const DEFAULT_PART_NAMES = [
+            'Дно',
+            'Дно+Разделитель',
+            'Крышка',
+            'Крышка с окном',
+            'Разделитель',
+            'Дно-лайнер',
+            'Крышка-лайнер',
+            'Шубер'
+        ];
+
+        let constructionsData = JSON.parse(JSON.stringify(DEFAULT_CONSTRUCTIONS));
+        let priceListData = JSON.parse(JSON.stringify(DEFAULT_PRICE_LIST));
+        let printTablesData = JSON.parse(JSON.stringify(DEFAULT_PRINT_TABLES));
+
+        let currentConstruction = 'Элара 4';
+        let details = [];
+        let priceList = {
+            'до 9': 0,
+            '10–49': 0,
+            '50–199': 130,
+            '200–499': 0,
+            '500–699': 0,
+            '700–1499': 0,
+            'от 1500': 0
+        };
+
+        let printSettings = {
+            enabled: false,
+            format: 1,
+            quantity: 100
+        };
+
+        // Дополнительные операции: Лак, Конгрев, Тиснение (без чекбоксов в extras)
+        // Чекбоксы для них будут в таблице раскладки
+        let extras = [
+            { name: 'Лак', cost: 20, enabled: false },
+            { name: 'Конгрев', cost: 30, enabled: false },
+            { name: 'Тиснение', cost: 10, enabled: false }
+        ];
+
+        // Хранилище для кастомных операций (добавленных через кнопку)
+        let customExtras = [];
+
+        let workPrice = 5;
+        const VAT_RATE = 0.11;
+        let detailIdCounter = 100;
+        let opIdCounter = 1;
+
+        // ============================================================
+        // ФУНКЦИИ РАБОТЫ С JSON
+        // ============================================================
+        function loadConstructionsFromJson(jsonData) {
+            try {
+                const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+                if (data && typeof data === 'object') {
+                    const firstKey = Object.keys(data)[0];
+                    if (firstKey && data[firstKey].parts) {
+                        constructionsData = JSON.parse(JSON.stringify(data));
+                        updateConstructionSelect();
+                        loadConstruction(currentConstruction);
+                        return true;
+                    }
+                }
+                return false;
+            } catch (e) {
+                console.error('Ошибка загрузки конструкций:', e);
+                return false;
+            }
+        }
+
+        function loadPriceListFromJson(jsonData) {
+            try {
+                const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+                if (data && typeof data === 'object') {
+                    if (data.items && Array.isArray(data.items)) {
+                        const newPriceList = {};
+                        data.items.forEach(item => {
+                            if (item.name && item.prices) {
+                                newPriceList[item.name] = item.prices;
+                            }
+                        });
+                        if (Object.keys(newPriceList).length > 0) {
+                            priceListData = newPriceList;
+                            updatePriceListForCurrentConstruction();
+                            return true;
+                        }
+                    } else {
+                        const firstKey = Object.keys(data)[0];
+                        if (firstKey && data[firstKey]['до 9'] !== undefined) {
+                            priceListData = JSON.parse(JSON.stringify(data));
+                            updatePriceListForCurrentConstruction();
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            } catch (e) {
+                console.error('Ошибка загрузки прайс-листа:', e);
+                return false;
+            }
+        }
+
+        function loadPrintTablesFromJson(jsonData) {
+            try {
+                const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+                if (data && typeof data === 'object') {
+                    const keys = Object.keys(data);
+                    if (keys.length > 0 && data[keys[0]].steps && Array.isArray(data[keys[0]].steps)) {
+                        printTablesData = JSON.parse(JSON.stringify(data));
+                        Object.keys(printTablesData).forEach(key => {
+                            PRINT_TABLES[key] = printTablesData[key];
+                        });
+                        return true;
+                    }
+                }
+                return false;
+            } catch (e) {
+                console.error('Ошибка загрузки таблиц печати:', e);
+                return false;
+            }
+        }
+
+        function updateConstructionSelect() {
+            const select = document.getElementById('constructionSelect');
+            const currentValue = select.value;
+            select.innerHTML = '';
+            const names = Object.keys(constructionsData).sort();
+            names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            if (names.includes(currentValue)) {
+                select.value = currentValue;
+            } else if (names.length > 0) {
+                select.value = names[0];
+            }
+        }
+
+        function updatePriceListForCurrentConstruction() {
+            const name = currentConstruction;
+            if (priceListData[name]) {
+                priceList = {
+                    'до 9': priceListData[name]['до 9'] || 0,
+                    '10–49': priceListData[name]['10–49'] || 0,
+                    '50–199': priceListData[name]['50–199'] || 0,
+                    '200–499': priceListData[name]['200–499'] || 0,
+                    '500–699': priceListData[name]['500–699'] || 0,
+                    '700–1499': priceListData[name]['700–1499'] || 0,
+                    'от 1500': priceListData[name]['от 1500'] || 0
+                };
+            } else {
+                priceList = {
+                    'до 9': 0,
+                    '10–49': 0,
+                    '50–199': 0,
+                    '200–499': 0,
+                    '500–699': 0,
+                    '700–1499': 0,
+                    'от 1500': 0
+                };
+            }
+        }
+
+        // ============================================================
+        // ТАБЛИЦА ПЕЧАТИ (глобальная, будет перезаписана при импорте)
+        // ============================================================
+        let PRINT_TABLES = JSON.parse(JSON.stringify(DEFAULT_PRINT_TABLES));
+
+        // ============================================================
+        // ФУНКЦИИ РАСЧЕТА
+        // ============================================================
+        function calcPrintCost(format, quantity) {
+            const table = PRINT_TABLES[format];
+            if (!table) return 0;
+
+            let found = null;
+            for (let i = 0; i < table.steps.length; i++) {
+                if (table.steps[i].minQty >= quantity) {
+                    found = table.steps[i];
+                    break;
+                }
+            }
+
+            if (quantity >= 3000) {
+                const price3000 = table.steps[table.steps.length - 1].price;
+                const extra = Math.ceil((quantity - 3000) / 1000) * table.stepAfter3000;
+                return price3000 + extra;
+            }
+
+            if (found) return found.price;
+            if (quantity < table.steps[0].minQty) return table.steps[0].price;
+
+            let nearest = null;
+            for (let i = 0; i < table.steps.length; i++) {
+                if (table.steps[i].minQty > quantity) {
+                    nearest = table.steps[i];
+                    break;
+                }
+            }
+            return nearest ? nearest.price : 0;
+        }
+
+        function calcCostPriceDet(detail) {
+            if (detail.countOnSheet === 0) return 0;
+            return (detail.sheetPrice / detail.countOnSheet) + workPrice;
+        }
+
+        function calcPrintPerUnitNoVat(printSettings) {
+            if (!printSettings.enabled) return 0;
+            const costNoVat = calcPrintCost(printSettings.format, printSettings.quantity);
+            return costNoVat / printSettings.quantity;
+        }
+
+        function calcTotalCost() {
+            let sum = 0;
+            details.forEach(d => {
+                if (!d.enabled || d.countOnSheet === 0) return;
+                let cost = calcCostPriceDet(d);
+                
+                // Добавляем стоимость доп. операций к детали
+                let extraCost = 0;
+                if (d.hasLak) {
+                    const lak = extras.find(e => e.name === 'Лак');
+                    if (lak) extraCost += lak.cost;
+                }
+                if (d.hasCongrev) {
+                    const congrev = extras.find(e => e.name === 'Конгрев');
+                    if (congrev) extraCost += congrev.cost;
+                }
+                if (d.hasTisnenie) {
+                    const tisnenie = extras.find(e => e.name === 'Тиснение');
+                    if (tisnenie) extraCost += tisnenie.cost;
+                }
+                // ПЕЧАТЬ - проверяем флаг isPrinted у детали И глобальный printSettings.enabled
+                if (d.isPrinted && printSettings.enabled) {
+                    extraCost += calcPrintPerUnitNoVat(printSettings);
+                }
+                
+                cost += extraCost;
+                sum += cost;
+            });
+            
+            // Кастомные операции (не привязанные к деталям)
+            customExtras.forEach(op => {
+                if (op.enabled) {
+                    sum += op.cost;
+                }
+            });
+            
+            return sum;
+        }
+
+        function calcBasePrice(unitCost) {
+            const option1 = unitCost * 3;
+            const option2 = unitCost + 30;
+            return option1 < option2 ? option1 : option2;
+        }
+
+        function getBranchInfo(unitCost) {
+            const option1 = unitCost * 3;
+            const option2 = unitCost + 30;
+            return option1 < option2 ? '×3' : '+30';
+        }
+
+        function getCorrection(quantity) {
+            if (quantity <= 9) return 7;
+            if (quantity <= 49) return 0;
+            if (quantity <= 199) return -2;
+            if (quantity <= 499) return -4;
+            if (quantity <= 699) return -6;
+            if (quantity <= 1499) return -8;
+            return -10;
+        }
+
+        function applyPriceList(calculatedPrice, priceListPrice) {
+            if (priceListPrice > 0) {
+                if (calculatedPrice < priceListPrice) {
+                    return priceListPrice;
+                } else {
+                    return calculatedPrice;
+                }
+            }
+            return calculatedPrice;
+        }
+
+        function generatePrices(unitCost) {
+            const totalCost = Math.round(unitCost);
+            const basePrice = calcBasePrice(totalCost);
+            const branch = getBranchInfo(totalCost);
+            const basePriceWithVAT = Math.round(basePrice * (1 + VAT_RATE));
+
+            const ranges = [
+                { label: 'до 9',      qty: 5 },
+                { label: '10–49',     qty: 30 },
+                { label: '50–199',    qty: 100 },
+                { label: '200–499',   qty: 300 },
+                { label: '500–699',   qty: 600 },
+                { label: '700–1499',  qty: 1000 },
+                { label: 'от 1500',   qty: 2000 }
+            ];
+
+            return ranges.map(range => {
+                const correction = getCorrection(range.qty);
+                const calculatedPrice = basePriceWithVAT + correction;
+                const priceListPrice = priceList[range.label] || 0;
+                const finalPrice = applyPriceList(calculatedPrice, priceListPrice);
+                const withoutVAT = Math.round(calculatedPrice / (1 + VAT_RATE) * 100) / 100;
+
+                return {
+                    label: range.label,
+                    withoutVAT: withoutVAT,
+                    calculatedPrice: calculatedPrice,
+                    priceListPrice: priceListPrice,
+                    finalPrice: finalPrice,
+                    isBase: range.qty === 30,
+                    isPriceListUsed: priceListPrice > 0 && calculatedPrice < priceListPrice
+                };
+            });
+        }
+
+        // ============================================================
+        // ЗАГРУЗКА КОНСТРУКЦИИ
+        // ============================================================
+        function loadConstruction(name) {
+            const constr = constructionsData[name];
+            if (!constr) return;
+            
+            currentConstruction = name;
+            
+            // Загружаем базовые детали из конструкции
+            const baseDetails = DEFAULT_PART_NAMES.map(partName => {
+                const countOnSheet = constr.parts[partName] || 0;
+                return {
+                    id: partName,
+                    name: partName,
+                    countOnSheet: countOnSheet,
+                    sheetPrice: 35,
+                    isPrinted: false,
+                    isCustom: false,
+                    enabled: countOnSheet > 0,
+                    hasLak: false,
+                    hasCongrev: false,
+                    hasTisnenie: false
+                };
+            });
+            
+            // Сохраняем существующие кастомные детали (если были добавлены)
+            const existingCustom = details.filter(d => d.isCustom);
+            
+            // Объединяем: сначала базовые, потом кастомные
+            details = [...baseDetails, ...existingCustom];
+            
+            updatePriceListForCurrentConstruction();
+            buildLayoutTable();
+            render();
+        }
+
+        // ============================================================
+        // ПОСТРОЕНИЕ ТАБЛИЦЫ РАСКЛАДКИ
+        // ============================================================
+        function buildLayoutTable() {
+            const tbody = document.getElementById('layoutBody');
+            tbody.innerHTML = '';
+
+            details.forEach((d, index) => {
+                const tr = document.createElement('tr');
+                const isZero = d.countOnSheet === 0;
+                const isCustom = d.isCustom || false;
+                const isEnabled = d.enabled !== undefined ? d.enabled : true;
+                
+                // Применяем класс в зависимости от состояния чекбокса
+                tr.className = isEnabled ? 'part-enabled-row' : 'part-disabled';
+                
+                tr.innerHTML = `
+                    <td class="part-name">
+                        <label class="md-checkbox-small">
+                            <input type="checkbox" class="part-enabled" data-index="${index}" ${isEnabled ? 'checked' : ''}>
+                            ${isCustom ? `<input type="text" class="part-input" style="width:70px;display:inline-block;margin-left:4px;" id="name_${index}" value="${d.name}" placeholder="Название">` : d.name}
+                        </label>
+                    </td>
+                    <td class="col-center">
+                        <input type="number" 
+                               class="part-input ${isZero ? 'input-zero' : ''}" 
+                               id="count_${index}" 
+                               value="${d.countOnSheet}" 
+                               step="0.001" 
+                               min="0"
+                               ${!isEnabled ? 'disabled' : ''}>
+                    </td>
+                    <td class="col-center">
+                        <input type="number" 
+                               class="part-input" 
+                               id="sheet_${index}" 
+                               value="${d.sheetPrice}" 
+                               step="1" 
+                               min="0"
+                               ${!isEnabled ? 'disabled' : ''}>
+                    </td>
+                    <td class="col-center" style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;padding:4px 0;">
+                        <label class="md-checkbox-small-op" title="Печать">
+                            <input type="checkbox" class="part-op-print" data-index="${index}" ${d.isPrinted ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''}>
+                            П
+                        </label>
+                        <label class="md-checkbox-small-op" title="Лак">
+                            <input type="checkbox" class="part-op-lak" data-index="${index}" ${d.hasLak ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''}>
+                            Л
+                        </label>
+                        <label class="md-checkbox-small-op" title="Тиснение">
+                            <input type="checkbox" class="part-op-tisnenie" data-index="${index}" ${d.hasTisnenie ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''}>
+                            Т
+                        </label>
+                        <label class="md-checkbox-small-op" title="Конгрев">
+                            <input type="checkbox" class="part-op-congrev" data-index="${index}" ${d.hasCongrev ? 'checked' : ''} ${!isEnabled ? 'disabled' : ''}>
+                            К
+                        </label>
+                    </td>
+                    <td class="col-center">
+                        ${isCustom ? `<button class="remove-row-btn" data-index="${index}" title="Удалить деталь">✕</button>` : ''}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+
+                // Обработчики для чекбоксов
+                const enabledCheck = tr.querySelector('.part-enabled');
+                if (enabledCheck) {
+                    enabledCheck.addEventListener('change', function() {
+                        const idx = parseInt(this.dataset.index);
+                        details[idx].enabled = this.checked;
+                        buildLayoutTable(); // перестраиваем таблицу для обновления disabled-состояний
+                        render();
+                    });
+                }
+
+                const printCheck = tr.querySelector('.part-op-print');
+                if (printCheck) {
+                    printCheck.addEventListener('change', function() {
+                        const idx = parseInt(this.dataset.index);
+                        details[idx].isPrinted = this.checked;
+                        render();
+                    });
+                }
+
+                const lakCheck = tr.querySelector('.part-op-lak');
+                if (lakCheck) {
+                    lakCheck.addEventListener('change', function() {
+                        const idx = parseInt(this.dataset.index);
+                        details[idx].hasLak = this.checked;
+                        render();
+                    });
+                }
+
+                const tisnenieCheck = tr.querySelector('.part-op-tisnenie');
+                if (tisnenieCheck) {
+                    tisnenieCheck.addEventListener('change', function() {
+                        const idx = parseInt(this.dataset.index);
+                        details[idx].hasTisnenie = this.checked;
+                        render();
+                    });
+                }
+
+                const congrevCheck = tr.querySelector('.part-op-congrev');
+                if (congrevCheck) {
+                    congrevCheck.addEventListener('change', function() {
+                        const idx = parseInt(this.dataset.index);
+                        details[idx].hasCongrev = this.checked;
+                        render();
+                    });
+                }
+
+                const countEl = document.getElementById(`count_${index}`);
+                if (countEl) {
+                    countEl.addEventListener('change', function() {
+                        const val = parseFloat(this.value);
+                        if (!isNaN(val) && val >= 0) {
+                            if (val === 0) {
+                                this.classList.add('input-zero');
+                            } else {
+                                this.classList.remove('input-zero');
+                            }
+                        }
+                    });
+                }
+
+                const nameEl = document.getElementById(`name_${index}`);
+                if (nameEl) {
+                    nameEl.addEventListener('change', function() {
+                        const idx = parseInt(this.id.split('_')[1]);
+                        details[idx].name = this.value || 'Деталь';
+                        render();
+                    });
+                }
+
+                // Обработчик удаления кастомной детали
+                const removeBtn = tr.querySelector('.remove-row-btn');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', function() {
+                        const idx = parseInt(this.dataset.index);
+                        if (details[idx] && details[idx].isCustom) {
+                            details.splice(idx, 1);
+                            buildLayoutTable();
+                            render();
+                        }
+                    });
+                }
+            });
+        }
+
+        // ============================================================
+        // ДОБАВЛЕНИЕ КАСТОМНОЙ ДЕТАЛИ
+        // ============================================================
+        function addCustomDetail() {
+            detailIdCounter++;
+            const newDetail = {
+                id: 'custom_' + detailIdCounter,
+                name: 'Деталь ' + detailIdCounter,
+                countOnSheet: 1,
+                sheetPrice: 35,
+                isPrinted: false,
+                isCustom: true,
+                enabled: true,
+                hasLak: false,
+                hasCongrev: false,
+                hasTisnenie: false
+            };
+            details.push(newDetail);
+            buildLayoutTable();
+            render();
+        }
+
+        // ============================================================
+        // ДОБАВЛЕНИЕ КАСТОМНОЙ ОПЕРАЦИИ
+        // ============================================================
+        function addCustomOperation() {
+            opIdCounter++;
+            customExtras.push({
+                id: 'op_' + opIdCounter,
+                name: 'Операция ' + opIdCounter,
+                cost: 0,
+                enabled: true,
+                isCustom: true
+            });
+            renderExtras();
+            render();
+        }
+
+        function removeCustomOperation(index) {
+            customExtras.splice(index, 1);
+            renderExtras();
+            render();
+        }
+
+        // ============================================================
+        // ОТРИСОВКА EXTRAS
+        // ============================================================
+        function renderExtras() {
+            const container = document.getElementById('extrasContainer');
+            container.innerHTML = '';
+
+            // Печать (без чекбокса, только выбор формата и тиража)
+            const printRow = document.createElement('div');
+            printRow.className = 'param-row print-separator';
+            // Вычисляем стоимость печати на единицу, учитывая printSettings
+            const printPerUnitNoVat = calcPrintPerUnitNoVat(printSettings);
+            const printPerUnitDisplay = printSettings.enabled ? printPerUnitNoVat : 0;
+
+            const table = PRINT_TABLES[printSettings.format];
+            const qtyOptions = table ? table.steps.map(s => s.minQty) : [100, 300, 500, 1000, 1500, 2000, 3000];
+
+            let optionsHtml = '';
+            qtyOptions.forEach(q => {
+                optionsHtml += `<option value="${q}" ${printSettings.quantity === q ? 'selected' : ''}>${q}</option>`;
+            });
+
+            // Отображаем информацию о стоимости печати
+            let printCostInfo = '';
+            if (printSettings.enabled) {
+                const costNoVat = calcPrintCost(printSettings.format, printSettings.quantity);
+                printCostInfo = ` (тираж ${costNoVat.toFixed(2)} ₽)`;
+            }
+
+            printRow.innerHTML = `
+                <span class="param-label" style="flex-wrap: wrap; gap: 6px;">
+                    <span style="font-weight:500;font-size:12px;">🖨️ Печать${printCostInfo}</span>
+                    <span class="print-controls">
+                        <select id="printFormat">
+                            ${Object.keys(PRINT_TABLES).map(key => 
+                                `<option value="${key}" ${printSettings.format == key ? 'selected' : ''}>${PRINT_TABLES[key].name || 'Формат ' + key}</option>`
+                            ).join('')}
+                        </select>
+                        <span class="label-text">формат</span>
+                        <select id="printQuantity">
+                            ${optionsHtml}
+                        </select>
+                        <span class="label-text">тираж</span>
+                        <span class="print-detail">→ ${printPerUnitDisplay.toFixed(2)} руб./ед.</span>
+                    </span>
+                </span>
+                <span class="param-value print-result">
+                    ${printPerUnitDisplay.toFixed(2)} <small>руб.</small>
+                </span>
+            `;
+            container.appendChild(printRow);
+
+            const printFormat = document.getElementById('printFormat');
+            const printQuantity = document.getElementById('printQuantity');
+
+            if (printFormat) {
+                printFormat.onchange = function() {
+                    printSettings.format = parseInt(this.value);
+                    const table = PRINT_TABLES[printSettings.format];
+                    const qtyOptions = table ? table.steps.map(s => s.minQty) : [100, 300, 500, 1000, 1500, 2000, 3000];
+                    printSettings.quantity = qtyOptions[0] || 100;
+                    // Включаем печать, если выбран формат
+                    printSettings.enabled = true;
+                    render();
+                };
+            }
+
+            if (printQuantity) {
+                printQuantity.onchange = function() {
+                    printSettings.quantity = parseInt(this.value);
+                    printSettings.enabled = true;
+                    render();
+                };
+            }
+
+            // Стандартные операции (Лак, Конгрев, Тиснение) - только поля стоимости
+            const standardOps = ['Лак', 'Конгрев', 'Тиснение'];
+            standardOps.forEach(opName => {
+                const op = extras.find(e => e.name === opName);
+                if (!op) return;
+                
+                const row = document.createElement('div');
+                row.className = 'param-row';
+                row.innerHTML = `
+                    <span class="param-label">
+                        <span style="font-weight:500;font-size:12px;">${op.name}</span>
+                        <input type="number" class="op-cost-input" data-op-name="${op.name}" value="${op.cost}" step="1" min="0">
+                        <span class="label-text">руб.</span>
+                    </span>
+                    <span class="param-value">${op.cost.toFixed(2)} <small>руб.</small></span>
+                `;
+                container.appendChild(row);
+
+                const costInput = row.querySelector('.op-cost-input');
+                if (costInput) {
+                    costInput.onchange = function() {
+                        const name = this.dataset.opName;
+                        const val = parseFloat(this.value);
+                        if (!isNaN(val) && val >= 0) {
+                            const op = extras.find(e => e.name === name);
+                            if (op) op.cost = val;
+                            render();
+                        }
+                    };
+                }
+            });
+
+            // Кастомные операции (без чекбоксов)
+            customExtras.forEach((op, index) => {
+                const row = document.createElement('div');
+                row.className = 'param-row';
+                row.innerHTML = `
+                    <span class="param-label">
+                        <input type="text" class="op-name-input" data-custom-op-name-index="${index}" value="${op.name}" placeholder="Название">
+                        <input type="number" class="op-cost-input" data-custom-op-cost-index="${index}" value="${op.cost}" step="1" min="0">
+                        <span class="label-text">руб.</span>
+                        <button class="remove-op-btn" data-custom-op-remove="${index}" title="Удалить операцию">✕</button>
+                    </span>
+                    <span class="param-value">${op.enabled ? op.cost.toFixed(2) : '0.00'} <small>руб.</small></span>
+                `;
+                container.appendChild(row);
+
+                const nameInput = row.querySelector('[data-custom-op-name-index]');
+                if (nameInput) {
+                    nameInput.onchange = function() {
+                        const idx = parseInt(this.dataset.customOpNameIndex);
+                        customExtras[idx].name = this.value || 'Операция';
+                        renderExtras();
+                        render();
+                    };
+                }
+
+                const costInput = row.querySelector('[data-custom-op-cost-index]');
+                if (costInput) {
+                    costInput.onchange = function() {
+                        const idx = parseInt(this.dataset.customOpCostIndex);
+                        const val = parseFloat(this.value);
+                        if (!isNaN(val) && val >= 0) {
+                            customExtras[idx].cost = val;
+                            render();
+                        }
+                    };
+                }
+
+                const removeBtn = row.querySelector('.remove-op-btn');
+                if (removeBtn) {
+                    removeBtn.onclick = function() {
+                        const idx = parseInt(this.dataset.customOpRemove);
+                        removeCustomOperation(idx);
+                    };
+                }
+            });
+
+            // Кнопка добавления операции
+            const addBtn = document.createElement('div');
+            addBtn.style.marginTop = '6px';
+            addBtn.innerHTML = `
+                <button class="add-op-btn" id="addOpBtn">
+                    <span class="material-icons" style="font-size:16px;">add</span>
+                    Добавить операцию
+                </button>
+            `;
+            container.appendChild(addBtn);
+
+            const addOpBtn = document.getElementById('addOpBtn');
+            if (addOpBtn) {
+                addOpBtn.onclick = addCustomOperation;
+            }
+        }
+
+        // ============================================================
+        // RENDER
+        // ============================================================
+        function render() {
+            // Обновляем enabled для печати: если выбран формат и тираж, печать включена
+            // Но оставляем пользователю возможность выключить печать глобально через чекбоксы на деталях
+            // Если хотя бы одна деталь имеет isPrinted = true, то печать считается включенной
+            const hasPrintedParts = details.some(d => d.isPrinted && d.enabled !== false && d.countOnSheet > 0);
+            // Если есть детали с печатью, но printSettings.enabled = false, включаем автоматически
+            if (hasPrintedParts && !printSettings.enabled) {
+                printSettings.enabled = true;
+            }
+            // Если нет деталей с печатью, выключаем
+            if (!hasPrintedParts && printSettings.enabled) {
+                // Не выключаем принудительно, оставляем как есть
+            }
+
+            const total = calcTotalCost();
+            const basePrice = calcBasePrice(total);
+            const branch = getBranchInfo(total);
+            const printPerUnitNoVat = calcPrintPerUnitNoVat(printSettings);
+
+            // 1. Details (только активные детали с countOnSheet > 0)
+            const detailsContainer = document.getElementById('detailsContainer');
+            detailsContainer.innerHTML = '';
+            const activeDetails = details.filter(d => d.enabled !== false && d.countOnSheet > 0);
+            
+            if (activeDetails.length === 0) {
+                const row = document.createElement('div');
+                row.className = 'param-row';
+                row.innerHTML = `
+                    <span class="param-label" style="color:var(--md-on-surface-light);">
+                        Нет активных деталей для выбранной конструкции
+                    </span>
+                `;
+                detailsContainer.appendChild(row);
+            } else {
+                activeDetails.forEach((d) => {
+                    const costDet = (d.sheetPrice / d.countOnSheet);
+                    const costPriceDet = calcCostPriceDet(d);
+                    let finalCost = costPriceDet;
+                    
+                    // Добавляем стоимость доп. операций к детали
+                    let extraCost = 0;
+                    let extraLabels = [];
+                    if (d.hasLak) {
+                        const lak = extras.find(e => e.name === 'Лак');
+                        if (lak) { extraCost += lak.cost; extraLabels.push('лак'); }
+                    }
+                    if (d.hasCongrev) {
+                        const congrev = extras.find(e => e.name === 'Конгрев');
+                        if (congrev) { extraCost += congrev.cost; extraLabels.push('конгрев'); }
+                    }
+                    if (d.hasTisnenie) {
+                        const tisnenie = extras.find(e => e.name === 'Тиснение');
+                        if (tisnenie) { extraCost += tisnenie.cost; extraLabels.push('тиснение'); }
+                    }
+                    if (d.isPrinted && printSettings.enabled) {
+                        extraCost += printPerUnitNoVat;
+                        extraLabels.push('печать');
+                    }
+                    
+                    finalCost += extraCost;
+                    
+                    let extraInfo = '';
+                    if (extraCost > 0 && extraLabels.length > 0) {
+                        extraInfo = ` + ${extraLabels.join('+')} ${extraCost.toFixed(2)}`;
+                    }
+                    
+                    const row = document.createElement('div');
+                    row.className = 'param-row';
+                    row.innerHTML = `
+                        <span class="param-label">
+                            ${d.name}
+                            <span style="font-size:12px;color:#9aa0a6;">
+                                (${d.sheetPrice} / ${d.countOnSheet} = ${costDet.toFixed(2)} + работа ${workPrice}${extraInfo})
+                            </span>
+                        </span>
+                        <span class="param-value">${finalCost.toFixed(2)} <small>руб.</small></span>
+                    `;
+                    detailsContainer.appendChild(row);
+                });
+            }
+
+            // 2. Extras
+            renderExtras();
+
+            // 3. Price table
+            const prices = generatePrices(total);
+            const tbody = document.getElementById('priceBody');
+            tbody.innerHTML = '';
+
+            prices.forEach((item, index) => {
+                const tr = document.createElement('tr');
+                if (item.isBase) tr.className = 'base-row';
+                
+                const priceListStyle = item.isPriceListUsed ? 'price-cell-highlight' : '';
+                const finalStyle = item.isPriceListUsed ? 'final-cell-highlight' : 'final-cell-calc';
+                
+                tr.innerHTML = `
+                    <td style="font-size:13px;">
+                        <span class="base-label">
+                            ${item.label}
+                            ${item.isBase ? '<span class="material-icons" style="font-size:16px;color:#fbbc04;">star</span>' : ''}
+                            ${item.isBase ? '<span style="font-size:11px;color:#5f6368;font-weight:400;">базовая</span>' : ''}
+                            ${item.isPriceListUsed ? '<span style="font-size:10px;color:#d93025;font-weight:500;margin-left:4px;">📋 прайс</span>' : ''}
+                        </span>
+                    </td>
+                    <td class="price-cell">${item.withoutVAT.toFixed(2)} ₽</td>
+                    <td class="price-cell-vat">${item.calculatedPrice} ₽</td>
+                    <td style="text-align:right;">
+                        <input type="number" 
+                               class="price-input ${item.priceListPrice > 0 ? 'price-active' : ''}" 
+                               id="price_${index}" 
+                               value="${item.priceListPrice}" 
+                               step="1" 
+                               min="0"
+                               data-label="${item.label}">
+                    </td>
+                    <td style="text-align:right;font-weight:700;" class="${finalStyle}">${item.finalPrice} ₽</td>
+                `;
+                tbody.appendChild(tr);
+
+                const priceInput = document.getElementById(`price_${index}`);
+                if (priceInput) {
+                    priceInput.onchange = function() {
+                        const val = parseFloat(this.value);
+                        const label = this.dataset.label;
+                        if (!isNaN(val) && val >= 0) {
+                            priceList[label] = val;
+                            if (priceListData[currentConstruction]) {
+                                priceListData[currentConstruction][label] = val;
+                            }
+                            if (val > 0) {
+                                this.classList.add('price-active');
+                            } else {
+                                this.classList.remove('price-active');
+                            }
+                            render();
+                        }
+                    };
+
+                    priceInput.oninput = function() {
+                        const val = parseFloat(this.value);
+                        if (!isNaN(val) && val >= 0) {
+                            if (val > 0) {
+                                this.classList.add('price-active');
+                            } else {
+                                this.classList.remove('price-active');
+                            }
+                        }
+                    };
+                }
+            });
+
+            // 4. Branch info
+            const branchInfo = document.getElementById('branchInfo');
+            const isOption1 = branch === '×3';
+            branchInfo.innerHTML = `
+                <span>Выбрана ветка: <span class="branch-label">${branch}</span></span>
+                <span style="color:var(--md-on-surface-medium);">
+                    (базовая цена = ${basePrice.toFixed(2)} ₽)
+                </span>
+                <span style="color:var(--md-on-surface-medium);">
+                    ${isOption1 ? '→ применяется коэффициент в зависимости от тиража' : '→ применяется скидка в рублях'}
+                </span>
+            `;
+
+            // 5. Price list info
+            const priceListInfo = document.getElementById('priceListInfo');
+            const usedPriceRanges = prices.filter(p => p.isPriceListUsed);
+            const activePrices = prices.filter(p => p.priceListPrice > 0);
+            
+            if (usedPriceRanges.length > 0) {
+                const ranges = usedPriceRanges.map(p => `${p.label} (${p.priceListPrice} ₽)`).join(', ');
+                priceListInfo.innerHTML = `
+                    📋 <span class="price-list">Прайс применен</span> для диапазонов: ${ranges}
+                    <span style="color:var(--md-on-surface-light);margin-left:8px;">
+                        (расчетная цена была ниже прайсовой)
+                    </span>
+                `;
+            } else if (activePrices.length > 0) {
+                priceListInfo.innerHTML = `
+                    📋 <span style="color:#5f6368;">Прайс не применен</span>
+                    <span style="color:var(--md-on-surface-light);margin-left:8px;">
+                        (расчетная цена выше или равна прайсовой)
+                    </span>
+                    <span style="color:var(--md-on-surface-light);margin-left:8px;font-size:11px;">
+                        (установлены прайсы: ${activePrices.map(p => `${p.label}=${p.priceListPrice}₽`).join(', ')})
+                    </span>
+                `;
+            } else {
+                priceListInfo.innerHTML = `
+                    📋 <span style="color:#5f6368;">Прайс не задан</span>
+                    <span style="color:var(--md-on-surface-light);margin-left:8px;">
+                        (используется расчетная цена)
+                    </span>
+                    <span style="color:var(--md-on-surface-light);margin-left:8px;font-size:11px;">
+                        (введите цены в колонке "Прайс" выше)
+                    </span>
+                `;
+            }
+
+            // 6. Print info
+            const printInfo = document.getElementById('printInfo');
+            if (printSettings.enabled) {
+                const costNoVat = calcPrintCost(printSettings.format, printSettings.quantity);
+                const formatNames = Object.keys(PRINT_TABLES).reduce((acc, key) => {
+                    acc[key] = PRINT_TABLES[key].name || 'Формат ' + key;
+                    return acc;
+                }, {});
+                const printedParts = details.filter(d => d.isPrinted && d.enabled !== false && d.countOnSheet > 0);
+                printInfo.innerHTML = `
+                    🖨️ <span>Печать включена:</span>
+                    формат ${formatNames[printSettings.format] || printSettings.format},
+                    тираж ${printSettings.quantity} шт,
+                    стоимость тиража ${costNoVat.toFixed(2)} ₽,
+                    на деталь ${(costNoVat / printSettings.quantity).toFixed(2)} ₽
+                    ${printedParts.length > 0 ? 
+                        `→ печать на: <span>${printedParts.map(d => d.name).join(', ')}</span>` : 
+                        '<span style="color:var(--md-error);">⚠️ не выбрана деталь для печати</span>'}
+                `;
+            } else {
+                printInfo.innerHTML = '🖨️ Печать выключена';
+            }
+
+            document.getElementById('dataStatus').textContent = 'данные загружены';
+        }
+
+        // ============================================================
+        // ПРИМЕНЕНИЕ НАСТРОЕК
+        // ============================================================
+        function applySettings() {
+            details.forEach((d, index) => {
+                const countEl = document.getElementById(`count_${index}`);
+                const sheetEl = document.getElementById(`sheet_${index}`);
+                if (countEl && !countEl.disabled) {
+                    const val = parseFloat(countEl.value);
+                    d.countOnSheet = (!isNaN(val) && val >= 0) ? val : 0;
+                }
+                if (sheetEl && !sheetEl.disabled) {
+                    const val = parseFloat(sheetEl.value);
+                    d.sheetPrice = (!isNaN(val) && val >= 0) ? val : 0;
+                }
+                const nameEl = document.getElementById(`name_${index}`);
+                if (nameEl && d.isCustom) {
+                    d.name = nameEl.value || 'Деталь';
+                }
+            });
+
+            const workEl = document.getElementById('workPrice');
+            if (workEl) {
+                const val = parseFloat(workEl.value);
+                if (!isNaN(val) && val >= 0) workPrice = val;
+            }
+
+            render();
+        }
+
+        // ============================================================
+        // ЭКСПОРТ / ИМПОРТ РАСЧЕТА
+        // ============================================================
+        function getCalculationState() {
+            return {
+                version: '1.0',
+                timestamp: new Date().toISOString(),
+                construction: currentConstruction,
+                details: details.map(d => ({
+                    name: d.name,
+                    countOnSheet: d.countOnSheet,
+                    sheetPrice: d.sheetPrice,
+                    isPrinted: d.isPrinted || false,
+                    isCustom: d.isCustom || false,
+                    enabled: d.enabled !== undefined ? d.enabled : true,
+                    hasLak: d.hasLak || false,
+                    hasCongrev: d.hasCongrev || false,
+                    hasTisnenie: d.hasTisnenie || false
+                })),
+                extras: extras.map(e => ({
+                    name: e.name,
+                    cost: e.cost,
+                    enabled: e.enabled
+                })),
+                customExtras: customExtras.map(e => ({
+                    name: e.name,
+                    cost: e.cost,
+                    enabled: e.enabled,
+                    isCustom: true
+                })),
+                printSettings: {
+                    enabled: printSettings.enabled,
+                    format: printSettings.format,
+                    quantity: printSettings.quantity
+                },
+                workPrice: workPrice,
+                priceList: priceList
+            };
+        }
+
+        function loadCalculationState(state) {
+            if (!state || typeof state !== 'object') {
+                throw new Error('Неверный формат данных');
+            }
+            if (!state.details || !Array.isArray(state.details) || state.details.length === 0) {
+                throw new Error('Отсутствуют данные о деталях');
+            }
+            if (!state.extras || !Array.isArray(state.extras)) {
+                throw new Error('Отсутствуют данные о дополнительных операциях');
+            }
+            if (!state.printSettings || typeof state.printSettings !== 'object') {
+                throw new Error('Отсутствуют данные о печати');
+            }
+            if (state.workPrice === undefined || isNaN(state.workPrice)) {
+                throw new Error('Отсутствует значение работы');
+            }
+            if (!state.priceList || typeof state.priceList !== 'object') {
+                throw new Error('Отсутствуют данные прайс-листа');
+            }
+
+            if (state.construction && constructionsData[state.construction]) {
+                currentConstruction = state.construction;
+                document.getElementById('constructionSelect').value = currentConstruction;
+            }
+
+            // Загружаем детали
+            const loadedDetails = state.details.map(d => ({
+                name: d.name || 'Деталь',
+                countOnSheet: d.countOnSheet || 0,
+                sheetPrice: d.sheetPrice || 35,
+                isPrinted: d.isPrinted || false,
+                isCustom: d.isCustom || false,
+                enabled: d.enabled !== undefined ? d.enabled : true,
+                hasLak: d.hasLak || false,
+                hasCongrev: d.hasCongrev || false,
+                hasTisnenie: d.hasTisnenie || false
+            }));
+
+            // Объединяем с базовыми деталями
+            const baseDetails = DEFAULT_PART_NAMES.map(partName => {
+                const found = loadedDetails.find(d => d.name === partName && !d.isCustom);
+                if (found) return found;
+                const constr = constructionsData[currentConstruction];
+                const countOnSheet = constr ? constr.parts[partName] || 0 : 0;
+                return {
+                    name: partName,
+                    countOnSheet: countOnSheet,
+                    sheetPrice: 35,
+                    isPrinted: false,
+                    isCustom: false,
+                    enabled: countOnSheet > 0,
+                    hasLak: false,
+                    hasCongrev: false,
+                    hasTisnenie: false
+                };
+            });
+
+            const customDetails = loadedDetails.filter(d => d.isCustom);
+
+            details = [...baseDetails, ...customDetails];
+
+            // Загружаем extras
+            if (state.extras) {
+                state.extras.forEach(e => {
+                    const existing = extras.find(x => x.name === e.name);
+                    if (existing) {
+                        existing.cost = e.cost || 0;
+                        existing.enabled = e.enabled || false;
+                    }
+                });
+            }
+
+            // Загружаем кастомные операции
+            if (state.customExtras && Array.isArray(state.customExtras)) {
+                customExtras = state.customExtras.map(e => ({
+                    name: e.name || 'Операция',
+                    cost: e.cost || 0,
+                    enabled: e.enabled || false,
+                    isCustom: true
+                }));
+                opIdCounter = customExtras.length + 1;
+            }
+
+            printSettings = {
+                enabled: state.printSettings.enabled || false,
+                format: state.printSettings.format || 1,
+                quantity: state.printSettings.quantity || 100
+            };
+
+            workPrice = state.workPrice || 5;
+
+            const defaultPriceKeys = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
+            priceList = {};
+            defaultPriceKeys.forEach(key => {
+                priceList[key] = (state.priceList && state.priceList[key] !== undefined) ? state.priceList[key] : 0;
+            });
+
+            if (!priceListData[currentConstruction]) {
+                priceListData[currentConstruction] = {};
+            }
+            defaultPriceKeys.forEach(key => {
+                priceListData[currentConstruction][key] = priceList[key];
+            });
+
+            buildLayoutTable();
+            render();
+        }
+
+        function exportToJson() {
+            const state = getCalculationState();
+            const json = JSON.stringify(state, null, 2);
+            
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `calculation_${currentConstruction}_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            const status = document.getElementById('importStatus2');
+            status.className = 'import-status success';
+            status.textContent = '✅ Экспорт выполнен';
+            setTimeout(() => {
+                status.className = 'import-status info';
+                status.textContent = 'готов к импорту';
+            }, 3000);
+        }
+
+        function importFromJson(file) {
+            const reader = new FileReader();
+            const status = document.getElementById('importStatus2');
+            
+            reader.onload = function(e) {
+                try {
+                    const json = e.target.result;
+                    const state = JSON.parse(json);
+                    
+                    loadCalculationState(state);
+                    
+                    status.className = 'import-status success';
+                    status.textContent = '✅ Импорт успешно выполнен';
+                } catch (err) {
+                    status.className = 'import-status error';
+                    status.textContent = '❌ Ошибка: ' + err.message;
+                    console.error('Import error:', err);
+                }
+            };
+            
+            reader.onerror = function() {
+                status.className = 'import-status error';
+                status.textContent = '❌ Ошибка чтения файла';
+            };
+            
+            reader.readAsText(file);
+        }
+
+        // ============================================================
+        // INIT
+        // ============================================================
+        function init() {
+            const defaultName = 'Элара 4';
+            currentConstruction = defaultName;
+            document.getElementById('constructionSelect').value = defaultName;
+            loadConstruction(defaultName);
+            
+            document.getElementById('constructionSelect').onchange = function() {
+                loadConstruction(this.value);
+            };
+
+            document.getElementById('applySettingsBtn').onclick = applySettings;
+            document.getElementById('applyWorkBtn').onclick = applySettings;
+
+            document.getElementById('exportBtn').onclick = exportToJson;
+            document.getElementById('importFileInput').onchange = function(e) {
+                if (this.files && this.files.length > 0) {
+                    importFromJson(this.files[0]);
+                }
+                this.value = '';
+            };
+
+            document.getElementById('importConstructionFile').onchange = function(e) {
+                if (this.files && this.files.length > 0) {
+                    const reader = new FileReader();
+                    const status = document.getElementById('importStatus');
+                    const fileNameDisplay = document.getElementById('fileNameDisplay');
+                    reader.onload = function(ev) {
+                        try {
+                            const json = ev.target.result;
+                            const data = JSON.parse(json);
+                            if (loadConstructionsFromJson(data)) {
+                                status.className = 'import-status-sm success';
+                                status.textContent = '✅ OK';
+                                fileNameDisplay.textContent = this.files[0].name;
+                            } else {
+                                status.className = 'import-status-sm error';
+                                status.textContent = '❌ Ошибка формата';
+                            }
+                        } catch (err) {
+                            status.className = 'import-status-sm error';
+                            status.textContent = '❌ ' + err.message;
+                        }
+                    }.bind(this);
+                    reader.readAsText(this.files[0]);
+                }
+                this.value = '';
+            };
+
+            document.getElementById('importPriceListFile').onchange = function(e) {
+                if (this.files && this.files.length > 0) {
+                    const reader = new FileReader();
+                    const status = document.getElementById('importStatus');
+                    const fileNameDisplay = document.getElementById('fileNameDisplay');
+                    reader.onload = function(ev) {
+                        try {
+                            const json = ev.target.result;
+                            const data = JSON.parse(json);
+                            if (loadPriceListFromJson(data)) {
+                                status.className = 'import-status-sm success';
+                                status.textContent = '✅ OK';
+                                fileNameDisplay.textContent = this.files[0].name;
+                                render();
+                            } else {
+                                status.className = 'import-status-sm error';
+                                status.textContent = '❌ Ошибка формата';
+                            }
+                        } catch (err) {
+                            status.className = 'import-status-sm error';
+                            status.textContent = '❌ ' + err.message;
+                        }
+                    }.bind(this);
+                    reader.readAsText(this.files[0]);
+                }
+                this.value = '';
+            };
+
+            document.getElementById('importPrintFile').onchange = function(e) {
+                if (this.files && this.files.length > 0) {
+                    const reader = new FileReader();
+                    const status = document.getElementById('importStatus');
+                    const fileNameDisplay = document.getElementById('fileNameDisplay');
+                    reader.onload = function(ev) {
+                        try {
+                            const json = ev.target.result;
+                            const data = JSON.parse(json);
+                            if (loadPrintTablesFromJson(data)) {
+                                status.className = 'import-status-sm success';
+                                status.textContent = '✅ OK';
+                                fileNameDisplay.textContent = this.files[0].name;
+                                render();
+                            } else {
+                                status.className = 'import-status-sm error';
+                                status.textContent = '❌ Ошибка формата';
+                            }
+                        } catch (err) {
+                            status.className = 'import-status-sm error';
+                            status.textContent = '❌ ' + err.message;
+                        }
+                    }.bind(this);
+                    reader.readAsText(this.files[0]);
+                }
+                this.value = '';
+            };
+
+            document.getElementById('addDetailRowBtn').onclick = addCustomDetail;
+
+            window.__calc = { 
+                details, extras, customExtras, printSettings, workPrice, priceList, 
+                render, applySettings, 
+                exportToJson, importFromJson, getCalculationState, loadCalculationState,
+                loadConstruction, constructionsData, priceListData, printTablesData,
+                loadConstructionsFromJson, loadPriceListFromJson, loadPrintTablesFromJson,
+                DEFAULT_PART_NAMES, addCustomDetail, addCustomOperation
+            };
+        }
+
+        init();
+    })();
+</script>
+
+</body>
+</html>

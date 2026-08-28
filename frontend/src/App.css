@@ -1,0 +1,55 @@
+/* frontend/src/App.css */
+
+/* Подключение шрифта Manrope */
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/Manrope-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Другие начертания, если есть */
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/Manrope-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/Manrope-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Manrope';
+  src: url('/fonts/Manrope-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Глобальное применение шрифта ко всем элементам */
+* {
+  font-family: 'Manrope', system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Принудительно применяем Manrope ко ВСЕМ элементам, включая MUI */
+*,
+*::before,
+*::after,
+.MuiTypography-root,
+.MuiButton-root,
+.MuiSelect-root,
+.MuiInputBase-root,
+.MuiMenuItem-root,
+.MuiFormLabel-root,
+.MuiTab-root,
+.MuiTabs-root {
+  font-family: 'Manrope', system-ui, -apple-system, sans-serif !important;
+}
