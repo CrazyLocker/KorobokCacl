@@ -14,11 +14,9 @@ import type { Extra, PrintSettings, PrintTable } from '../../types';
 
 interface Props {
     extras: Extra[];
-    customExtras: Extra[];
     printSettings: PrintSettings;
     printTables: PrintTable[];
     onUpdateExtra: (index: number, field: keyof Extra, value: any) => void;
-    onUpdateCustomExtra: (index: number, field: keyof Extra, value: any) => void;
     onAddCustomExtra: () => void;
     onRemoveCustomExtra: (index: number) => void;
     onUpdatePrintSettings: (field: keyof PrintSettings, value: any) => void;
@@ -26,11 +24,9 @@ interface Props {
 
 export const ExtrasBlock = ({
     extras,
-    customExtras,
     printSettings,
     printTables,
     onUpdateExtra,
-    onUpdateCustomExtra,
     onAddCustomExtra,
     onRemoveCustomExtra,
     onUpdatePrintSettings,
@@ -121,10 +117,10 @@ export const ExtrasBlock = ({
                 </Typography>
             </Box>
 
-            {/* Standard extras: Лак, Конгрев, Тиснение */}
+            {/* All extras (standard + custom) in a unified list */}
             {extras.map((extra, index) => (
                 <Box
-                    key={extra.name}
+                    key={index}
                     sx={{
                         display: 'flex',
                         justifyContent: 'space-between',
@@ -134,7 +130,16 @@ export const ExtrasBlock = ({
                     }}
                 >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography sx={{ fontWeight: 500, fontSize: '12px' }}>{extra.name}</Typography>
+                        {extra.isCustom ? (
+                            <TextField
+                                value={extra.name}
+                                onChange={(e) => onUpdateExtra(index, 'name', e.target.value)}
+                                size="small"
+                                inputProps={{ style: { fontSize: '12px', width: 70 } }}
+                            />
+                        ) : (
+                            <Typography sx={{ fontWeight: 500, fontSize: '12px' }}>{extra.name}</Typography>
+                        )}
                         <TextField
                             type="number"
                             value={extra.cost}
@@ -143,6 +148,15 @@ export const ExtrasBlock = ({
                             inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 40 } }}
                         />
                         <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>руб.</Typography>
+                        {extra.isCustom && (
+                            <IconButton
+                                size="small"
+                                onClick={() => onRemoveCustomExtra(index)}
+                                sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
+                            >
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        )}
                     </Box>
                     <Typography
                         sx={{
@@ -155,57 +169,6 @@ export const ExtrasBlock = ({
                         }}
                     >
                         {extra.cost.toFixed(2)} <span style={{ fontSize: '11px', fontWeight: 400, color: '#9aa0a6' }}>руб.</span>
-                    </Typography>
-                </Box>
-            ))}
-
-            {/* Custom extras */}
-            {customExtras.map((op, index) => (
-                <Box
-                    key={index}
-                    sx={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: '4px 0',
-                        borderBottom: '1px solid #e8eaed',
-                    }}
-                >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <TextField
-                            value={op.name}
-                            onChange={(e) => onUpdateCustomExtra(index, 'name', e.target.value)}
-                            size="small"
-                            inputProps={{ style: { fontSize: '12px', width: 70 } }}
-                        />
-                        <TextField
-                            type="number"
-                            value={op.cost}
-                            onChange={(e) => onUpdateCustomExtra(index, 'cost', parseFloat(e.target.value) || 0)}
-                            size="small"
-                            inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 40 } }}
-                        />
-                        <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>руб.</Typography>
-                        <IconButton
-                            size="small"
-                            onClick={() => onRemoveCustomExtra(index)}
-                            sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
-                        >
-                            <CloseIcon fontSize="small" />
-                        </IconButton>
-                    </Box>
-                    <Typography
-                        sx={{
-                            fontSize: '13px',
-                            fontWeight: 500,
-                            backgroundColor: '#fff',
-                            padding: '2px 12px',
-                            borderRadius: '20px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
-                        }}
-                    >
-                        {op.enabled ? op.cost.toFixed(2) : '0.00'}{' '}
-                        <span style={{ fontSize: '11px', fontWeight: 400, color: '#9aa0a6' }}>руб.</span>
                     </Typography>
                 </Box>
             ))}

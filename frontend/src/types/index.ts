@@ -7,9 +7,9 @@ export interface Detail {
     isPrinted: boolean;
     isCustom: boolean;
     enabled: boolean;
-    hasLak: boolean;
-    hasCongrev: boolean;
-    hasTisnenie: boolean;
+    // Unified map for all operations (standard + custom).
+    // Key — operation name, value — enabled/disabled for this detail.
+    operations: Record<string, boolean>;
 }
 
 export interface Extra {
@@ -28,8 +28,7 @@ export interface PrintSettings {
 export interface CalculationRequest {
     construction: string;
     details: Detail[];
-    extras: Extra[];
-    customExtras: Extra[];
+    extras: Extra[]; // All operations (standard + custom) in a single list
     printSettings: PrintSettings;
     workPrice: number;
     priceList: Record<string, number>;

@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -40,7 +41,6 @@ class CostCalculatorTest {
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
                 Collections.emptyList(),
-                Collections.emptyList(),
                 false, null, null,
                 new BigDecimal("5")
         );
@@ -68,7 +68,6 @@ class CostCalculatorTest {
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(d1, d2),
                 Collections.emptyList(),
-                Collections.emptyList(),
                 false, null, null,
                 new BigDecimal("5")
         );
@@ -92,7 +91,6 @@ class CostCalculatorTest {
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(d1, d2),
-                Collections.emptyList(),
                 Collections.emptyList(),
                 false, null, null,
                 new BigDecimal("5")
@@ -119,7 +117,6 @@ class CostCalculatorTest {
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(d1, d2),
                 Collections.emptyList(),
-                Collections.emptyList(),
                 false, null, null,
                 new BigDecimal("5")
         );
@@ -129,16 +126,19 @@ class CostCalculatorTest {
     }
 
     @Test
-    void perDetailExtras_lakCongrevTisnenie() {
-        // cost = 35/2 + 5 + 20(лак) + 30(конгрев) + 10(тиснение) = 22.5 + 60 = 82.5
+    void operations_standardAndCustom_viaUnifiedMap() {
+        // cost = 35/2 + 5 + 20(лак) + 30(конгрев) + 10(тиснение) + 15(ламинация) = 22.5 + 75 = 97.5
         CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
         detail.setName("Дно");
         detail.setCountOnSheet(new BigDecimal("2"));
         detail.setSheetPrice(new BigDecimal("35"));
         detail.setEnabled(true);
-        detail.setHasLak(true);
-        detail.setHasCongrev(true);
-        detail.setHasTisnenie(true);
+        detail.setOperations(Map.of(
+                "Лак", true,
+                "Конгрев", true,
+                "Тиснение", true,
+                "Ламинация", true
+        ));
 
         CostCalculator.ExtraInfo lak = new CostCalculator.ExtraInfo();
         lak.setName("Лак");
@@ -152,15 +152,18 @@ class CostCalculatorTest {
         tisnenie.setName("Тиснение");
         tisnenie.setCost(new BigDecimal("10"));
 
+        CostCalculator.ExtraInfo lamination = new CostCalculator.ExtraInfo();
+        lamination.setName("Ламинация");
+        lamination.setCost(new BigDecimal("15"));
+
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
-                List.of(lak, congrev, tisnenie),
-                Collections.emptyList(),
+                List.of(lak, congrev, tisnenie, lamination),
                 false, null, null,
                 new BigDecimal("5")
         );
 
-        assertBD("82.5", total);
+        assertBD("97.5", total);
     }
 
     @Test
@@ -179,7 +182,6 @@ class CostCalculatorTest {
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
-                Collections.emptyList(),
                 Collections.emptyList(),
                 true, 1, 100,
                 new BigDecimal("5")
@@ -214,7 +216,6 @@ class CostCalculatorTest {
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(d1, d2),
                 Collections.emptyList(),
-                Collections.emptyList(),
                 true, 1, 100,
                 new BigDecimal("5")
         );
@@ -223,24 +224,23 @@ class CostCalculatorTest {
     }
 
     @Test
-    void customExtras_addedToTotal() {
+    void customOperation_perDetail_enabled() {
         // detail: 35/2 + 5 = 22.5
-        // custom extra: 15
+        // custom operation "УФ-лак" (enabled in operations map): +15
         // Total = 37.5
         CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
         detail.setName("Дно");
         detail.setCountOnSheet(new BigDecimal("2"));
         detail.setSheetPrice(new BigDecimal("35"));
         detail.setEnabled(true);
+        detail.setOperations(Map.of("УФ-лак", true));
 
         CostCalculator.ExtraInfo customOp = new CostCalculator.ExtraInfo();
         customOp.setName("УФ-лак");
         customOp.setCost(new BigDecimal("15"));
-        customOp.setEnabled(true);
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
-                Collections.emptyList(),
                 List.of(customOp),
                 false, null, null,
                 new BigDecimal("5")
@@ -250,34 +250,74 @@ class CostCalculatorTest {
     }
 
     @Test
-    void disabledCustomExtra_skipped() {
+    void customOperation_perDetail_disabled() {
+        // detail: 35/2 + 5 = 22.5
+        // custom operation "УФ-лак" (disabled in operations map): not added
+        // Total = 22.5
         CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
         detail.setName("Дно");
         detail.setCountOnSheet(new BigDecimal("2"));
         detail.setSheetPrice(new BigDecimal("35"));
         detail.setEnabled(true);
+        detail.setOperations(Map.of("УФ-лак", false));
 
         CostCalculator.ExtraInfo customOp = new CostCalculator.ExtraInfo();
         customOp.setName("УФ-лак");
         customOp.setCost(new BigDecimal("15"));
-        customOp.setEnabled(false); // disabled
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
-                Collections.emptyList(),
                 List.of(customOp),
                 false, null, null,
                 new BigDecimal("5")
         );
 
-        // Only detail: 22.5
         assertBD("22.5", total);
+    }
+
+    @Test
+    void multipleOperations_mixedEnabledDisabled() {
+        // detail: 35/2 + 5 = 22.5
+        // operation "Оп1" (enabled): +15
+        // operation "Оп2" (disabled): +0
+        // operation "Оп3" (enabled): +8
+        // Total = 22.5 + 15 + 8 = 45.5
+        CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
+        detail.setName("Дно");
+        detail.setCountOnSheet(new BigDecimal("2"));
+        detail.setSheetPrice(new BigDecimal("35"));
+        detail.setEnabled(true);
+        detail.setOperations(Map.of(
+                "Оп1", true,
+                "Оп2", false,
+                "Оп3", true
+        ));
+
+        CostCalculator.ExtraInfo op1 = new CostCalculator.ExtraInfo();
+        op1.setName("Оп1");
+        op1.setCost(new BigDecimal("15"));
+
+        CostCalculator.ExtraInfo op2 = new CostCalculator.ExtraInfo();
+        op2.setName("Оп2");
+        op2.setCost(new BigDecimal("20"));
+
+        CostCalculator.ExtraInfo op3 = new CostCalculator.ExtraInfo();
+        op3.setName("Оп3");
+        op3.setCost(new BigDecimal("8"));
+
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(detail),
+                List.of(op1, op2, op3),
+                false, null, null,
+                new BigDecimal("5")
+        );
+
+        assertBD("45.5", total);
     }
 
     @Test
     void emptyDetails_returnsZero() {
         BigDecimal total = costCalculator.calculateTotalCost(
-                Collections.emptyList(),
                 Collections.emptyList(),
                 Collections.emptyList(),
                 false, null, null,

@@ -15,18 +15,22 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
-import type { Detail } from '../../types';
+import type { Detail, Extra } from '../../types';
 
 interface Props {
     details: Detail[];
+    extras: Extra[];
     onUpdateDetail: (index: number, field: keyof Detail, value: any) => void;
+    onUpdateDetailOperation: (detailIndex: number, opName: string, value: boolean) => void;
     onAddCustomDetail: () => void;
     onRemoveCustomDetail: (index: number) => void;
 }
 
 export const LayoutTable = ({
     details,
+    extras,
     onUpdateDetail,
+    onUpdateDetailOperation,
     onAddCustomDetail,
     onRemoveCustomDetail,
 }: Props) => {
@@ -46,7 +50,7 @@ export const LayoutTable = ({
                                 руб./лист
                             </TableCell>
                             <TableCell align="center" sx={{ width: '36%', fontSize: '10px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '2px solid #e8eaed' }}>
-                                Опции (П/Л/Т/К)
+                                Операции
                             </TableCell>
                             <TableCell align="center" sx={{ width: '20%', borderBottom: '2px solid #e8eaed' }} />
                         </TableRow>
@@ -117,28 +121,39 @@ export const LayoutTable = ({
                                         />
                                     </TableCell>
 
-                                    {/* Options: П Л Т К */}
+                                    {/* Operations: unified checkboxes for all extras (standard + custom) */}
                                     <TableCell align="center" sx={{ borderBottom: '1px solid #f1f3f4' }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5 }}>
-                                            {[
-                                                { key: 'isPrinted' as keyof Detail, label: 'П', title: 'Печать' },
-                                                { key: 'hasLak' as keyof Detail, label: 'Л', title: 'Лак' },
-                                                { key: 'hasTisnenie' as keyof Detail, label: 'Т', title: 'Тиснение' },
-                                                { key: 'hasCongrev' as keyof Detail, label: 'К', title: 'Конгрев' },
-                                            ].map((op) => (
+                                        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+                                            {/* Print checkbox (special — not an extra) */}
+                                            <Box
+                                                sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: isEnabled ? 'pointer' : 'default' }}
+                                            >
+                                                <Checkbox
+                                                    checked={Boolean(d.isPrinted)}
+                                                    onChange={(e) => onUpdateDetail(index, 'isPrinted', e.target.checked)}
+                                                    size="small"
+                                                    disabled={!isEnabled}
+                                                    sx={{ padding: '2px', '& .MuiSvgIcon-root': { fontSize: 14 } }}
+                                                />
+                                                <Typography sx={{ fontSize: '10px', color: '#5f6368' }}>Печать</Typography>
+                                            </Box>
+                                            {/* All extras (standard + custom) via operations map */}
+                                            {extras.map((extra, ei) => (
                                                 <Box
-                                                    key={op.label}
+                                                    key={ei}
                                                     sx={{ display: 'flex', alignItems: 'center', gap: 0.25, cursor: isEnabled ? 'pointer' : 'default' }}
-                                                    title={op.title}
+                                                    title={extra.name}
                                                 >
                                                     <Checkbox
-                                                        checked={Boolean(d[op.key])}
-                                                        onChange={(e) => onUpdateDetail(index, op.key, e.target.checked)}
+                                                        checked={Boolean(d.operations?.[extra.name])}
+                                                        onChange={(e) => onUpdateDetailOperation(index, extra.name, e.target.checked)}
                                                         size="small"
                                                         disabled={!isEnabled}
                                                         sx={{ padding: '2px', '& .MuiSvgIcon-root': { fontSize: 14 } }}
                                                     />
-                                                    <Typography sx={{ fontSize: '10px', color: '#5f6368' }}>{op.label}</Typography>
+                                                    <Typography sx={{ fontSize: '10px', color: '#5f6368' }} title={extra.name}>
+                                                        {extra.name}
+                                                    </Typography>
                                                 </Box>
                                             ))}
                                         </Box>

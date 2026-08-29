@@ -2,6 +2,7 @@ package com.korobki.api.dto;
 
 import lombok.Data;
 import java.math.BigDecimal;
+import java.util.Map;
 
 @Data
 public class DetailDto {
@@ -11,7 +12,10 @@ public class DetailDto {
     private Boolean isPrinted;
     private Boolean isCustom;
     private Boolean enabled;
-    private Boolean hasLak;
-    private Boolean hasCongrev;
-    private Boolean hasTisnenie;
+
+    /**
+     * Unified map for all operations (standard + custom).
+     * Key — operation name, value — enabled/disabled for this detail.
+     */
+    private Map<String, Boolean> operations;
 }

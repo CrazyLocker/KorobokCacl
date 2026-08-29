@@ -23,6 +23,14 @@ const DEFAULT_PART_NAMES = [
 
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
+// Standard operations always present
+const STANDARD_EXTRAS: Extra[] = [
+    { name: 'Лак', cost: 20, enabled: false },
+    { name: 'Конгрев', cost: 30, enabled: false },
+    { name: 'Тиснение', cost: 10, enabled: false },
+    { name: 'Ламинация', cost: 0, enabled: false },
+];
+
 export function useCalculator() {
     // --- Data from API ---
     const [constructs, setConstructs] = useState<Construct[]>([]);
@@ -31,12 +39,7 @@ export function useCalculator() {
     // --- Current state ---
     const [currentConstruction, setCurrentConstruction] = useState<string>('');
     const [details, setDetails] = useState<Detail[]>([]);
-    const [extras, setExtras] = useState<Extra[]>([
-        { name: 'Лак', cost: 20, enabled: false },
-        { name: 'Конгрев', cost: 30, enabled: false },
-        { name: 'Тиснение', cost: 10, enabled: false },
-    ]);
-    const [customExtras, setCustomExtras] = useState<Extra[]>([]);
+    const [extras, setExtras] = useState<Extra[]>(STANDARD_EXTRAS.map((e) => ({ ...e })));
     const [printSettings, setPrintSettings] = useState<PrintSettings>({
         enabled: false,
         format: 1,
@@ -82,13 +85,11 @@ export function useCalculator() {
                     isPrinted: false,
                     isCustom: false,
                     enabled: countOnSheet > 0,
-                    hasLak: false,
-                    hasCongrev: false,
-                    hasTisnenie: false,
+                    operations: {},
                 };
             });
 
-            // Preserve existing custom details
+            // Preserve existing custom details (with their operations)
             const existingCustom = details.filter((d) => d.isCustom);
             setDetails([...baseDetails, ...existingCustom]);
 
@@ -116,7 +117,6 @@ export function useCalculator() {
                 construction: currentConstruction,
                 details,
                 extras,
-                customExtras,
                 printSettings,
                 workPrice,
                 priceList,
@@ -128,13 +128,24 @@ export function useCalculator() {
         } finally {
             setLoading(false);
         }
-    }, [currentConstruction, details, extras, customExtras, printSettings, workPrice, priceList]);
+    }, [currentConstruction, details, extras, printSettings, workPrice, priceList]);
 
     // --- Detail operations ---
     const updateDetail = useCallback((index: number, field: keyof Detail, value: any) => {
         setDetails((prev) => {
             const next = [...prev];
             next[index] = { ...next[index], [field]: value };
+            return next;
+        });
+    }, []);
+
+    const updateDetailOperation = useCallback((detailIndex: number, opName: string, value: boolean) => {
+        setDetails((prev) => {
+            const next = [...prev];
+            next[detailIndex] = {
+                ...next[detailIndex],
+                operations: { ...next[detailIndex].operations, [opName]: value },
+            };
             return next;
         });
     }, []);
@@ -149,9 +160,7 @@ export function useCalculator() {
                 isPrinted: false,
                 isCustom: true,
                 enabled: true,
-                hasLak: false,
-                hasCongrev: false,
-                hasTisnenie: false,
+                operations: {},
             },
         ]);
     }, []);
@@ -160,7 +169,7 @@ export function useCalculator() {
         setDetails((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
-    // --- Extra operations ---
+    // --- Extra operations (unified: standard + custom) ---
     const updateExtra = useCallback((index: number, field: keyof Extra, value: any) => {
         setExtras((prev) => {
             const next = [...prev];
@@ -169,23 +178,29 @@ export function useCalculator() {
         });
     }, []);
 
-    const updateCustomExtra = useCallback((index: number, field: keyof Extra, value: any) => {
-        setCustomExtras((prev) => {
-            const next = [...prev];
-            next[index] = { ...next[index], [field]: value };
-            return next;
-        });
-    }, []);
-
     const addCustomExtra = useCallback(() => {
-        setCustomExtras((prev) => [
+        setExtras((prev) => [
             ...prev,
             { name: 'Операция ' + (prev.length + 1), cost: 0, enabled: true, isCustom: true },
         ]);
     }, []);
 
     const removeCustomExtra = useCallback((index: number) => {
-        setCustomExtras((prev) => prev.filter((_, i) => i !== index));
+        setExtras((prev) => {
+            const removed = prev[index];
+            const next = prev.filter((_, i) => i !== index);
+            // Remove this operation from all details' operations maps
+            if (removed) {
+                setDetails((dPrev) =>
+                    dPrev.map((d) => {
+                        const ops = { ...d.operations };
+                        delete ops[removed.name];
+                        return { ...d, operations: ops };
+                    }),
+                );
+            }
+            return next;
+        });
     }, []);
 
     // --- Price list ---
@@ -205,7 +220,6 @@ export function useCalculator() {
         currentConstruction,
         details,
         extras,
-        customExtras,
         printSettings,
         workPrice,
         priceList,
@@ -217,10 +231,10 @@ export function useCalculator() {
         loadConstruction,
         calculate,
         updateDetail,
+        updateDetailOperation,
         addCustomDetail,
         removeCustomDetail,
         updateExtra,
-        updateCustomExtra,
         addCustomExtra,
         removeCustomExtra,
         updatePriceList,

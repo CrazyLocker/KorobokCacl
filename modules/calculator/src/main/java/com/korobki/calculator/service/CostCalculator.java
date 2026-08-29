@@ -6,10 +6,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Calculator for total cost price of a box.
- * Sums up all enabled details (material + work + per-detail extras + print) plus custom extras.
+ * Sums up all enabled details (material + work + per-detail operations + print).
  *
  * Rounding: totalCost is rounded to integer (rounding #1).
  * All intermediate calculations use full BigDecimal precision.
@@ -23,9 +24,8 @@ public class CostCalculator {
     /**
      * Calculate the total cost price for the given details, extras, and print settings.
      *
-     * @param details       list of detail DTOs (name, countOnSheet, sheetPrice, flags)
-     * @param extras        standard extras (Лак, Конгрев, Тиснение) — cost per detail
-     * @param customExtras  custom extras — flat cost added to total
+     * @param details       list of detail DTOs (name, countOnSheet, sheetPrice, operations map)
+     * @param extras        all operations (standard + custom) — cost per detail, looked up by name
      * @param printEnabled  whether print is enabled globally
      * @param printFormat   print format ID
      * @param printQuantity print quantity
@@ -35,7 +35,6 @@ public class CostCalculator {
     public BigDecimal calculateTotalCost(
             List<DetailInfo> details,
             List<ExtraInfo> extras,
-            List<ExtraInfo> customExtras,
             boolean printEnabled,
             Integer printFormat,
             Integer printQuantity,
@@ -61,15 +60,14 @@ public class CostCalculator {
             // Work price per part
             BigDecimal cost = materialCost.add(workPrice);
 
-            // Per-detail extras: Лак, Конгрев, Тиснение
-            if (Boolean.TRUE.equals(d.getHasLak())) {
-                cost = cost.add(findExtraCost(extras, "Лак"));
-            }
-            if (Boolean.TRUE.equals(d.getHasCongrev())) {
-                cost = cost.add(findExtraCost(extras, "Конгрев"));
-            }
-            if (Boolean.TRUE.equals(d.getHasTisnenie())) {
-                cost = cost.add(findExtraCost(extras, "Тиснение"));
+            // All operations (standard + custom) via unified map
+            if (d.getOperations() != null) {
+                for (Map.Entry<String, Boolean> entry : d.getOperations().entrySet()) {
+                    if (Boolean.TRUE.equals(entry.getValue())) {
+                        BigDecimal opCost = findExtraCost(extras, entry.getKey());
+                        cost = cost.add(opCost);
+                    }
+                }
             }
 
             // Print: each printed detail gets printPerUnit added
@@ -78,13 +76,6 @@ public class CostCalculator {
             }
 
             sum = sum.add(cost);
-        }
-
-        // Custom extras (flat cost, not per detail)
-        for (ExtraInfo op : customExtras) {
-            if (Boolean.TRUE.equals(op.getEnabled())) {
-                sum = sum.add(op.getCost() != null ? op.getCost() : BigDecimal.ZERO);
-            }
         }
 
         return sum;
@@ -106,9 +97,7 @@ public class CostCalculator {
         private BigDecimal sheetPrice;
         private Boolean isPrinted;
         private Boolean enabled;
-        private Boolean hasLak;
-        private Boolean hasCongrev;
-        private Boolean hasTisnenie;
+        private Map<String, Boolean> operations;
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
@@ -120,12 +109,8 @@ public class CostCalculator {
         public void setIsPrinted(Boolean isPrinted) { this.isPrinted = isPrinted; }
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
-        public Boolean getHasLak() { return hasLak; }
-        public void setHasLak(Boolean hasLak) { this.hasLak = hasLak; }
-        public Boolean getHasCongrev() { return hasCongrev; }
-        public void setHasCongrev(Boolean hasCongrev) { this.hasCongrev = hasCongrev; }
-        public Boolean getHasTisnenie() { return hasTisnenie; }
-        public void setHasTisnenie(Boolean hasTisnenie) { this.hasTisnenie = hasTisnenie; }
+        public Map<String, Boolean> getOperations() { return operations; }
+        public void setOperations(Map<String, Boolean> operations) { this.operations = operations; }
     }
 
     public static class ExtraInfo {
