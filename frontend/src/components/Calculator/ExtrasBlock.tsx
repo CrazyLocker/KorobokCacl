@@ -134,7 +134,12 @@ export const ExtrasBlock = ({
                             <TextField
                                 value={extra.name}
                                 onChange={(e) => onUpdateExtra(index, 'name', e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                                }}
                                 size="small"
+                                disabled={false}
+                                placeholder="Название"
                                 inputProps={{ style: { fontSize: '12px', width: 70 } }}
                             />
                         ) : (
@@ -144,6 +149,9 @@ export const ExtrasBlock = ({
                             type="number"
                             value={extra.cost}
                             onChange={(e) => onUpdateExtra(index, 'cost', parseFloat(e.target.value) || 0)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                            }}
                             size="small"
                             inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 40 } }}
                         />

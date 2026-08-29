@@ -97,6 +97,7 @@ public class CostCalculator {
         private BigDecimal sheetPrice;
         private Boolean isPrinted;
         private Boolean enabled;
+        private Boolean isCustom;
         private Map<String, Boolean> operations;
 
         public String getName() { return name; }
@@ -109,6 +110,8 @@ public class CostCalculator {
         public void setIsPrinted(Boolean isPrinted) { this.isPrinted = isPrinted; }
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
+        public Boolean getIsCustom() { return isCustom; }
+        public void setIsCustom(Boolean isCustom) { this.isCustom = isCustom; }
         public Map<String, Boolean> getOperations() { return operations; }
         public void setOperations(Map<String, Boolean> operations) { this.operations = operations; }
     }

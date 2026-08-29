@@ -70,6 +70,7 @@ function App() {
                         constructs={calc.constructs}
                         value={calc.currentConstruction}
                         onChange={(name) => calc.loadConstruction(name)}
+                        additionalConstruct={calc.individualConstruction}
                     />
 
                     {/* Settings panel: layout table */}
@@ -343,16 +344,28 @@ function App() {
                             Цены для клиента
                             <Box sx={{
                                 ml: { xs: 0, sm: 'auto' },
-                                backgroundColor: '#1a73e8',
-                                color: '#fff',
-                                fontSize: { xs: '9px', sm: '10px' },
-                                fontWeight: 500,
-                                px: 1.5,
-                                py: 0.25,
-                                borderRadius: '16px',
-                                whiteSpace: 'nowrap',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
                             }}>
-                                с НДС 11%
+                                <Button
+                                    variant="contained"
+                                    startIcon={calc.loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
+                                    onClick={calc.calculate}
+                                    disabled={calc.loading}
+                                    size="small"
+                                    sx={{
+                                        backgroundColor: '#1a73e8',
+                                        borderRadius: '12px',
+                                        padding: '4px 12px',
+                                        fontWeight: 500,
+                                        fontSize: '11px',
+                                        textTransform: 'none',
+                                        '&:hover': { backgroundColor: '#1557b0' },
+                                    }}
+                                >
+                                    Рассчитать
+                                </Button>
                             </Box>
                         </Typography>
 
@@ -375,6 +388,8 @@ function App() {
                                     branch={calc.result.branch}
                                     basePrice={Number(calc.result.basePrice)}
                                     onUpdatePriceList={calc.updatePriceList}
+                                    onCalculate={calc.calculate}
+                                    loading={calc.loading}
                                 />
                             </Box>
                         ) : (
@@ -384,27 +399,6 @@ function App() {
                         )}
 
                         <Divider sx={{ my: 1.5 }} />
-
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Button
-                                variant="contained"
-                                startIcon={calc.loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
-                                onClick={calc.calculate}
-                                disabled={calc.loading}
-                                sx={{
-                                    backgroundColor: '#1a73e8',
-                                    borderRadius: '24px',
-                                    padding: { xs: '6px 16px', sm: '8px 24px' },
-                                    fontWeight: 500,
-                                    fontSize: { xs: '12px', sm: '13px' },
-                                    textTransform: 'none',
-                                    width: { xs: '100%', sm: 'auto' },
-                                    '&:hover': { backgroundColor: '#1557b0' },
-                                }}
-                            >
-                                {calc.loading ? 'Расчёт...' : 'Рассчитать'}
-                            </Button>
-                        </Box>
                     </Box>
 
                 </Paper>

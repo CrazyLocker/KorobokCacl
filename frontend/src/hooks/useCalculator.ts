@@ -29,7 +29,17 @@ const STANDARD_EXTRAS: Extra[] = [
     { name: 'Конгрев', cost: 30, enabled: false },
     { name: 'Тиснение', cost: 10, enabled: false },
     { name: 'Ламинация', cost: 0, enabled: false },
+    { name: 'Шелкография', cost: 0, enabled: false },
 ];
+
+// "Индивидуальная" — все стандартные детали, но все enabled: false
+const CUSTOM_CONSTRUCTION: Construct = {
+    id: 'individual',
+    name: 'Индивидуальная',
+    description: 'Своя конфигурация',
+    parts: { parts: [] },
+    isActive: true,
+};
 
 export function useCalculator() {
     // --- Data from API ---
@@ -68,7 +78,10 @@ export function useCalculator() {
     const loadConstruction = useCallback(
         (name: string, constructsList?: Construct[]) => {
             const list = constructsList || constructs;
-            const constr = list.find((c) => c.name === name);
+            // "Индивидуальная" — кастомная конструкция, нет в API
+            const constr = name === CUSTOM_CONSTRUCTION.name
+                ? CUSTOM_CONSTRUCTION
+                : list.find((c) => c.name === name);
             if (!constr) return;
 
             setCurrentConstruction(name);
@@ -93,17 +106,21 @@ export function useCalculator() {
             const existingCustom = details.filter((d) => d.isCustom);
             setDetails([...baseDetails, ...existingCustom]);
 
-            // Load price list for this construction
-            calculatorApi
-                .getPriceList(constr.id)
-                .then((pl) => {
-                    if (pl && pl.priceData) {
-                        setPriceList(pl.priceData);
-                    } else {
-                        setPriceList({});
-                    }
-                })
-                .catch(() => setPriceList({}));
+            // Load price list for this construction (skip for "Индивидуальная")
+            if (constr.id === CUSTOM_CONSTRUCTION.id) {
+                setPriceList({});
+            } else {
+                calculatorApi
+                    .getPriceList(constr.id)
+                    .then((pl) => {
+                        if (pl && pl.priceData) {
+                            setPriceList(pl.priceData);
+                        } else {
+                            setPriceList({});
+                        }
+                    })
+                    .catch(() => setPriceList({}));
+            }
         },
         [constructs, details],
     );
@@ -227,6 +244,7 @@ export function useCalculator() {
         loading,
         error,
         tierLabels: TIER_LABELS,
+        individualConstruction: CUSTOM_CONSTRUCTION,
         // actions
         loadConstruction,
         calculate,

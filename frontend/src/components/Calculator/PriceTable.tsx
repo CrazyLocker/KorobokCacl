@@ -9,8 +9,11 @@ import {
     TextField,
     Box,
     Typography,
+    Button,
+    CircularProgress,
 } from '@mui/material';
 import StarIcon from '@mui/icons-material/Star';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import type { PriceRow } from '../../types';
 
 interface Props {
@@ -18,9 +21,11 @@ interface Props {
     branch: string;
     basePrice: number;
     onUpdatePriceList: (label: string, value: number) => void;
+    onCalculate: () => void;
+    loading: boolean;
 }
 
-export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Props) => {
+export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCalculate, loading }: Props) => {
     return (
         <Box>
             {/* Branch info */}
@@ -68,6 +73,26 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                             </TableCell>
                             <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#1a73e8', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
                                 Итог
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, borderBottom: '1px solid #e8eaed' }}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
+                                    onClick={onCalculate}
+                                    disabled={loading}
+                                    size="small"
+                                    sx={{
+                                        backgroundColor: '#1a73e8',
+                                        borderRadius: '8px',
+                                        padding: '2px 10px',
+                                        fontWeight: 500,
+                                        fontSize: '10px',
+                                        textTransform: 'none',
+                                        '&:hover': { backgroundColor: '#1557b0' },
+                                    }}
+                                >
+                                    Рассчитать
+                                </Button>
                             </TableCell>
                         </TableRow>
                     </TableHead>
@@ -125,6 +150,7 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                                 >
                                     {row.finalPrice} ₽
                                 </TableCell>
+                                <TableCell align="right" sx={{ borderBottom: '1px solid #f1f3f4' }} />
                             </TableRow>
                         ))}
                     </TableBody>

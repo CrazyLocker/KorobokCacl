@@ -4,9 +4,12 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -67,6 +70,10 @@ public class Order {
 
     @Column(columnDefinition = "TEXT")
     private String comment;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "calculation_state", columnDefinition = "JSONB")
+    private Map<String, Object> calculationState;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

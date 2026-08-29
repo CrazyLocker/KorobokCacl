@@ -94,6 +94,7 @@ public class CalculatorService {
             info.setSheetPrice(dto.getSheetPrice());
             info.setIsPrinted(dto.getIsPrinted());
             info.setEnabled(dto.getEnabled());
+            info.setIsCustom(dto.getIsCustom());
             info.setOperations(dto.getOperations());
             return info;
         }).collect(Collectors.toList());

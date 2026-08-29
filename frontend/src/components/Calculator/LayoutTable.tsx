@@ -58,13 +58,12 @@ export const LayoutTable = ({
                     <TableBody>
                         {details.map((d, index) => {
                             const isZero = d.countOnSheet === 0;
-                            const isEnabled = d.enabled !== false;
+                            const isEnabled = Boolean(d.enabled);
                             return (
                                 <TableRow
                                     key={index}
                                     sx={{
                                         opacity: isEnabled ? 1 : 0.4,
-                                        pointerEvents: isEnabled ? 'auto' : 'none',
                                         '&:last-child td': { borderBottom: 'none' },
                                     }}
                                 >
@@ -81,7 +80,12 @@ export const LayoutTable = ({
                                                 <TextField
                                                     value={d.name}
                                                     onChange={(e) => onUpdateDetail(index, 'name', e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                                                    }}
                                                     size="small"
+                                                    disabled={!isEnabled}
+                                                    placeholder="Название"
                                                     sx={{ width: 100, '& .MuiInputBase-input': { fontSize: '12px', padding: '4px 6px' } }}
                                                 />
                                             ) : (
@@ -98,6 +102,9 @@ export const LayoutTable = ({
                                             type="number"
                                             value={d.countOnSheet}
                                             onChange={(e) => onUpdateDetail(index, 'countOnSheet', parseFloat(e.target.value) || 0)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                                            }}
                                             size="small"
                                             disabled={!isEnabled}
                                             inputProps={{ step: 0.001, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
@@ -115,6 +122,9 @@ export const LayoutTable = ({
                                             type="number"
                                             value={d.sheetPrice}
                                             onChange={(e) => onUpdateDetail(index, 'sheetPrice', parseFloat(e.target.value) || 0)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                                            }}
                                             size="small"
                                             disabled={!isEnabled}
                                             inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}

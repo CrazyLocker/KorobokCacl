@@ -7,9 +7,12 @@ interface Props {
     constructs: Construct[];
     value: string;
     onChange: (name: string) => void;
+    additionalConstruct?: Construct;
 }
 
-export const ConstructionSelector = ({ constructs, value, onChange }: Props) => {
+export const ConstructionSelector = ({ constructs, value, onChange, additionalConstruct }: Props) => {
+    const allConstructs = additionalConstruct ? [additionalConstruct, ...constructs] : constructs;
+    
     return (
         <Box
             sx={{
@@ -26,7 +29,7 @@ export const ConstructionSelector = ({ constructs, value, onChange }: Props) => 
         >
             <Typography
                 sx={{
-                    fontSize: '14px',
+                    fontSize: '12px',
                     fontWeight: 500,
                     color: '#5f6368',
                     textTransform: 'uppercase',
@@ -36,7 +39,7 @@ export const ConstructionSelector = ({ constructs, value, onChange }: Props) => 
                     gap: 1,
                 }}
             >
-                <LayersIcon sx={{ fontSize: 20, color: '#1a73e8' }} />
+                <LayersIcon sx={{ fontSize: 18, color: '#1a73e8' }} />
                 Базовая коробка
             </Typography>
             <FormControl size="small" sx={{ minWidth: 200 }}>
@@ -45,21 +48,21 @@ export const ConstructionSelector = ({ constructs, value, onChange }: Props) => 
                     onChange={(e) => onChange(e.target.value)}
                     displayEmpty
                     sx={{
-                        fontSize: '14px',
+                        fontSize: '12px',
                         backgroundColor: '#fff',
                         '& .MuiOutlinedInput-notchedOutline': { borderColor: '#dadce0' },
                         '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1a73e8' },
                         '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1a73e8', borderWidth: '2px' },
                     }}
                 >
-                    {constructs.map((c) => (
-                        <MenuItem key={c.id} value={c.name}>
+                    {allConstructs.map((c) => (
+                        <MenuItem key={c.id} value={c.name} sx={{ fontSize: '12px' }}>
                             {c.name}
                         </MenuItem>
                     ))}
                 </Select>
             </FormControl>
-            <Typography sx={{ fontSize: '13px', color: '#9aa0a6' }}>
+            <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>
                 выберите конструкцию, и раскладка деталей обновится
             </Typography>
         </Box>
