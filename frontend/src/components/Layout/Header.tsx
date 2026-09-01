@@ -6,7 +6,14 @@ interface HeaderProps {
     onTabChange: (tab: string) => void;
 }
 
-const tabs = ['Коробка', 'Офсет', 'Тиснение', 'Конгрев', 'Штанц-форма', 'Клише'];
+const tabs = [
+    'Расчет коробки',
+    'Расчет клише',
+    'Расчет конгрев',
+    'Расчет шелкография',
+    'Справочники',
+    'Настройки',
+];
 
 export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
     return (
@@ -26,7 +33,7 @@ export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
                     minHeight: '64px !important',
                     padding: 0,
                     display: 'flex',
-                    justifyContent: 'space-between', // ← распределяем пространство
+                    justifyContent: 'space-between',
                     alignItems: 'center',
                 }}
             >
@@ -34,13 +41,13 @@ export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
                 <Typography
                     variant="h6"
                     sx={{
-                        fontWeight: 400, // regular
-                        color: '#1a1a2e',
+                        fontWeight: 600,
+                        color: '#1a73e8',
                         fontSize: '18px',
                         letterSpacing: '0.02em',
                     }}
                 >
-                    Расчет коробки
+                    Калькулятор расчета коробки
                 </Typography>
 
                 {/* Вкладки справа */}
@@ -53,7 +60,7 @@ export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
                         sx={{
                             '& .MuiTab-root': {
                                 textTransform: 'none',
-                                fontWeight: 400, // regular
+                                fontWeight: 400,
                                 fontSize: '14px',
                                 color: '#666',
                                 padding: '20px 16px 18px',
@@ -61,11 +68,11 @@ export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
                                 minWidth: '100px',
                             },
                             '& .Mui-selected': {
-                                color: '#1976d2 !important',
-                                fontWeight: 500, // medium (чуть жирнее, чтобы выделить)
+                                color: '#1a73e8 !important',
+                                fontWeight: 600,
                             },
                             '& .MuiTabs-indicator': {
-                                backgroundColor: '#1976d2',
+                                backgroundColor: '#1a73e8',
                                 height: '3px',
                             },
                         }}
