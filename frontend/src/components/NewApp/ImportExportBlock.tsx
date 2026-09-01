@@ -1,7 +1,5 @@
 // frontend/src/components/NewApp/ImportExportBlock.tsx
 import { Box, Button, Typography } from '@mui/material';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
 interface Props {
     onImport: () => void;
@@ -32,7 +30,6 @@ export const ImportExportBlock = ({ onImport, onExport }: Props) => {
                 </Typography>
                 <Button
                     variant="outlined"
-                    startIcon={<FileUploadIcon />}
                     onClick={onImport}
                     sx={{
                         fontSize: '12px',
@@ -47,7 +44,6 @@ export const ImportExportBlock = ({ onImport, onExport }: Props) => {
                 </Button>
                 <Button
                     variant="outlined"
-                    startIcon={<FileDownloadIcon />}
                     onClick={onExport}
                     sx={{
                         fontSize: '12px',

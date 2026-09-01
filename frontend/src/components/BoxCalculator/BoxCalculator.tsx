@@ -12,8 +12,6 @@ import {
     Paper,
     Stack
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
 
 // Типы для деталей и конструкций
 interface Part {
@@ -104,7 +102,6 @@ export const BoxCalculator: React.FC = () => {
                                 variant="outlined"
                                 color="error"
                                 onClick={() => removePart(part.id)}
-                                startIcon={<DeleteIcon />}
                                 sx={{ minWidth: 'auto', px: 2 }}
                             >
                                 Удалить
@@ -117,7 +114,6 @@ export const BoxCalculator: React.FC = () => {
             {/* Кнопка + Деталь */}
             <Button
                 variant="text"
-                startIcon={<AddIcon />}
                 onClick={addPart}
                 sx={{ mb: 3 }}
             >

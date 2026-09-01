@@ -1,21 +1,7 @@
 // frontend/src/components/Layout/Header.tsx
-import { AppBar, Tabs, Tab, Toolbar, Typography, Box } from '@mui/material';
+import { AppBar, Toolbar, Typography } from '@mui/material';
 
-interface HeaderProps {
-    activeTab: string;
-    onTabChange: (tab: string) => void;
-}
-
-const tabs = [
-    'Расчет коробки',
-    'Расчет клише',
-    'Расчет конгрев',
-    'Расчет шелкография',
-    'Справочники',
-    'Настройки',
-];
-
-export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
+export const Header = () => {
     return (
         <AppBar
             position="static"
@@ -47,41 +33,8 @@ export const Header = ({ activeTab, onTabChange }: HeaderProps) => {
                         letterSpacing: '0.02em',
                     }}
                 >
-                    Калькулятор расчета коробки
+                    Расчет заказа
                 </Typography>
-
-                {/* Вкладки справа */}
-                <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                    <Tabs
-                        value={activeTab}
-                        onChange={(_, value) => onTabChange(value)}
-                        textColor="primary"
-                        indicatorColor="primary"
-                        sx={{
-                            '& .MuiTab-root': {
-                                textTransform: 'none',
-                                fontWeight: 400,
-                                fontSize: '14px',
-                                color: '#666',
-                                padding: '20px 16px 18px',
-                                minHeight: '58px',
-                                minWidth: '100px',
-                            },
-                            '& .Mui-selected': {
-                                color: '#1a73e8 !important',
-                                fontWeight: 600,
-                            },
-                            '& .MuiTabs-indicator': {
-                                backgroundColor: '#1a73e8',
-                                height: '3px',
-                            },
-                        }}
-                    >
-                        {tabs.map((tab) => (
-                            <Tab key={tab} label={tab} value={tab} />
-                        ))}
-                    </Tabs>
-                </Box>
             </Toolbar>
         </AppBar>
     );

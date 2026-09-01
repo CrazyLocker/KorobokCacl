@@ -8,13 +8,10 @@ import {
     TableRow,
     TextField,
     Checkbox,
-    IconButton,
     Button,
     Box,
     Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close';
 import type { Detail, Extra } from '../../types';
 
 interface Props {
@@ -172,13 +169,13 @@ export const LayoutTable = ({
                                     {/* Remove button (custom only) */}
                                     <TableCell align="center" sx={{ borderBottom: '1px solid #f1f3f4' }}>
                                         {d.isCustom && (
-                                            <IconButton
+                                            <Button
                                                 size="small"
                                                 onClick={() => onRemoveCustomDetail(index)}
                                                 sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
                                             >
-                                                <CloseIcon fontSize="small" />
-                                            </IconButton>
+                                                Удалить
+                                            </Button>
                                         )}
                                     </TableCell>
                                 </TableRow>
@@ -189,7 +186,6 @@ export const LayoutTable = ({
             </TableContainer>
 
             <Button
-                startIcon={<AddIcon />}
                 onClick={onAddCustomDetail}
                 sx={{
                     mt: 1,

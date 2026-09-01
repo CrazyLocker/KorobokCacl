@@ -1,10 +1,6 @@
 // frontend/src/App.tsx
 import { useState, useCallback } from 'react';
-import { Container, Paper, Box, Typography, Button, Divider, CircularProgress, Alert, ToggleButton, ToggleButtonGroup, Snackbar, Alert as MuiAlert } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import BuildIcon from '@mui/icons-material/Build';
-import FormatItalicIcon from '@mui/icons-material/FormatItalic';
-import { Header } from './components/Layout/Header';
+import { Container, Paper, Box, Typography, Button, Divider, Alert, ToggleButton, ToggleButtonGroup, Snackbar, Alert as MuiAlert } from '@mui/material';
 import { Sidebar } from './components/Layout/Sidebar';
 import { ConstructionSelector } from './components/Calculator/ConstructionSelector';
 import { LayoutTable } from './components/Calculator/LayoutTable';
@@ -45,23 +41,21 @@ function App() {
             case 'calculator':
                 return view === 'new' ? <NewApp /> : (
                     <>
-                        <Header activeTab="Коробка" onTabChange={() => {}} />
                         <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: { xs: 1, sm: 1.5, md: 2, lg: 3 }, pt: 1.5 }}>
                             <ToggleButtonGroup value={view} exclusive onChange={handleViewChange} size="small" sx={{ backgroundColor: '#f8f9fa', borderRadius: '20px', border: '1px solid #e8eaed' }}>
                                 <ToggleButton value="classic" sx={{ fontSize: '12px', textTransform: 'none', px: 2, py: 0.5, borderRadius: '20px', '&.Mui-selected': { backgroundColor: '#1a73e8', color: '#fff', '&:hover': { backgroundColor: '#1557b0' } } }}>
                                     Классический
                                 </ToggleButton>
                                 <ToggleButton value="new" sx={{ fontSize: '12px', textTransform: 'none', px: 2, py: 0.5, borderRadius: '20px', '&.Mui-selected': { backgroundColor: '#1a73e8', color: '#fff', '&:hover': { backgroundColor: '#1557b0' } } }}>
-                                    <FormatItalicIcon sx={{ fontSize: 16, mr: 0.5 }} />
                                     Новый UI
                                 </ToggleButton>
                             </ToggleButtonGroup>
                         </Box>
-                        <Container maxWidth={false} sx={{ mt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 1, sm: 1.5, md: 2, lg: 3 }, maxWidth: { xs: '100%', sm: '100%', md: '98%', lg: '95%', xl: '1600px' }, mx: 'auto' }}>
+                        <Container maxWidth={false} sx={{ mt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 1, sm: 1.5, md: 2, lg: 3 }, maxWidth: { xs: '100%', sm: '100%', md: '125%', lg: '120%', xl: '1800px' }, mx: 'auto' }}>
                             <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 3, lg: 4 }, borderRadius: { xs: '8px', sm: '10px', md: '12px' }, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 1 }}>
                                     <Typography variant="h5" sx={{ fontWeight: 500, fontSize: { xs: '18px', sm: '20px', md: '24px' } }}>
-                                        Калькулятор стоимости коробки
+                                        Расчет заказа
                                     </Typography>
                                 </Box>
                                 <Box sx={{ mb: 3, p: { xs: 1, sm: 1.5 }, pl: { xs: 1.5, sm: 2 }, backgroundColor: '#e8f0fe', borderRadius: { xs: '6px', sm: '8px' }, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
@@ -123,7 +117,6 @@ function App() {
                                         )}
                                         <Box sx={{ mt: 1.5, p: { xs: 1, sm: 1.5 }, backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 }, flexWrap: 'wrap' }}>
                                             <Typography sx={{ fontWeight: 500, fontSize: { xs: '12px', sm: '13px' }, display: 'flex', alignItems: 'center', gap: 0.5, whiteSpace: 'nowrap' }}>
-                                                <BuildIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />
                                                 Работа
                                             </Typography>
                                             <input type="number" value={calc.workPrice} step={0.5} min={0} onChange={(e) => calc.setWorkPrice(parseFloat(e.target.value) || 0)} style={{ width: 60, padding: '4px 6px', border: '1px solid #dadce0', borderRadius: '6px', fontSize: '12px', textAlign: 'center', fontFamily: 'inherit' }} />
@@ -141,7 +134,7 @@ function App() {
                                     <Typography sx={{ fontSize: { xs: '13px', sm: '14px', md: '15px' }, fontWeight: 500, mb: 1.5, pb: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #e8eaed', flexWrap: 'wrap' }}>
                                         Цены для клиента
                                         <Box sx={{ ml: { xs: 0, sm: 'auto' }, display: 'flex', alignItems: 'center', gap: 1 }}>
-                                            <Button variant="contained" startIcon={calc.loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />} onClick={calc.calculate} disabled={calc.loading} size="small" sx={{ backgroundColor: '#1a73e8', borderRadius: '12px', padding: '4px 12px', fontWeight: 500, fontSize: '11px', textTransform: 'none', '&:hover': { backgroundColor: '#1557b0' } }}>
+                                            <Button variant="contained" onClick={calc.calculate} disabled={calc.loading} size="small" sx={{ backgroundColor: '#1a73e8', borderRadius: '12px', padding: '4px 12px', fontWeight: 500, fontSize: '11px', textTransform: 'none', '&:hover': { backgroundColor: '#1557b0' } }}>
                                                 Рассчитать
                                             </Button>
                                         </Box>

@@ -17,9 +17,6 @@ import {
     CircularProgress,
     Alert,
 } from '@mui/material';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import DeleteIcon from '@mui/icons-material/Delete';
 import type { Construct, PriceListData } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 
@@ -229,7 +226,7 @@ export const PriceListTab = ({ onNotify }: Props) => {
                             '&:hover': { backgroundColor: '#b71c1c' },
                         }}
                     >
-                        <DeleteIcon sx={{ fontSize: 18 }} />
+                        Удалить
                     </Button>
                 </Box>
             </Paper>
@@ -321,7 +318,6 @@ export const PriceListTab = ({ onNotify }: Props) => {
                 <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Box sx={{ position: 'relative' }}>
                         <Button
-                            startIcon={<FileUploadIcon />}
                             variant="outlined"
                             sx={{
                                 borderColor: '#e37400',
@@ -341,7 +337,6 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         />
                     </Box>
                     <Button
-                        startIcon={<FileDownloadIcon />}
                         onClick={handleExport}
                         disabled={!selectedConstruct}
                         variant="outlined"

@@ -9,10 +9,8 @@ import {
     TableHead,
     TableRow,
     Button,
-    CircularProgress,
     TextField,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import type { PriceRow } from '../../types';
 
 interface Props {
@@ -66,7 +64,6 @@ export const PricesBlock = ({ prices, onUpdatePriceList, onCalculate, loading }:
                 </Typography>
                 <Button
                     variant="contained"
-                    startIcon={loading ? <CircularProgress size={16} color="inherit" /> : <RefreshIcon />}
                     onClick={onCalculate}
                     disabled={loading}
                     size="small"

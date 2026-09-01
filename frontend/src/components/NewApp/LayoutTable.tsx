@@ -12,7 +12,6 @@ import {
     Box,
     Typography,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import type { Detail, Extra } from '../../types';
 
 interface Props {
@@ -151,7 +150,6 @@ export const LayoutTable = ({
             </TableContainer>
 
             <Button
-                startIcon={<AddIcon />}
                 onClick={onAddCustomDetail}
                 sx={{
                     mt: 1.5,

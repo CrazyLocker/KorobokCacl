@@ -1,6 +1,5 @@
 // frontend/src/components/NewApp/ImportDataBlock.tsx
 import { Box, Chip, Typography } from '@mui/material';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
 
 interface Props {
     onImportConstructs: () => void;
@@ -23,7 +22,6 @@ export const ImportDataBlock = ({ onImportConstructs, onImportPrice, onImportPri
                 Импорт данных:
             </Typography>
             <Chip
-                icon={<FileUploadIcon sx={{ fontSize: 16 }} />}
                 label="Коробки"
                 onClick={onImportConstructs}
                 sx={{
@@ -37,7 +35,6 @@ export const ImportDataBlock = ({ onImportConstructs, onImportPrice, onImportPri
                 }}
             />
             <Chip
-                icon={<FileUploadIcon sx={{ fontSize: 16 }} />}
                 label="Прайс коробки"
                 onClick={onImportPrice}
                 sx={{
@@ -51,7 +48,6 @@ export const ImportDataBlock = ({ onImportConstructs, onImportPrice, onImportPri
                 }}
             />
             <Chip
-                icon={<FileUploadIcon sx={{ fontSize: 16 }} />}
                 label="Прайс печати"
                 onClick={onImportPrint}
                 sx={{

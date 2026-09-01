@@ -10,10 +10,7 @@ import {
     Box,
     Typography,
     Button,
-    CircularProgress,
 } from '@mui/material';
-import StarIcon from '@mui/icons-material/Star';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import type { PriceRow } from '../../types';
 
 interface Props {
@@ -77,7 +74,6 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCal
                             <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, borderBottom: '1px solid #e8eaed' }}>
                                 <Button
                                     variant="contained"
-                                    startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon />}
                                     onClick={onCalculate}
                                     disabled={loading}
                                     size="small"
@@ -108,13 +104,12 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCal
                                 <TableCell sx={{ fontSize: '13px' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                         {row.label}
-                                        {row.isBase && <StarIcon sx={{ fontSize: 16, color: '#fbbc04' }} />}
                                         {row.isBase && (
                                             <Typography sx={{ fontSize: '11px', color: '#5f6368' }}>базовая</Typography>
                                         )}
                                         {row.isPriceListUsed && (
                                             <Typography sx={{ fontSize: '10px', color: '#d93025', fontWeight: 500, ml: 0.5 }}>
-                                                📋 прайс
+                                                прайс
                                             </Typography>
                                         )}
                                     </Box>

@@ -1,6 +1,5 @@
 // frontend/src/components/NewApp/OperationsBlock.tsx
 import { Box, Typography, TextField, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
 import type { Extra, PrintSettings, PrintTable } from '../../types';
 
 interface Props {
@@ -119,7 +118,6 @@ export const OperationsBlock = ({
 
             {/* Add operation button */}
             <Button
-                startIcon={<AddIcon />}
                 onClick={onAddCustomExtra}
                 sx={{
                     mt: 1.5,

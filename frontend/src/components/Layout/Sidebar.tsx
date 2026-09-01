@@ -1,6 +1,5 @@
 // frontend/src/components/Layout/Sidebar.tsx
 import { Box, Typography, Paper } from '@mui/material';
-import CalculateIcon from '@mui/icons-material/Calculate';
 
 interface SidebarProps {
     activePage: string;
@@ -8,12 +7,12 @@ interface SidebarProps {
 }
 
 const navItems = [
-    { key: 'calculator', label: 'Расчет коробки', icon: '🧮', dev: false },
-    { key: 'cliche', label: 'Расчет клише', icon: '🖼️', dev: true },
-    { key: 'congrev', label: 'Расчет конгрев', icon: '✨', dev: true },
-    { key: 'silkscreen', label: 'Расчет шелкография', icon: '🎨', dev: true },
-    { key: 'references', label: 'Справочники', icon: '📚', dev: false },
-    { key: 'settings', label: 'Настройки', icon: '⚙️', dev: true },
+    { key: 'calculator', label: 'Расчет коробки', dev: false },
+    { key: 'cliche', label: 'Расчет клише', dev: true },
+    { key: 'congrev', label: 'Расчет конгрев', dev: true },
+    { key: 'silkscreen', label: 'Расчет шелкография', dev: true },
+    { key: 'references', label: 'Справочники', dev: false },
+    { key: 'settings', label: 'Настройки', dev: true },
 ];
 
 export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
@@ -34,21 +33,15 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
         >
             {/* Logo */}
             <Box sx={{ mb: 2, pb: 1.5, borderBottom: '1px solid #e8eaed' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <CalculateIcon sx={{ fontSize: 24, color: '#1a73e8' }} />
-                    <Typography
-                        variant="h6"
-                        sx={{
-                            fontSize: '16px',
-                            fontWeight: 600,
-                            color: '#1a73e8',
-                        }}
-                    >
-                        Калькулятор
-                    </Typography>
-                </Box>
-                <Typography sx={{ fontSize: '11px', color: '#5f6368', mt: 0.5 }}>
-                    стоимости коробки
+                <Typography
+                    variant="h6"
+                    sx={{
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        color: '#1a73e8',
+                    }}
+                >
+                    Расчет заказа
                 </Typography>
             </Box>
 
@@ -61,7 +54,6 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: 1,
                             p: '8px 12px',
                             borderRadius: '8px',
                             cursor: 'pointer',
@@ -77,7 +69,6 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                             },
                         }}
                     >
-                        <span style={{ fontSize: '16px' }}>{item.icon}</span>
                         <Box sx={{ flex: 1 }}>{item.label}</Box>
                         {item.dev && (
                             <Box

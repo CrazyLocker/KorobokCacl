@@ -1,6 +1,5 @@
 // frontend/src/components/Calculator/ConstructionSelector.tsx
 import { Select, MenuItem, FormControl, Box, Typography } from '@mui/material';
-import LayersIcon from '@mui/icons-material/Layers';
 import type { Construct } from '../../types';
 
 interface Props {
@@ -39,7 +38,6 @@ export const ConstructionSelector = ({ constructs, value, onChange, additionalCo
                     gap: 1,
                 }}
             >
-                <LayersIcon sx={{ fontSize: 18, color: '#1a73e8' }} />
                 Базовая коробка
             </Typography>
             <FormControl size="small" sx={{ minWidth: 200 }}>

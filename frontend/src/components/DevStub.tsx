@@ -1,6 +1,5 @@
 // frontend/src/components/DevStub.tsx
 import { Box, Paper, Typography } from '@mui/material';
-import EngineeringIcon from '@mui/icons-material/Engineering';
 
 interface Props {
     title: string;
@@ -18,7 +17,6 @@ export const DevStub = ({ title }: Props) => {
                     textAlign: 'center',
                 }}
             >
-                <EngineeringIcon sx={{ fontSize: 48, color: '#9aa0a6', mb: 2 }} />
                 <Typography variant="h5" sx={{ fontWeight: 500, mb: 1, color: '#202124' }}>
                     {title}
                 </Typography>

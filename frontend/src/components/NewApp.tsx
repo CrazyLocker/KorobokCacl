@@ -1,5 +1,4 @@
 // frontend/src/components/NewApp.tsx
-import { useState } from 'react';
 import { Box, Typography, Select, MenuItem, Paper } from '@mui/material';
 import { Header } from './Layout/Header';
 import { ImportDataBlock } from './NewApp/ImportDataBlock';
@@ -15,7 +14,6 @@ import { useCalculator } from '../hooks/useCalculator';
  */
 export const NewApp = () => {
     const calc = useCalculator();
-    const [activeTab, setActiveTab] = useState('Расчет коробки');
 
     // Mock handlers for import buttons (can be connected later)
     const handleImportConstructs = () => console.log('Import constructs');
@@ -26,13 +24,13 @@ export const NewApp = () => {
 
     return (
         <>
-            <Header activeTab={activeTab} onTabChange={setActiveTab} />
+            <Header />
 
             <Box
                 sx={{
                     px: { xs: 1, sm: 2, md: 3, lg: 4 },
                     py: 2,
-                    maxWidth: '1400px',
+                    maxWidth: '1820px',
                     mx: 'auto',
                     width: '100%',
                     boxSizing: 'border-box',

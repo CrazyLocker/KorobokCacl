@@ -21,10 +21,6 @@ import {
     DialogContent,
     DialogActions,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import type { PrintTable } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 
@@ -272,7 +268,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                             '&:hover': { backgroundColor: '#b71c1c' },
                         }}
                     >
-                        <DeleteIcon sx={{ fontSize: 18 }} />
+                        Удалить
                     </Button>
                 </Box>
             </Paper>
@@ -368,7 +364,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                                                 onClick={() => handleDeleteStep(index)}
                                                 sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
                                             >
-                                                <DeleteIcon sx={{ fontSize: 18 }} />
+                                                Удалить
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -381,7 +377,6 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                 {/* Действия */}
                 <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Button
-                        startIcon={<AddIcon />}
                         onClick={handleAddStep}
                         disabled={!selectedTable}
                         sx={{
@@ -396,7 +391,6 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                     </Button>
                     <Box sx={{ position: 'relative' }}>
                         <Button
-                            startIcon={<FileUploadIcon />}
                             variant="outlined"
                             sx={{
                                 borderColor: '#e37400',
@@ -416,7 +410,6 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                         />
                     </Box>
                     <Button
-                        startIcon={<FileDownloadIcon />}
                         onClick={handleExport}
                         disabled={!selectedTable}
                         variant="outlined"

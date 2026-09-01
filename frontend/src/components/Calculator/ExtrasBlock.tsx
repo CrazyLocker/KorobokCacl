@@ -5,11 +5,8 @@ import {
     Select,
     MenuItem,
     TextField,
-    IconButton,
     Button,
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import CloseIcon from '@mui/icons-material/Close';
 import type { Extra, PrintSettings, PrintTable } from '../../types';
 
 interface Props {
@@ -64,7 +61,7 @@ export const ExtrasBlock = ({
                 }}
             >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontWeight: 500, fontSize: '12px' }}>🖨️ Печать</Typography>
+                    <Typography sx={{ fontWeight: 500, fontSize: '12px' }}>Печать</Typography>
                     <Select
                         size="small"
                         value={printSettings.format}
@@ -157,13 +154,13 @@ export const ExtrasBlock = ({
                         />
                         <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>руб.</Typography>
                         {extra.isCustom && (
-                            <IconButton
+                            <Button
                                 size="small"
                                 onClick={() => onRemoveCustomExtra(index)}
                                 sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
                             >
-                                <CloseIcon fontSize="small" />
-                            </IconButton>
+                                Удалить
+                            </Button>
                         )}
                     </Box>
                     <Typography
@@ -183,7 +180,6 @@ export const ExtrasBlock = ({
 
             {/* Add operation button */}
             <Button
-                startIcon={<AddIcon />}
                 onClick={onAddCustomExtra}
                 sx={{
                     mt: 1,
