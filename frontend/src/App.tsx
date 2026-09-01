@@ -1,44 +1,108 @@
 // frontend/src/App.tsx
-import { Container, Paper, Box, Typography, Button, Divider, CircularProgress, Alert } from '@mui/material';
+import { useState } from 'react';
+import { Container, Paper, Box, Typography, Button, Divider, CircularProgress, Alert, ToggleButton, ToggleButtonGroup } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import BuildIcon from '@mui/icons-material/Build';
+import FormatItalicIcon from '@mui/icons-material/FormatItalic';
 import { Header } from './components/Layout/Header';
 import { ConstructionSelector } from './components/Calculator/ConstructionSelector';
 import { LayoutTable } from './components/Calculator/LayoutTable';
 import { ExtrasBlock } from './components/Calculator/ExtrasBlock';
 import { PriceTable } from './components/Calculator/PriceTable';
 import { useCalculator } from './hooks/useCalculator';
+import { NewApp } from './components/NewApp';
 import './App.css';
 
 function App() {
     const calc = useCalculator();
+    const [view, setView] = useState<'classic' | 'new'>('classic');
+
+    const handleViewChange = (_: React.MouseEvent<HTMLElement>, newView: 'classic' | 'new') => {
+        if (newView !== null) setView(newView);
+    };
 
     return (
         <>
             <Header activeTab="Коробка" onTabChange={() => {}} />
-            <Container
-                maxWidth={false}
+
+            {/* UI Switcher */}
+            <Box
                 sx={{
-                    mt: { xs: 1.5, sm: 2, md: 3 },
+                    display: 'flex',
+                    justifyContent: 'flex-end',
                     px: { xs: 1, sm: 1.5, md: 2, lg: 3 },
-                    maxWidth: {
-                        xs: '100%',
-                        sm: '100%',
-                        md: '98%',
-                        lg: '95%',
-                        xl: '1600px'
-                    },
-                    mx: 'auto'
+                    pt: 1.5,
                 }}
             >
-                <Paper
-                    elevation={0}
+                <ToggleButtonGroup
+                    value={view}
+                    exclusive
+                    onChange={handleViewChange}
+                    size="small"
                     sx={{
-                        p: { xs: 1.5, sm: 2, md: 3, lg: 4 },
-                        borderRadius: { xs: '8px', sm: '10px', md: '12px' },
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '20px',
+                        border: '1px solid #e8eaed',
                     }}
                 >
+                    <ToggleButton value="classic" sx={{
+                        fontSize: '12px',
+                        textTransform: 'none',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: '20px',
+                        '&.Mui-selected': {
+                            backgroundColor: '#1a73e8',
+                            color: '#fff',
+                            '&:hover': { backgroundColor: '#1557b0' },
+                        },
+                    }}>
+                        Классический
+                    </ToggleButton>
+                    <ToggleButton value="new" sx={{
+                        fontSize: '12px',
+                        textTransform: 'none',
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: '20px',
+                        '&.Mui-selected': {
+                            backgroundColor: '#1a73e8',
+                            color: '#fff',
+                            '&:hover': { backgroundColor: '#1557b0' },
+                        },
+                    }}>
+                        <FormatItalicIcon sx={{ fontSize: 16, mr: 0.5 }} />
+                        Новый UI
+                    </ToggleButton>
+                </ToggleButtonGroup>
+            </Box>
+
+            {view === 'new' ? (
+                <NewApp />
+            ) : (
+                <Container
+                    maxWidth={false}
+                    sx={{
+                        mt: { xs: 1.5, sm: 2, md: 3 },
+                        px: { xs: 1, sm: 1.5, md: 2, lg: 3 },
+                        maxWidth: {
+                            xs: '100%',
+                            sm: '100%',
+                            md: '98%',
+                            lg: '95%',
+                            xl: '1600px'
+                        },
+                        mx: 'auto'
+                    }}
+                >
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            p: { xs: 1.5, sm: 2, md: 3, lg: 4 },
+                            borderRadius: { xs: '8px', sm: '10px', md: '12px' },
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+                        }}
+                    >
                     {/* Title */}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 }, mb: 1 }}>
                         <Typography variant="h5" sx={{ fontWeight: 500, fontSize: { xs: '18px', sm: '20px', md: '24px' } }}>
@@ -402,7 +466,8 @@ function App() {
                     </Box>
 
                 </Paper>
-            </Container>
+                </Container>
+            )}
         </>
     );
 }
