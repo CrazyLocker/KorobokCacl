@@ -231,7 +231,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                         onChange={(e) => {
                             if (!selectedTable) return;
                             const updated = { ...selectedTable, formatName: e.target.value };
-                            setPrintTables((prev) => prev.map((t) => (t.formatId === t.formatId ? updated : t)));
+                            setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
                         }}
                         label="Название"
                         size="small"

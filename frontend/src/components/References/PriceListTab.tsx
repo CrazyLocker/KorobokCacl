@@ -81,7 +81,7 @@ export const PriceListTab = ({ onNotify }: Props) => {
         setSaving(true);
         try {
             const priceListData: PriceListData = {
-                id: priceCode || '',
+                id: priceCode || null,
                 constructId: selectedConstruct,
                 priceData,
             };

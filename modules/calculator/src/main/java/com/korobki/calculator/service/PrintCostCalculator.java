@@ -28,6 +28,40 @@ public class PrintCostCalculator {
     }
 
     /**
+     * Get a print table by its id.
+     */
+    public PrintTable getPrintTableById(java.util.UUID id) {
+        return printTableRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Print table not found with id: " + id));
+    }
+
+    /**
+     * Save a new print table.
+     */
+    public PrintTable savePrintTable(PrintTable printTable) {
+        return printTableRepository.save(printTable);
+    }
+
+    /**
+     * Update an existing print table.
+     */
+    public PrintTable updatePrintTable(java.util.UUID id, PrintTable printTable) {
+        PrintTable existing = getPrintTableById(id);
+        existing.setFormatId(printTable.getFormatId());
+        existing.setFormatName(printTable.getFormatName());
+        existing.setSteps(printTable.getSteps());
+        existing.setStepAfter3000(printTable.getStepAfter3000());
+        return printTableRepository.save(existing);
+    }
+
+    /**
+     * Delete a print table by its id.
+     */
+    public void deletePrintTable(java.util.UUID id) {
+        printTableRepository.deleteById(id);
+    }
+
+    /**
      * Calculate the total print cost for a given format and quantity.
      *
      * @param formatId print format (1, 2, or 3)

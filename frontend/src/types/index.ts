@@ -61,7 +61,7 @@ export interface PrintTable {
 }
 
 export interface PriceListData {
-    id: string;
+    id: string | null;
     constructId: string;
     priceData: Record<string, number>;
 }

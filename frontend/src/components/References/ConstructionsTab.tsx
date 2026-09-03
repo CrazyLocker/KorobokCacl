@@ -223,7 +223,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         onChange={(e) => {
                             if (!selectedConstructData) return;
                             const updated = { ...selectedConstructData, name: e.target.value };
-                            setConstructs((prev) => prev.map((c) => (c.id === c.id ? updated : c)));
+                            setConstructs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
                         }}
                         label="Название"
                         size="small"

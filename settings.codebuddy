@@ -1,0 +1,8 @@
+{
+  "defaultModelUiUx": "loading",
+  "presets": {
+    "newStyle": {
+      "uiux": "loading"
+    }
+  }
+}

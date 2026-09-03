@@ -1,0 +1,30 @@
+{
+  "models": {
+    "backend": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.3,
+      "maxTokens": 4096,
+      "contextWindow": 32768
+    },
+    "frontend": {
+      "provider": "tencent",
+      "model": "hy4",
+      "temperature": 0.4,
+      "maxTokens": 4096,
+      "contextWindow": 32768
+    },
+    "review": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-flash",
+      "temperature": 0.1,
+      "maxTokens": 8192
+    }
+  },
+  "workspace": {
+    "backendPath": "src/main/java",
+    "frontendPath": "src/main/react",
+    "resourcesPath": "src/main/resources",
+    "testPath": "src/test"
+  }
+}
