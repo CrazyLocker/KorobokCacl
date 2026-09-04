@@ -2,8 +2,10 @@ package com.korobki.calculator.service;
 
 import com.korobki.persistence.entity.Construct;
 import com.korobki.persistence.repository.ConstructRepository;
+import com.korobki.persistence.repository.PriceListRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +15,7 @@ import java.util.UUID;
 public class ConstructService {
 
     private final ConstructRepository constructRepository;
+    private final PriceListRepository priceListRepository;
 
     public List<Construct> getAllActiveConstructs() {
         return constructRepository.findAllByIsActiveTrue();
@@ -36,7 +39,10 @@ public class ConstructService {
         return constructRepository.save(existing);
     }
 
+    @Transactional
     public void deleteConstruct(UUID id) {
+        // Remove the dependent price list first (FK construct_id, no cascade in DB)
+        priceListRepository.deleteByConstructId(id);
         constructRepository.deleteById(id);
     }
 }

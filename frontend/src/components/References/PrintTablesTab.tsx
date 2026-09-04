@@ -23,6 +23,7 @@ import {
 } from '@mui/material';
 import type { PrintTable } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -137,67 +138,6 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
         onNotify('Шаг удалён', 'success');
     };
 
-    // Обновить шаг после 3000
-    const handleStepAfter3000Change = (value: number) => {
-        if (!selectedTable) return;
-        const updated = { ...selectedTable, stepAfter3000: value };
-        setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
-    };
-
-    // Экспорт JSON
-    const handleExport = () => {
-        if (!selectedTable) {
-            onNotify('Выберите формат для экспорта', 'error');
-            return;
-        }
-        const json = JSON.stringify(selectedTable, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${selectedTable.formatName}_печать.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        onNotify('Экспорт выполнен', 'success');
-    };
-
-    // Импорт JSON
-    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target?.result as string);
-
-                // Валидация
-                if (!data.id || !data.formatId || !data.formatName || !Array.isArray(data.steps)) {
-                    throw new Error('Неверный формат: отсутствуют обязательные поля');
-                }
-
-                calculatorApi.savePrintTable(data as PrintTable)
-                    .then((saved) => {
-                        setPrintTables((prev) => {
-                            const filtered = prev.filter((t) => t.id !== saved.id);
-                            return [...filtered, saved];
-                        });
-                        setSelectedFormat(saved.formatId);
-                        onNotify('Импорт выполнен', 'success');
-                    })
-                    .catch((err) => {
-                        onNotify('Ошибка импорта: ' + err.message, 'error');
-                    });
-            } catch (err: any) {
-                onNotify('Ошибка импорта: ' + err.message, 'error');
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    };
-
     return (
         <Box>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -213,17 +153,17 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                     backgroundColor: '#f8f9fa',
                 }}
             >
-                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase' }}>
+                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Формат печати
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Select
                         value={selectedFormat}
                         onChange={(e) => setSelectedFormat(e.target.value as number)}
-                        sx={{ minWidth: 200, '& .MuiSelect-select': { fontSize: '14px' } }}
+                        sx={{ ...selectSx, minWidth: 200 }}
                     >
                         {printTables.map((t) => (
-                            <MenuItem key={t.formatId} value={t.formatId}>{t.formatName}</MenuItem>
+                            <MenuItem key={t.formatId} value={t.formatId} sx={menuItemSx}>{t.formatName}</MenuItem>
                         ))}
                     </Select>
                     <TextField
@@ -237,35 +177,34 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                         size="small"
                         sx={{ minWidth: 200 }}
                     />
-                    <TextField
-                        value={selectedTable?.stepAfter3000 || 0}
-                        onChange={(e) => handleStepAfter3000Change(parseFloat(e.target.value) || 0)}
-                        label="Шаг после 3000"
-                        size="small"
-                        type="number"
-                        inputProps={{ step: 1, min: 0 }}
-                        sx={{ minWidth: 100 }}
-                    />
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleSave}
                         disabled={saving}
                         sx={{
-                            backgroundColor: '#137333',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#0d5a28' },
+                            borderColor: '#137333',
+                            color: '#137333',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
                         }}
                     >
-                        {saving ? <CircularProgress size={20} color="inherit" /> : 'Сохранить'}
+                        {saving ? <CircularProgress size={16} color="inherit" /> : 'Сохранить'}
                     </Button>
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleDeleteClick}
                         disabled={!selectedTable}
                         sx={{
-                            backgroundColor: '#d93025',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#b71c1c' },
+                            borderColor: '#d93025',
+                            color: '#d93025',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#fce8e6', borderColor: '#d93025' },
                         }}
                     >
                         Удалить
@@ -285,7 +224,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                         alignItems: 'center',
                     }}
                 >
-                    <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', pb: 1, borderBottom: '2px solid #1a73e8', flex: 1, textAlign: 'left' }}>
                         Стоимость печати по форматам
                     </Typography>
                     <Typography
@@ -334,13 +273,8 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                                                 value={step.minQty}
                                                 onChange={(e) => handleStepChange(index, 'minQty', parseFloat(e.target.value) || 0)}
                                                 size="small"
-                                                inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '6px',
-                                                        backgroundColor: '#fff',
-                                                    },
-                                                }}
+                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                                sx={numberInputSx}
                                             />
                                         </TableCell>
                                         <TableCell align="center">
@@ -349,13 +283,8 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                                                 value={step.price}
                                                 onChange={(e) => handleStepChange(index, 'price', parseFloat(e.target.value) || 0)}
                                                 size="small"
-                                                inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '6px',
-                                                        backgroundColor: '#fff',
-                                                    },
-                                                }}
+                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                                sx={numberInputSx}
                                             />
                                         </TableCell>
                                         <TableCell align="center">
@@ -377,51 +306,20 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                 {/* Действия */}
                 <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Button
+                        variant="outlined"
+                        size="small"
                         onClick={handleAddStep}
                         disabled={!selectedTable}
                         sx={{
-                            backgroundColor: '#1a73e8',
-                            color: '#fff',
-                            borderRadius: '24px',
-                            fontSize: '13px',
-                            '&:hover': { backgroundColor: '#1557b0' },
+                            borderColor: '#1a73e8',
+                            color: '#1a73e8',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#e8f0fe', borderColor: '#1a73e8' },
                         }}
                     >
                         Добавить шаг
-                    </Button>
-                    <Box sx={{ position: 'relative' }}>
-                        <Button
-                            variant="outlined"
-                            sx={{
-                                borderColor: '#e37400',
-                                color: '#e37400',
-                                borderRadius: '20px',
-                                fontSize: '12px',
-                                '&:hover': { backgroundColor: '#fff3e0' },
-                            }}
-                        >
-                            Импорт JSON
-                        </Button>
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleImport}
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
-                        />
-                    </Box>
-                    <Button
-                        onClick={handleExport}
-                        disabled={!selectedTable}
-                        variant="outlined"
-                        sx={{
-                            borderColor: '#137333',
-                            color: '#137333',
-                            borderRadius: '24px',
-                            fontSize: '12px',
-                            '&:hover': { backgroundColor: '#e8f5e9' },
-                        }}
-                    >
-                        Экспорт JSON
                     </Button>
                 </Box>
             </Paper>

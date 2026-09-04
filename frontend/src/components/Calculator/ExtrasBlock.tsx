@@ -8,6 +8,7 @@ import {
     Button,
 } from '@mui/material';
 import type { Extra, PrintSettings, PrintTable } from '../../types';
+import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     extras: Extra[];
@@ -73,10 +74,10 @@ export const ExtrasBlock = ({
                             onUpdatePrintSettings('quantity', firstQty);
                             onUpdatePrintSettings('enabled', true);
                         }}
-                        sx={{ fontSize: '12px', minWidth: 180 }}
+                        sx={{ ...selectSx, minWidth: 180 }}
                     >
                         {printTables.map((t) => (
-                            <MenuItem key={t.formatId} value={t.formatId}>
+                            <MenuItem key={t.formatId} value={t.formatId} sx={menuItemSx}>
                                 {t.formatName}
                             </MenuItem>
                         ))}
@@ -88,10 +89,10 @@ export const ExtrasBlock = ({
                             onUpdatePrintSettings('quantity', e.target.value as number);
                             onUpdatePrintSettings('enabled', true);
                         }}
-                        sx={{ fontSize: '12px', minWidth: 80 }}
+                        sx={{ ...selectSx, minWidth: 80 }}
                     >
                         {qtyOptions.map((q) => (
-                            <MenuItem key={q} value={q}>
+                            <MenuItem key={q} value={q} sx={menuItemSx}>
                                 {q}
                             </MenuItem>
                         ))}
@@ -150,7 +151,8 @@ export const ExtrasBlock = ({
                                 if (e.key === 'Enter') (e.target as HTMLElement).blur();
                             }}
                             size="small"
-                            inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 40 } }}
+                            inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 40 } }}
+                            sx={numberInputSx}
                         />
                         <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>руб.</Typography>
                         {extra.isCustom && (

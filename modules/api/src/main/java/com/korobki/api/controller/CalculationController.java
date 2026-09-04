@@ -1,8 +1,8 @@
 package com.korobki.api.controller;
 
+import com.korobki.api.dto.CalculationDto;
 import com.korobki.api.dto.CalculationSaveRequest;
-import com.korobki.api.dto.CalculationStateDto;
-import com.korobki.api.service.CalculationStorageService;
+import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,28 +16,26 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class CalculationController {
 
-    private final CalculationStorageService storageService;
+    private final CalculationService calculationService;
 
     @PostMapping("/save")
-    public ResponseEntity<CalculationStateDto> saveCalculation(
-            @Valid @RequestBody CalculationSaveRequest request) {
-        return ResponseEntity.ok(storageService.saveCalculation(request));
+    public ResponseEntity<CalculationDto> save(@Valid @RequestBody CalculationSaveRequest request) {
+        return ResponseEntity.ok(calculationService.save(request));
     }
 
     @GetMapping("/list")
-    public ResponseEntity<List<CalculationStateDto>> getCalculations(
-            @RequestParam String sessionId) {
-        return ResponseEntity.ok(storageService.getCalculations(sessionId));
+    public ResponseEntity<List<CalculationDto>> list() {
+        return ResponseEntity.ok(calculationService.list());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CalculationStateDto> getCalculation(@PathVariable UUID id) {
-        return ResponseEntity.ok(storageService.getCalculation(id));
+    public ResponseEntity<CalculationDto> get(@PathVariable UUID id) {
+        return ResponseEntity.ok(calculationService.get(id));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCalculation(@PathVariable UUID id) {
-        storageService.deleteCalculation(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        calculationService.delete(id);
         return ResponseEntity.ok().build();
     }
 }

@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface PriceListRepository extends JpaRepository<PriceList, UUID> {
     Optional<PriceList> findByConstructId(UUID constructId);
+
+    void deleteByConstructId(UUID constructId);
 }

@@ -1,5 +1,6 @@
 package com.korobki.calculator.service;
 
+import com.korobki.core.config.PricingConfig;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,12 +15,21 @@ import java.util.Map;
  *
  * Rounding: totalCost is rounded to integer (rounding #1).
  * All intermediate calculations use full BigDecimal precision.
+ * Default workPrice comes from PricingConfig (application.yml).
  */
 @Service
 @RequiredArgsConstructor
 public class CostCalculator {
 
     private final PrintCostCalculator printCostCalculator;
+    private final PricingConfig pricingConfig;
+
+    /**
+     * Get the default work price per detail from configuration.
+     */
+    public BigDecimal getDefaultWorkPrice() {
+        return pricingConfig.getManufacturingCost();
+    }
 
     /**
      * Calculate the total cost price for the given details, extras, and print settings.

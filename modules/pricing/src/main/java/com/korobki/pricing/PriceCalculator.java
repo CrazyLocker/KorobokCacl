@@ -1,5 +1,6 @@
 package com.korobki.pricing;
 
+import com.korobki.core.config.PricingConfig;
 import lombok.Data;
 import org.springframework.stereotype.Service;
 
@@ -11,15 +12,16 @@ import java.util.Map;
 
 /**
  * Price calculator — pure math, no DB dependencies.
+ * Configuration is externalized via PricingConfig (application.yml).
  *
  * Algorithm (в соответствии с НК РФ: скидка → НДС):
  * 1. roundedCost = totalCost.setScale(0, HALF_UP)  [rounding #1 — done by caller]
- * 2. basePrice = MIN(roundedCost × 3, roundedCost + 30)
- * 3. branch = "×3" if (roundedCost × 3 < roundedCost + 30), else "+30"
+ * 2. basePrice = MIN(roundedCost × markupMultiplier, roundedCost + markupMin)
+ * 3. branch = "×3" if (roundedCost × markupMultiplier < roundedCost + markupMin), else "+N"
  * 4. For each tier — FIRST discount, THEN VAT:
  *    - ×3 branch: priceWithoutVAT = basePrice × coefficient
- *    - +30 branch: priceWithoutVAT = basePrice + correction (rubles)
- * 5. priceWithVAT = round(priceWithoutVAT × 1.11)  [rounding #2 — financial, the only integer rounding]
+ *    - +N branch: priceWithoutVAT = basePrice + correction (rubles)
+ * 5. priceWithVAT = round(priceWithoutVAT × (1 + taxRate))  [rounding #2 — financial]
  * 6. finalPrice = applyPriceList(priceWithVAT, priceListPrice)
  * 7. withoutVAT (display) = priceWithoutVAT rounded to 2 decimals  [rounding #3 — display only]
  *
@@ -28,12 +30,7 @@ import java.util.Map;
 @Service
 public class PriceCalculator {
 
-    public static final BigDecimal VAT_RATE = new BigDecimal("0.11");
-    public static final BigDecimal VAT_MULTIPLIER = new BigDecimal("1.11");
-    public static final BigDecimal MARKUP_MIN = new BigDecimal("30");
-    public static final BigDecimal MARKUP_MULTIPLIER = new BigDecimal("3");
-
-    // Tier definitions: label, representative qty
+    // Tier definitions: label, representative qty (unchanged from HTML prototype)
     private static final Tier[] TIERS = {
             new Tier("до 9", 5),
             new Tier("10–49", 30),
@@ -44,44 +41,66 @@ public class PriceCalculator {
             new Tier("от 1500", 2000)
     };
 
-    // ×3 branch coefficients
-    private static final BigDecimal[] X3_COEFFICIENTS = {
-            new BigDecimal("1.0"),    // до 9
-            new BigDecimal("1.0"),    // 10–49
-            new BigDecimal("0.95"),   // 50–199
-            new BigDecimal("0.90"),   // 200–499
-            new BigDecimal("0.85"),   // 500–699
-            new BigDecimal("0.80"),   // 700–1499
-            new BigDecimal("0.75")    // от 1500
-    };
+    private final PricingConfig config;
 
-    // +30 branch corrections (rubles)
-    private static final BigDecimal[] PLUS30_CORRECTIONS = {
-            new BigDecimal("7"),      // до 9
-            BigDecimal.ZERO,          // 10–49
-            new BigDecimal("-2"),     // 50–199
-            new BigDecimal("-4"),     // 200–499
-            new BigDecimal("-6"),     // 500–699
-            new BigDecimal("-8"),     // 700–1499
-            new BigDecimal("-10")     // от 1500
-    };
+    /** Valid tier labels — used for price list key validation. */
+    public static List<String> tierLabels() {
+        return java.util.Arrays.stream(TIERS).map(t -> t.label).toList();
+    }
+
+    public PriceCalculator(PricingConfig config) {
+        this.config = config;
+    }
 
     /**
-     * Calculate base price = MIN(roundedCost × 3, roundedCost + 30).
+     * Get the configured tax rate (for external use, e.g. display).
+     */
+    public BigDecimal getTaxRate() {
+        return config.getTaxRate();
+    }
+
+    /**
+     * Get the configured VAT multiplier (1 + taxRate).
+     */
+    public BigDecimal getVatMultiplier() {
+        return BigDecimal.ONE.add(config.getTaxRate());
+    }
+
+    /**
+     * Calculate base price = MIN(roundedCost × markupMultiplier, roundedCost + margin).
+     * Uses configured margin (markupMin) by default.
      */
     public BigDecimal calcBasePrice(BigDecimal roundedCost) {
-        BigDecimal option1 = roundedCost.multiply(MARKUP_MULTIPLIER);
-        BigDecimal option2 = roundedCost.add(MARKUP_MIN);
+        return calcBasePrice(roundedCost, null);
+    }
+
+    /**
+     * Calculate base price with user-defined margin ("плечо").
+     * If marginValue is null, the configured markupMin is used.
+     */
+    public BigDecimal calcBasePrice(BigDecimal roundedCost, BigDecimal marginValue) {
+        BigDecimal margin = marginValue != null ? marginValue : config.getMarkupMin();
+        BigDecimal option1 = roundedCost.multiply(config.getMarkupMultiplier());
+        BigDecimal option2 = roundedCost.add(margin);
         return option1.compareTo(option2) <= 0 ? option1 : option2;
     }
 
     /**
-     * Determine the branch: "×3" or "+30".
+     * Determine the branch: "×3" or "+N" based on which option gives a lower base price.
+     * Uses configured margin (markupMin) by default.
      */
     public String getBranch(BigDecimal roundedCost) {
-        BigDecimal option1 = roundedCost.multiply(MARKUP_MULTIPLIER);
-        BigDecimal option2 = roundedCost.add(MARKUP_MIN);
-        return option1.compareTo(option2) < 0 ? "×3" : "+30";
+        return getBranch(roundedCost, null);
+    }
+
+    /**
+     * Determine the branch with user-defined margin ("плечо").
+     */
+    public String getBranch(BigDecimal roundedCost, BigDecimal marginValue) {
+        BigDecimal margin = marginValue != null ? marginValue : config.getMarkupMin();
+        BigDecimal option1 = roundedCost.multiply(config.getMarkupMultiplier());
+        BigDecimal option2 = roundedCost.add(margin);
+        return option1.compareTo(option2) < 0 ? "×3" : "+" + margin.toBigInteger();
     }
 
     /**
@@ -92,23 +111,35 @@ public class PriceCalculator {
      * @return list of price rows
      */
     public List<PriceRow> generatePrices(BigDecimal roundedCost, Map<String, BigDecimal> priceList) {
-        BigDecimal basePrice = calcBasePrice(roundedCost);
-        String branch = getBranch(roundedCost);
+        return generatePrices(roundedCost, priceList, null);
+    }
+
+    /**
+     * Generate price rows for all 7 tiers with user-defined margin ("плечо").
+     *
+     * @param roundedCost total cost rounded to integer
+     * @param priceList   map of tier label → price list value (0 = not set)
+     * @param marginValue user-defined margin; null → configured markupMin
+     * @return list of price rows
+     */
+    public List<PriceRow> generatePrices(BigDecimal roundedCost, Map<String, BigDecimal> priceList, BigDecimal marginValue) {
+        BigDecimal basePrice = calcBasePrice(roundedCost, marginValue);
+        String branch = getBranch(roundedCost, marginValue);
+        BigDecimal vatMultiplier = getVatMultiplier();
 
         List<PriceRow> rows = new ArrayList<>();
 
-        for (int i = 0; i < TIERS.length; i++) {
-            Tier tier = TIERS[i];
+        for (Tier tier : TIERS) {
             BigDecimal priceWithoutVAT;
 
             if ("×3".equals(branch)) {
-                priceWithoutVAT = basePrice.multiply(X3_COEFFICIENTS[i]);
+                priceWithoutVAT = basePrice.multiply(x3Coefficient(tier.label));
             } else {
-                priceWithoutVAT = basePrice.add(PLUS30_CORRECTIONS[i]);
+                priceWithoutVAT = basePrice.add(discountStep(tier.label));
             }
 
             // Rounding #2: price with VAT → integer
-            BigDecimal priceWithVATDecimal = priceWithoutVAT.multiply(VAT_MULTIPLIER);
+            BigDecimal priceWithVATDecimal = priceWithoutVAT.multiply(vatMultiplier);
             int priceWithVAT = priceWithVATDecimal.setScale(0, RoundingMode.HALF_UP).intValue();
 
             // Rounding #3: withoutVAT for display → 2 decimals
@@ -143,6 +174,24 @@ public class PriceCalculator {
             return priceListPrice;
         }
         return calculatedPrice;
+    }
+
+    private BigDecimal x3Coefficient(String tierLabel) {
+        BigDecimal value = config.getX3Coefficients().get(tierLabel);
+        if (value == null) {
+            throw new IllegalStateException(
+                    "Missing x3 coefficient for tier '" + tierLabel + "' in app.pricing.x3-coefficients");
+        }
+        return value;
+    }
+
+    private BigDecimal discountStep(String tierLabel) {
+        BigDecimal value = config.getDiscountSteps().get(tierLabel);
+        if (value == null) {
+            throw new IllegalStateException(
+                    "Missing discount step for tier '" + tierLabel + "' in app.pricing.discount-steps");
+        }
+        return value;
     }
 
     // --- Inner types ---

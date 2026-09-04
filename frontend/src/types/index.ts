@@ -31,6 +31,7 @@ export interface CalculationRequest {
     extras: Extra[]; // All operations (standard + custom) in a single list
     printSettings: PrintSettings;
     workPrice: number;
+    marginValue?: number; // Плечо (+N), по умолчанию 30
     priceList: Record<string, number>;
 }
 
@@ -49,6 +50,7 @@ export interface CalculationResponse {
     basePrice: number;
     branch: string;
     basePriceWithVAT: number;
+    printCostPerUnit: number;
     prices: PriceRow[];
 }
 
@@ -70,6 +72,57 @@ export interface PriceListData {
 export interface ConstructPart {
     name: string;
     perSheet: number;
+}
+
+// Операция из БД (справочник дополнительных операций)
+export interface Operation {
+    id: string;
+    name: string;
+    unit: string;
+    basePrice: number;
+    priceType?: string;
+    isActive?: boolean;
+}
+
+// Сохранённый расчёт коробки
+export interface SavedCalculation {
+    id: string;
+    name: string;
+    clientName: string;
+    managerName: string;
+    status: 'draft' | 'ready' | 'sent' | 'in_work' | 'closed';
+    calculation: CalculationRequest;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Запрос на сохранение расчёта
+export interface CalculationSaveRequest {
+    name: string;
+    clientName: string;
+    managerName: string;
+    calculation: CalculationRequest;
+}
+
+// Сохранённый нож
+export interface SavedKnife {
+    id: string;
+    name: string;
+    totalLengthMm: number;
+    knifeCost: number;
+    clientName: string;
+    managerName: string;
+    createdAt: string;
+}
+
+// Запрос на сохранение ножа
+export interface KnifeSaveRequest {
+    name: string;
+    svgContent: string;
+    totalLengthMm: number;
+    knifeCost: number;
+    clientName: string;
+    managerName: string;
 }
 
 export interface Construct {

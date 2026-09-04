@@ -10,5 +10,6 @@ public class CalculationResponse {
     private BigDecimal basePrice;
     private String branch;
     private BigDecimal basePriceWithVAT;
+    private BigDecimal printCostPerUnit; // стоимость печати на единицу без НДС
     private List<PriceRowDto> prices;
 }

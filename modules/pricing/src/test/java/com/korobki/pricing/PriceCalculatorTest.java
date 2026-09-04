@@ -1,5 +1,7 @@
 package com.korobki.pricing;
 
+import com.korobki.core.config.PricingConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -11,7 +13,39 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PriceCalculatorTest {
 
-    private final PriceCalculator calculator = new PriceCalculator();
+    private PricingConfig pricingConfig;
+    private PriceCalculator calculator;
+
+    @BeforeEach
+    void setUp() {
+        pricingConfig = new PricingConfig();
+        pricingConfig.setManufacturingCost(new BigDecimal("5.0"));
+        pricingConfig.setMarkupMin(new BigDecimal("30.0"));
+        pricingConfig.setMarkupMultiplier(new BigDecimal("3.0"));
+        pricingConfig.setTaxRate(new BigDecimal("0.11"));
+        // Defaults from PricingConfig match the HTML prototype — assert equivalence
+        Map<String, BigDecimal> steps = new HashMap<>();
+        steps.put("до 9", new BigDecimal("7"));
+        steps.put("10–49", BigDecimal.ZERO);
+        steps.put("50–199", new BigDecimal("-2"));
+        steps.put("200–499", new BigDecimal("-4"));
+        steps.put("500–699", new BigDecimal("-6"));
+        steps.put("700–1499", new BigDecimal("-8"));
+        steps.put("от 1500", new BigDecimal("-10"));
+        assertEquals(steps, pricingConfig.getDiscountSteps(),
+                "PricingConfig default discountSteps must match prototype values");
+        Map<String, BigDecimal> coefficients = new HashMap<>();
+        coefficients.put("до 9", new BigDecimal("1.0"));
+        coefficients.put("10–49", new BigDecimal("1.0"));
+        coefficients.put("50–199", new BigDecimal("0.95"));
+        coefficients.put("200–499", new BigDecimal("0.90"));
+        coefficients.put("500–699", new BigDecimal("0.85"));
+        coefficients.put("700–1499", new BigDecimal("0.80"));
+        coefficients.put("от 1500", new BigDecimal("0.75"));
+        assertEquals(coefficients, pricingConfig.getX3Coefficients(),
+                "PricingConfig default x3Coefficients must match prototype values");
+        calculator = new PriceCalculator(pricingConfig);
+    }
 
     // === Branch selection ===
 
@@ -38,13 +72,17 @@ class PriceCalculatorTest {
     @Test
     void basePrice_x3_branch() {
         // cost=10: MIN(30, 40) = 30
-        assertEquals(new BigDecimal("30"), calculator.calcBasePrice(new BigDecimal("10")));
+        BigDecimal result = calculator.calcBasePrice(new BigDecimal("10"));
+        assertEquals(0, new BigDecimal("30").compareTo(result),
+                "Expected 30 but got " + result);
     }
 
     @Test
     void basePrice_plus30_branch() {
         // cost=20: MIN(60, 50) = 50
-        assertEquals(new BigDecimal("50"), calculator.calcBasePrice(new BigDecimal("20")));
+        BigDecimal result = calculator.calcBasePrice(new BigDecimal("20"));
+        assertEquals(0, new BigDecimal("50").compareTo(result),
+                "Expected 50 but got " + result);
     }
 
     // === Price generation: ×3 branch ===

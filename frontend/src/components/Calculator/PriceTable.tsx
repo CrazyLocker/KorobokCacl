@@ -9,20 +9,19 @@ import {
     TextField,
     Box,
     Typography,
-    Button,
 } from '@mui/material';
 import type { PriceRow } from '../../types';
+import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     prices: PriceRow[];
     branch: string;
     basePrice: number;
     onUpdatePriceList: (label: string, value: number) => void;
-    onCalculate: () => void;
     loading: boolean;
 }
 
-export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCalculate, loading }: Props) => {
+export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Props) => {
     return (
         <Box>
             {/* Branch info */}
@@ -71,25 +70,6 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCal
                             <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#1a73e8', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
                                 Итог
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, borderBottom: '1px solid #e8eaed' }}>
-                                <Button
-                                    variant="contained"
-                                    onClick={onCalculate}
-                                    disabled={loading}
-                                    size="small"
-                                    sx={{
-                                        backgroundColor: '#1a73e8',
-                                        borderRadius: '8px',
-                                        padding: '2px 10px',
-                                        fontWeight: 500,
-                                        fontSize: '10px',
-                                        textTransform: 'none',
-                                        '&:hover': { backgroundColor: '#1557b0' },
-                                    }}
-                                >
-                                    Рассчитать
-                                </Button>
-                            </TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -126,9 +106,11 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCal
                                         value={row.priceListPrice}
                                         onChange={(e) => onUpdatePriceList(row.label, parseInt(e.target.value) || 0)}
                                         size="small"
-                                        inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
+                                        inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
                                         sx={{
+                                            ...numberInputSx,
                                             '& .MuiOutlinedInput-root': {
+                                                ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
                                                 borderColor: row.priceListPrice > 0 ? '#d93025' : '#dadce0',
                                                 backgroundColor: row.priceListPrice > 0 ? '#fce8e6' : '#fff',
                                             },
@@ -145,7 +127,6 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList, onCal
                                 >
                                     {row.finalPrice} ₽
                                 </TableCell>
-                                <TableCell align="right" sx={{ borderBottom: '1px solid #f1f3f4' }} />
                             </TableRow>
                         ))}
                     </TableBody>

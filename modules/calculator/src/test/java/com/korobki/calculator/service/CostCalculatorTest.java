@@ -1,5 +1,6 @@
 package com.korobki.calculator.service;
 
+import com.korobki.core.config.PricingConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,12 +21,15 @@ class CostCalculatorTest {
     }
 
     private PrintCostCalculator printCostCalculator;
+    private PricingConfig pricingConfig;
     private CostCalculator costCalculator;
 
     @BeforeEach
     void setUp() {
         printCostCalculator = mock(PrintCostCalculator.class);
-        costCalculator = new CostCalculator(printCostCalculator);
+        pricingConfig = new PricingConfig();
+        pricingConfig.setManufacturingCost(new BigDecimal("5.0"));
+        costCalculator = new CostCalculator(printCostCalculator, pricingConfig);
     }
 
     @Test

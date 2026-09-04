@@ -13,6 +13,7 @@ import {
     Typography,
 } from '@mui/material';
 import type { Detail, Extra } from '../../types';
+import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     details: Detail[];
@@ -68,15 +69,17 @@ export const LayoutTable = ({
                             >
                                 {/* Detail name */}
                                 <TableCell sx={{ borderBottom: '1px solid #e8eaed' }}>
-                                    <Typography
-                                        sx={{
-                                            fontSize: '13px',
-                                            fontWeight: d.isCustom ? 400 : 500,
-                                            color: d.isCustom ? '#9aa0a6' : '#202124',
-                                        }}
-                                    >
-                                        {d.name}
-                                    </Typography>
+                    <Typography
+                        sx={{
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            color: '#1a73e8',
+                            mb: 2,
+                            textAlign: 'left',
+                        }}
+                    >
+                        Раскладка деталей на лист 70х100
+                    </Typography>
                                 </TableCell>
 
                                 {/* countOnSheet */}
@@ -89,13 +92,8 @@ export const LayoutTable = ({
                                             if (e.key === 'Enter') (e.target as HTMLElement).blur();
                                         }}
                                         size="small"
-                                        inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                borderRadius: '8px',
-                                                backgroundColor: '#fff',
-                                            },
-                                        }}
+                                        inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                        sx={numberInputSx}
                                     />
                                 </TableCell>
 
@@ -109,13 +107,8 @@ export const LayoutTable = ({
                                             if (e.key === 'Enter') (e.target as HTMLElement).blur();
                                         }}
                                         size="small"
-                                        inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
-                                        sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                                borderRadius: '8px',
-                                                backgroundColor: '#fff',
-                                            },
-                                        }}
+                                        inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                        sx={numberInputSx}
                                     />
                                 </TableCell>
 

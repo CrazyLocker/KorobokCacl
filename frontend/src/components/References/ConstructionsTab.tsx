@@ -1,5 +1,5 @@
 // frontend/src/components/References/ConstructionsTab.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
     Box,
     Typography,
@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import type { Construct } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -49,9 +50,10 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
             .finally(() => setLoading(false));
     }, [selectedConstruct, onNotify]);
 
-    useState(() => {
+    useEffect(() => {
         loadConstructs();
-    });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const selectedConstructData = constructs.find((c) => c.id === selectedConstruct);
 
@@ -79,8 +81,9 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
 
         try {
             await calculatorApi.deleteConstruct(selectedConstruct);
-            setConstructs((prev) => prev.filter((c) => c.id !== selectedConstruct));
-            setSelectedConstruct(constructs.length > 1 ? constructs[0].id : '');
+            const remaining = constructs.filter((c) => c.id !== selectedConstruct);
+            setConstructs(remaining);
+            setSelectedConstruct(remaining.length > 0 ? remaining[0].id : '');
             onNotify('Конструкция удалена', 'success');
         } catch (err: any) {
             onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
@@ -119,6 +122,24 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         onNotify('Деталь добавлена', 'success');
     };
 
+    // Удалить деталь из конструкции
+    const handleRemovePart = (partName: string) => {
+        if (!selectedConstructData) return;
+
+        const updated = {
+            ...selectedConstructData,
+            parts: {
+                ...selectedConstructData.parts,
+                parts: selectedConstructData.parts.parts.filter((p) => p.name !== partName),
+            },
+        };
+
+        setConstructs((prev) =>
+            prev.map((c) => (c.id === updated.id ? updated : c))
+        );
+        onNotify('Деталь удалена (не забудьте сохранить)', 'info');
+    };
+
     // Обновить часть конструкции
     const handlePartChange = (partName: string, field: 'perSheet', value: number) => {
         if (!selectedConstructData) return;
@@ -138,58 +159,6 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         );
     };
 
-    // Экспорт JSON
-    const handleExport = () => {
-        if (!selectedConstructData) {
-            onNotify('Выберите конструкцию для экспорта', 'error');
-            return;
-        }
-        const json = JSON.stringify(selectedConstructData, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${selectedConstructData.name}_конструкция.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        onNotify('Экспорт выполнен', 'success');
-    };
-
-    // Импорт JSON
-    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target?.result as string);
-
-                // Валидация
-                if (!data.id || !data.name || !data.parts || !Array.isArray(data.parts.parts)) {
-                    throw new Error('Неверный формат: отсутствует обязательные поля');
-                }
-
-                // Сохраняем через API
-                calculatorApi.saveConstruct(data)
-                    .then((saved) => {
-                        loadConstructs();
-                        setSelectedConstruct(saved.id);
-                        onNotify('Импорт выполнен', 'success');
-                    })
-                    .catch((err) => {
-                        onNotify('Ошибка импорта: ' + err.message, 'error');
-                    });
-            } catch (err: any) {
-                onNotify('Ошибка импорта: ' + err.message, 'error');
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    };
-
     return (
         <Box>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -205,17 +174,17 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                     backgroundColor: '#f8f9fa',
                 }}
             >
-                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase' }}>
+                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Конструкция
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Select
                         value={selectedConstruct || ''}
                         onChange={(e) => setSelectedConstruct(e.target.value)}
-                        sx={{ minWidth: 200, '& .MuiSelect-select': { fontSize: '14px' } }}
+                        sx={{ ...selectSx, minWidth: 200 }}
                     >
                         {constructs.map((c) => (
-                            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                            <MenuItem key={c.id} value={c.id} sx={menuItemSx}>{c.name}</MenuItem>
                         ))}
                     </Select>
                     <TextField
@@ -230,25 +199,33 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         sx={{ minWidth: 200 }}
                     />
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleSave}
                         disabled={saving}
                         sx={{
-                            backgroundColor: '#137333',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#0d5a28' },
+                            borderColor: '#137333',
+                            color: '#137333',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
                         }}
                     >
-                        {saving ? <CircularProgress size={20} color="inherit" /> : 'Сохранить'}
+                        {saving ? <CircularProgress size={16} color="inherit" /> : 'Сохранить'}
                     </Button>
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleDelete}
                         disabled={!selectedConstruct}
                         sx={{
-                            backgroundColor: '#d93025',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#b71c1c' },
+                            borderColor: '#d93025',
+                            color: '#d93025',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#fce8e6', borderColor: '#d93025' },
                         }}
                     >
                         Удалить
@@ -268,7 +245,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         alignItems: 'center',
                     }}
                 >
-                    <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', pb: 1, borderBottom: '2px solid #1a73e8', flex: 1, textAlign: 'left' }}>
                         Параметры раскладки деталей
                     </Typography>
                     <Typography
@@ -305,9 +282,6 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                     <TableCell align="center" sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', width: 80 }}>
                                         шт./лист
                                     </TableCell>
-                                    <TableCell align="center" sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', width: 80 }}>
-                                        руб./лист
-                                    </TableCell>
                                     <TableCell sx={{ width: 40 }} />
                                 </TableRow>
                             </TableHead>
@@ -325,26 +299,12 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                                 value={part.perSheet}
                                                 onChange={(e) => handlePartChange(part.name, 'perSheet', parseFloat(e.target.value) || 0)}
                                                 size="small"
-                                                inputProps={{ step: 0.001, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
+                                                inputProps={{ ...numberInputProps(0.001), style: { ...numberInputProps().style, width: 50 } }}
                                                 sx={{
+                                                    ...numberInputSx,
                                                     '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '6px',
+                                                        ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
                                                         backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff',
-                                                    },
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <TextField
-                                                type="number"
-                                                value={35}
-                                                onChange={(e) => handlePartChange(part.name, 'perSheet', parseFloat(e.target.value) || 0)}
-                                                size="small"
-                                                inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '6px',
-                                                        backgroundColor: '#fff',
                                                     },
                                                 }}
                                             />
@@ -352,6 +312,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                         <TableCell align="center">
                                             <Button
                                                 size="small"
+                                                onClick={() => handleRemovePart(part.name)}
                                                 sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
                                             >
                                                 Удалить
@@ -367,51 +328,20 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                 {/* Действия */}
                 <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Button
+                        variant="outlined"
+                        size="small"
                         onClick={handleAddPart}
                         disabled={!selectedConstructData}
                         sx={{
-                            backgroundColor: '#1a73e8',
-                            color: '#fff',
-                            borderRadius: '24px',
-                            fontSize: '13px',
-                            '&:hover': { backgroundColor: '#1557b0' },
+                            borderColor: '#1a73e8',
+                            color: '#1a73e8',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#e8f0fe', borderColor: '#1a73e8' },
                         }}
                     >
                         Добавить деталь
-                    </Button>
-                    <Box sx={{ position: 'relative' }}>
-                        <Button
-                            variant="outlined"
-                            sx={{
-                                borderColor: '#e37400',
-                                color: '#e37400',
-                                borderRadius: '20px',
-                                fontSize: '12px',
-                                '&:hover': { backgroundColor: '#fff3e0' },
-                            }}
-                        >
-                            Импорт JSON
-                        </Button>
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleImport}
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
-                        />
-                    </Box>
-                    <Button
-                        onClick={handleExport}
-                        disabled={!selectedConstructData}
-                        variant="outlined"
-                        sx={{
-                            borderColor: '#137333',
-                            color: '#137333',
-                            borderRadius: '24px',
-                            fontSize: '12px',
-                            '&:hover': { backgroundColor: '#e8f5e9' },
-                        }}
-                    >
-                        Экспорт JSON
                     </Button>
                 </Box>
             </Paper>

@@ -1,23 +1,26 @@
 // frontend/src/components/NewApp/CostBlock.tsx
 import { Box, Typography, TextField } from '@mui/material';
 import type { Detail, Extra } from '../../types';
+import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 interface Props {
     details: Detail[];
     extras: Extra[];
     workPrice: number;
     onWorkPriceChange: (value: number) => void;
+    printCostPerUnit?: number; // стоимость печати на единицу (из CalculationResponse)
 }
 
 /**
  * Вычисляет себестоимость детали по формуле:
- * (Руб/Лист / Шт/Лист) + работа + печать
+ * (Руб/Лист / Шт/Лист) + работа + печать + доп. операции
  */
-    const calculateDetailCost = (
+const calculateDetailCost = (
     detail: Detail,
     extras: Extra[],
     workPrice: number,
-    printCost: number
+    printCostPerUnit: number,
+    hasPrintEnabled: boolean
 ): number => {
     const materialCost = detail.countOnSheet > 0
         ? detail.sheetPrice / detail.countOnSheet
@@ -25,16 +28,20 @@ interface Props {
     const extraCost = extras.reduce((sum, extra) => {
         return sum + (detail.operations?.[extra.name] ? extra.cost : 0);
     }, 0);
-    return materialCost + workPrice + extraCost + (detail.isPrinted ? printCost : 0);
+    return materialCost + workPrice + (hasPrintEnabled ? printCostPerUnit : 0) + extraCost;
 };
 
-export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Props) => {
-    // Find print extra cost
-    const printExtra = extras.find(e => e.name === 'Печать' || e.name === 'Лак');
-    const printCost = printExtra?.cost || 55;
-
+export const CostBlock = ({
+    details,
+    extras,
+    workPrice,
+    onWorkPriceChange,
+    printCostPerUnit = 0,
+}: Props) => {
     const activeDetails = details.filter(d => d.enabled && d.countOnSheet > 0);
-    const totalBoxCost = activeDetails.reduce((sum, d) => sum + calculateDetailCost(d, extras, workPrice, printCost), 0);
+    const totalBoxCost = activeDetails.reduce((sum, d) =>
+        sum + calculateDetailCost(d, extras, workPrice, printCostPerUnit, Boolean(d.isPrinted)), 0
+    );
 
     return (
         <Box
@@ -47,12 +54,13 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
         >
             <Typography
                 sx={{
-                    fontSize: '16px',
+                    fontSize: '14px',
                     fontWeight: 600,
                     color: '#202124',
                     mb: 2,
                     pb: 1,
                     borderBottom: '2px solid #1a73e8',
+                    textAlign: 'left',
                 }}
             >
                 Себестоимость деталей / Коробки
@@ -65,7 +73,7 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                     const extraCost = extras.reduce((sum, extra) => {
                         return sum + (d.operations?.[extra.name] ? extra.cost : 0);
                     }, 0);
-                    const detailCost = calculateDetailCost(d, extras, workPrice, printCost);
+                    const detailCost = calculateDetailCost(d, extras, workPrice, printCostPerUnit, Boolean(d.isPrinted));
 
                     // Build formula text
                     const formulaParts: string[] = [];
@@ -75,10 +83,12 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                     if (workPrice > 0) {
                         formulaParts.push(`работа ${workPrice}`);
                     }
-                    if (d.isPrinted && printCost > 0) {
-                        formulaParts.push(`Печать ${printCost}`);
+                    if (d.isPrinted && printCostPerUnit > 0) {
+                        formulaParts.push(`печать ${printCostPerUnit.toFixed(2)}`);
                     }
-                    formulaParts.push(`+ ${extraCost.toFixed(2)} доп.`);
+                    if (extraCost > 0) {
+                        formulaParts.push(`+ ${extraCost.toFixed(2)} доп.`);
+                    }
 
                     return (
                         <Box
@@ -91,11 +101,11 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                                 borderBottom: i < activeDetails.length - 1 ? '1px solid #f1f3f4' : 'none',
                             }}
                         >
-                            <Box sx={{ flex: 1 }}>
-                                <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#202124', mb: 0.25 }}>
+                            <Box sx={{ flex: 1, textAlign: 'left' }}>
+                                <Typography sx={{ fontSize: '13px', fontWeight: 500, color: '#202124', mb: 0.25, textAlign: 'left' }}>
                                     {d.name}
                                 </Typography>
-                                <Typography sx={{ fontSize: '11px', color: '#5f6368', fontFamily: 'monospace' }}>
+                                <Typography sx={{ fontSize: '11px', color: '#5f6368', fontFamily: 'monospace', textAlign: 'left' }}>
                                     ({formulaParts.join(' + ')})
                                 </Typography>
                             </Box>
@@ -105,6 +115,7 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                                     fontWeight: 600,
                                     color: '#1a73e8',
                                     whiteSpace: 'nowrap',
+                                    textAlign: 'left',
                                 }}
                             >
                                 {detailCost.toFixed(2)} руб.
@@ -124,9 +135,10 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                     p: 1.5,
                     backgroundColor: '#f8f9fa',
                     borderRadius: '8px',
+                    textAlign: 'left',
                 }}
             >
-                <Typography sx={{ fontSize: '13px', color: '#5f6368' }}>
+                <Typography sx={{ fontSize: '13px', color: '#5f6368', textAlign: 'left' }}>
                     Работа/деталь
                 </Typography>
                 <TextField
@@ -134,16 +146,11 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                     value={workPrice}
                     onChange={(e) => onWorkPriceChange(parseFloat(e.target.value) || 0)}
                     size="small"
-                    inputProps={{ step: 0.5, min: 0, style: { fontSize: '12px', width: 50, textAlign: 'center' } }}
-                    sx={{
-                        '& .MuiOutlinedInput-root': {
-                            borderRadius: '8px',
-                            backgroundColor: '#fff',
-                        },
-                    }}
+                    inputProps={{ ...numberInputProps(0.5), style: { ...numberInputProps().style, width: 60 } }}
+                    sx={numberInputSx}
                 />
-                <Typography sx={{ fontSize: '12px', color: '#5f6368' }}>
-                    Руб.
+                <Typography sx={{ fontSize: '12px', color: '#5f6368', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                    руб./деталь
                 </Typography>
             </Box>
 
@@ -155,12 +162,13 @@ export const CostBlock = ({ details, extras, workPrice, onWorkPriceChange }: Pro
                     alignItems: 'center',
                     pt: 1.5,
                     borderTop: '2px solid #1a73e8',
+                    textAlign: 'left',
                 }}
             >
-                <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#202124' }}>
+                <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', textAlign: 'left' }}>
                     Коробка
                 </Typography>
-                <Typography sx={{ fontSize: '18px', fontWeight: 700, color: '#1a73e8' }}>
+                <Typography sx={{ fontSize: '16px', fontWeight: 700, color: '#1a73e8', textAlign: 'left' }}>
                     {totalBoxCost.toFixed(2)} руб.
                 </Typography>
             </Box>

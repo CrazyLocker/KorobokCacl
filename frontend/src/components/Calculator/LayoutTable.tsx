@@ -1,4 +1,5 @@
 // frontend/src/components/Calculator/LayoutTable.tsx
+import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
 import {
     Table,
     TableBody,
@@ -104,9 +105,11 @@ export const LayoutTable = ({
                                             }}
                                             size="small"
                                             disabled={!isEnabled}
-                                            inputProps={{ step: 0.001, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
+                                            inputProps={{ ...numberInputProps(0.001), style: { ...numberInputProps().style, width: 50 } }}
                                             sx={{
+                                                ...numberInputSx,
                                                 '& .MuiOutlinedInput-root': {
+                                                    ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
                                                     backgroundColor: isZero ? '#f8f9fa' : '#fff',
                                                 },
                                             }}
@@ -124,7 +127,8 @@ export const LayoutTable = ({
                                             }}
                                             size="small"
                                             disabled={!isEnabled}
-                                            inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
+                                            inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                            sx={numberInputSx}
                                         />
                                     </TableCell>
 

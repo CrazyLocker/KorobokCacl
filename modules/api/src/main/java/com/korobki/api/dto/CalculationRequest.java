@@ -28,5 +28,9 @@ public class CalculationRequest {
     @DecimalMin(value = "0.0", message = "Work price must be >= 0")
     private BigDecimal workPrice;
 
+    /** Плечо (margin) — надбавка для ветки "+N". Если null, берётся из конфига (30). */
+    @DecimalMin(value = "0.0", message = "Margin value must be >= 0")
+    private BigDecimal marginValue;
+
     private Map<String, BigDecimal> priceList;
 }

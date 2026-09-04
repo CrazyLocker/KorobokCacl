@@ -1,6 +1,7 @@
 // frontend/src/components/Calculator/ConstructionSelector.tsx
 import { Select, MenuItem, FormControl, Box, Typography } from '@mui/material';
 import type { Construct } from '../../types';
+import { selectSx, menuItemSx } from '../../styles/uiStyles';
 
 interface Props {
     constructs: Construct[];
@@ -45,16 +46,10 @@ export const ConstructionSelector = ({ constructs, value, onChange, additionalCo
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     displayEmpty
-                    sx={{
-                        fontSize: '12px',
-                        backgroundColor: '#fff',
-                        '& .MuiOutlinedInput-notchedOutline': { borderColor: '#dadce0' },
-                        '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#1a73e8' },
-                        '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#1a73e8', borderWidth: '2px' },
-                    }}
+                    sx={selectSx}
                 >
                     {allConstructs.map((c) => (
-                        <MenuItem key={c.id} value={c.name} sx={{ fontSize: '12px' }}>
+                        <MenuItem key={c.id} value={c.name} sx={menuItemSx}>
                             {c.name}
                         </MenuItem>
                     ))}

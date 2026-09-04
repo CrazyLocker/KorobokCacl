@@ -33,6 +33,8 @@ public class CalculatorService {
     private final PrintCostCalculator printCostCalculator;
 
     public CalculationResponse calculate(CalculationRequest request) {
+        validate(request);
+
         // --- 1. Convert DTOs ---
         List<CostCalculator.DetailInfo> details = convertDetails(request.getDetails());
         List<CostCalculator.ExtraInfo> extras = convertExtras(request.getExtras());
@@ -41,25 +43,32 @@ public class CalculatorService {
                 && Boolean.TRUE.equals(request.getPrintSettings().getEnabled());
         Integer printFormat = request.getPrintSettings() != null ? request.getPrintSettings().getFormat() : null;
         Integer printQuantity = request.getPrintSettings() != null ? request.getPrintSettings().getQuantity() : null;
-        BigDecimal workPrice = request.getWorkPrice() != null ? request.getWorkPrice() : BigDecimal.ZERO;
+        BigDecimal workPrice = request.getWorkPrice() != null ? request.getWorkPrice() : costCalculator.getDefaultWorkPrice();
 
-        // --- 2. Calculate total cost (full precision) ---
+        // --- 2. Calculate print cost per unit (before total cost, for response) ---
+        BigDecimal printCostPerUnit = BigDecimal.ZERO;
+        if (printEnabled && printFormat != null && printQuantity != null && printQuantity > 0) {
+            printCostPerUnit = printCostCalculator.calcPrintPerUnitNoVat(printFormat, printQuantity);
+        }
+
+        // --- 3. Calculate total cost (full precision) ---
         BigDecimal totalCost = costCalculator.calculateTotalCost(
                 details, extras, printEnabled, printFormat, printQuantity, workPrice);
 
-        // --- 3. Round to integer (rounding #1) ---
+        // --- 4. Round to integer (rounding #1) ---
         BigDecimal roundedCost = totalCost.setScale(0, RoundingMode.HALF_UP);
 
-        // --- 4. Generate prices ---
+        // --- 5. Generate prices (marginValue = "плечо" from request, if set) ---
         Map<String, BigDecimal> priceListMap = request.getPriceList();
-        List<PriceCalculator.PriceRow> priceRows = priceCalculator.generatePrices(roundedCost, priceListMap);
+        List<PriceCalculator.PriceRow> priceRows =
+                priceCalculator.generatePrices(roundedCost, priceListMap, request.getMarginValue());
 
-        // --- 5. Build response ---
-        BigDecimal basePrice = priceCalculator.calcBasePrice(roundedCost);
-        String branch = priceCalculator.getBranch(roundedCost);
+        // --- 6. Build response ---
+        BigDecimal basePrice = priceCalculator.calcBasePrice(roundedCost, request.getMarginValue());
+        String branch = priceCalculator.getBranch(roundedCost, request.getMarginValue());
 
         // Base price with VAT (for the base tier 10–49)
-        BigDecimal basePriceWithVAT = basePrice.multiply(PriceCalculator.VAT_MULTIPLIER)
+        BigDecimal basePriceWithVAT = basePrice.multiply(priceCalculator.getVatMultiplier())
                 .setScale(0, RoundingMode.HALF_UP);
 
         List<PriceRowDto> priceRowDtos = new ArrayList<>();
@@ -80,6 +89,7 @@ public class CalculatorService {
         response.setBasePrice(basePrice);
         response.setBranch(branch);
         response.setBasePriceWithVAT(basePriceWithVAT);
+        response.setPrintCostPerUnit(printCostPerUnit);
         response.setPrices(priceRowDtos);
 
         return response;
@@ -109,5 +119,48 @@ public class CalculatorService {
             info.setEnabled(dto.getEnabled());
             return info;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Business-rule validation beyond bean validation:
+     * - enabled details must have countOnSheet > 0
+     * - price list keys must be valid tier labels
+     * - enabled print settings must have format and positive quantity
+     */
+    private void validate(CalculationRequest request) {
+        if (request.getDetails() != null) {
+            for (int i = 0; i < request.getDetails().size(); i++) {
+                DetailDto d = request.getDetails().get(i);
+                if (Boolean.TRUE.equals(d.getEnabled())
+                        && (d.getCountOnSheet() == null || d.getCountOnSheet().compareTo(BigDecimal.ZERO) <= 0)) {
+                    throw new IllegalArgumentException(
+                            "Detail '" + d.getName() + "' (index " + i + ") is enabled but countOnSheet must be > 0");
+                }
+                if (d.getSheetPrice() != null && d.getSheetPrice().compareTo(BigDecimal.ZERO) < 0) {
+                    throw new IllegalArgumentException(
+                            "Detail '" + d.getName() + "' (index " + i + ") sheetPrice must be >= 0");
+                }
+            }
+        }
+
+        if (request.getPriceList() != null) {
+            List<String> validLabels = PriceCalculator.tierLabels();
+            for (String key : request.getPriceList().keySet()) {
+                if (!validLabels.contains(key)) {
+                    throw new IllegalArgumentException(
+                            "Unknown price list tier '" + key + "'. Valid tiers: " + validLabels);
+                }
+            }
+        }
+
+        if (request.getPrintSettings() != null && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
+            PrintSettingsDto ps = request.getPrintSettings();
+            if (ps.getFormat() == null) {
+                throw new IllegalArgumentException("Print settings enabled but format is missing");
+            }
+            if (ps.getQuantity() == null || ps.getQuantity() <= 0) {
+                throw new IllegalArgumentException("Print settings enabled but quantity must be > 0");
+            }
+        }
     }
 }

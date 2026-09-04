@@ -1,12 +1,10 @@
 // frontend/src/components/NewApp.tsx
 import { Box, Typography, Select, MenuItem, Paper } from '@mui/material';
 import { Header } from './Layout/Header';
-import { ImportDataBlock } from './NewApp/ImportDataBlock';
 import { LayoutTable } from './NewApp/LayoutTable';
 import { CostBlock } from './NewApp/CostBlock';
 import { OperationsBlock } from './NewApp/OperationsBlock';
 import { PricesBlock } from './NewApp/PricesBlock';
-import { ImportExportBlock } from './NewApp/ImportExportBlock';
 import { useCalculator } from '../hooks/useCalculator';
 
 /**
@@ -14,13 +12,6 @@ import { useCalculator } from '../hooks/useCalculator';
  */
 export const NewApp = () => {
     const calc = useCalculator();
-
-    // Mock handlers for import buttons (can be connected later)
-    const handleImportConstructs = () => console.log('Import constructs');
-    const handleImportPrice = () => console.log('Import price');
-    const handleImportPrint = () => console.log('Import print tables');
-    const handleImportCalculations = () => console.log('Import calculations');
-    const handleExportCalculations = () => console.log('Export calculations');
 
     return (
         <>
@@ -30,7 +21,7 @@ export const NewApp = () => {
                 sx={{
                     px: { xs: 1, sm: 2, md: 3, lg: 4 },
                     py: 2,
-                    maxWidth: '1820px',
+                    maxWidth: '2730px',
                     mx: 'auto',
                     width: '100%',
                     boxSizing: 'border-box',
@@ -54,6 +45,7 @@ export const NewApp = () => {
                             mb: 1,
                             textTransform: 'uppercase',
                             letterSpacing: '0.04em',
+                            textAlign: 'left',
                         }}
                     >
                         Базовая коробка
@@ -111,12 +103,6 @@ export const NewApp = () => {
                         Раскладка деталей на лист 70х100
                     </Typography>
 
-                    <ImportDataBlock
-                        onImportConstructs={handleImportConstructs}
-                        onImportPrice={handleImportPrice}
-                        onImportPrint={handleImportPrint}
-                    />
-
                     <LayoutTable
                         details={calc.details}
                         extras={calc.extras}
@@ -141,10 +127,18 @@ export const NewApp = () => {
                         extras={calc.extras}
                         workPrice={calc.workPrice}
                         onWorkPriceChange={calc.setWorkPrice}
+                        printCostPerUnit={calc.result?.printCostPerUnit ?? 0}
                     />
 
-                    {/* Правая колонка: Дополнительные операции + Цены */}
+                    {/* Правая колонка: Цены + Дополнительные операции */}
                     <Box>
+                        <PricesBlock
+                            prices={calc.result?.prices || []}
+                            onUpdatePriceList={calc.updatePriceList}
+                            loading={calc.loading}
+                            totalCost={calc.result?.totalCost}
+                        />
+
                         <OperationsBlock
                             extras={calc.extras}
                             printSettings={calc.printSettings}
@@ -153,21 +147,8 @@ export const NewApp = () => {
                             onAddCustomExtra={calc.addCustomExtra}
                             onUpdatePrintSettings={calc.updatePrintSettings}
                         />
-
-                        <PricesBlock
-                            prices={calc.result?.prices || []}
-                            onUpdatePriceList={calc.updatePriceList}
-                            onCalculate={calc.calculate}
-                            loading={calc.loading}
-                        />
                     </Box>
                 </Box>
-
-                {/* 4. Блок "Импорт/экспорт расчетов" */}
-                <ImportExportBlock
-                    onImport={handleImportCalculations}
-                    onExport={handleExportCalculations}
-                />
             </Box>
         </>
     );

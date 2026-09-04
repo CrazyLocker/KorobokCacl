@@ -19,6 +19,7 @@ import {
 } from '@mui/material';
 import type { Construct, PriceListData } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 const PRICE_RANGES = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
@@ -118,56 +119,6 @@ export const PriceListTab = ({ onNotify }: Props) => {
         setPriceData((prev) => ({ ...prev, [range]: value }));
     };
 
-    // Экспорт JSON
-    const handleExport = () => {
-        if (!selectedConstruct) {
-            onNotify('Выберите конструкцию для экспорта', 'error');
-            return;
-        }
-        const exportData = {
-            name: selectedConstructData?.name || '',
-            code: priceCode,
-            prices: priceData,
-        };
-        const json = JSON.stringify(exportData, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${exportData.name}_прайс.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        onNotify('Экспорт выполнен', 'success');
-    };
-
-    // Импорт JSON
-    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const data = JSON.parse(e.target?.result as string);
-
-                // Валидация
-                if (!data.prices || typeof data.prices !== 'object') {
-                    throw new Error('Неверный формат: отсутствует prices');
-                }
-
-                setPriceData(data.prices);
-                if (data.code) setPriceCode(data.code);
-                onNotify('Импорт выполнен', 'success');
-            } catch (err: any) {
-                onNotify('Ошибка импорта: ' + err.message, 'error');
-            }
-        };
-        reader.readAsText(file);
-        event.target.value = '';
-    };
-
     return (
         <Box>
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -183,17 +134,17 @@ export const PriceListTab = ({ onNotify }: Props) => {
                     backgroundColor: '#f8f9fa',
                 }}
             >
-                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase' }}>
+                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                     Конструкция
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
                     <Select
                         value={selectedConstruct || ''}
                         onChange={(e) => setSelectedConstruct(e.target.value)}
-                        sx={{ minWidth: 200, '& .MuiSelect-select': { fontSize: '14px' } }}
+                        sx={{ ...selectSx, minWidth: 200 }}
                     >
                         {constructs.map((c) => (
-                            <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+                            <MenuItem key={c.id} value={c.id} sx={menuItemSx}>{c.name}</MenuItem>
                         ))}
                     </Select>
                     <TextField
@@ -205,25 +156,33 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         sx={{ minWidth: 120 }}
                     />
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleSave}
                         disabled={saving}
                         sx={{
-                            backgroundColor: '#137333',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#0d5a28' },
+                            borderColor: '#137333',
+                            color: '#137333',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
                         }}
                     >
-                        {saving ? <CircularProgress size={20} color="inherit" /> : 'Сохранить'}
+                        {saving ? <CircularProgress size={16} color="inherit" /> : 'Сохранить'}
                     </Button>
                     <Button
-                        variant="contained"
+                        variant="outlined"
+                        size="small"
                         onClick={handleDelete}
                         disabled={!priceCode}
                         sx={{
-                            backgroundColor: '#d93025',
-                            borderRadius: '24px',
-                            '&:hover': { backgroundColor: '#b71c1c' },
+                            borderColor: '#d93025',
+                            color: '#d93025',
+                            fontSize: '12px',
+                            textTransform: 'none',
+                            borderRadius: '20px',
+                            '&:hover': { backgroundColor: '#fce8e6', borderColor: '#d93025' },
                         }}
                     >
                         Удалить
@@ -243,7 +202,7 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         alignItems: 'center',
                     }}
                 >
-                    <Typography sx={{ fontSize: '14px', fontWeight: 500 }}>
+                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', pb: 1, borderBottom: '2px solid #1a73e8', flex: 1, textAlign: 'left' }}>
                         Прайс-лист коробок
                     </Typography>
                     <Typography
@@ -297,10 +256,11 @@ export const PriceListTab = ({ onNotify }: Props) => {
                                                 value={priceData[range] || 0}
                                                 onChange={(e) => handlePriceChange(range, parseFloat(e.target.value) || 0)}
                                                 size="small"
-                                                inputProps={{ step: 1, min: 0, style: { textAlign: 'center', fontSize: '12px', width: 50 } }}
+                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
                                                 sx={{
+                                                    ...numberInputSx,
                                                     '& .MuiOutlinedInput-root': {
-                                                        borderRadius: '6px',
+                                                        ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
                                                         backgroundColor: (priceData[range] || 0) === 0 ? '#f8f9fa' : '#fff',
                                                     },
                                                 }}
@@ -313,44 +273,6 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         </Table>
                     </TableContainer>
                 )}
-
-                {/* Действия */}
-                <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <Box sx={{ position: 'relative' }}>
-                        <Button
-                            variant="outlined"
-                            sx={{
-                                borderColor: '#e37400',
-                                color: '#e37400',
-                                borderRadius: '20px',
-                                fontSize: '12px',
-                                '&:hover': { backgroundColor: '#fff3e0' },
-                            }}
-                        >
-                            Импорт JSON
-                        </Button>
-                        <input
-                            type="file"
-                            accept=".json"
-                            onChange={handleImport}
-                            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
-                        />
-                    </Box>
-                    <Button
-                        onClick={handleExport}
-                        disabled={!selectedConstruct}
-                        variant="outlined"
-                        sx={{
-                            borderColor: '#137333',
-                            color: '#137333',
-                            borderRadius: '24px',
-                            fontSize: '12px',
-                            '&:hover': { backgroundColor: '#e8f5e9' },
-                        }}
-                    >
-                        Экспорт JSON
-                    </Button>
-                </Box>
             </Paper>
         </Box>
     );

@@ -1,18 +1,19 @@
 // frontend/src/components/Layout/Sidebar.tsx
-import { Box, Typography, Paper } from '@mui/material';
+import { Box, Paper } from '@mui/material';
 
 interface SidebarProps {
     activePage: string;
-    onNavigate: (page: 'calculator' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings') => void;
+    onNavigate: (page: 'calculator' | 'knife' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings') => void;
 }
 
 const navItems = [
     { key: 'calculator', label: 'Расчет коробки', dev: false },
+    { key: 'knife', label: 'Расчет ножа', dev: false },
     { key: 'cliche', label: 'Расчет клише', dev: true },
     { key: 'congrev', label: 'Расчет конгрев', dev: true },
     { key: 'silkscreen', label: 'Расчет шелкография', dev: true },
     { key: 'references', label: 'Справочники', dev: false },
-    { key: 'settings', label: 'Настройки', dev: true },
+    { key: 'settings', label: 'Настройки', dev: false },
 ];
 
 export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
@@ -25,32 +26,18 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                 borderRadius: '16px',
                 border: '1px solid #e8eaed',
                 backgroundColor: '#fff',
-                p: 2,
+                p: 1.5,
                 height: 'fit-content',
                 position: 'sticky',
                 top: 24,
             }}
         >
-            {/* Logo */}
-            <Box sx={{ mb: 2, pb: 1.5, borderBottom: '1px solid #e8eaed' }}>
-                <Typography
-                    variant="h6"
-                    sx={{
-                        fontSize: '16px',
-                        fontWeight: 600,
-                        color: '#1a73e8',
-                    }}
-                >
-                    Расчет заказа
-                </Typography>
-            </Box>
-
             {/* Navigation */}
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {navItems.map((item) => (
                     <Box
                         key={item.key}
-                        onClick={() => onNavigate(item.key as 'calculator' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings')}
+                        onClick={() => onNavigate(item.key as 'calculator' | 'knife' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings')}
                         sx={{
                             display: 'flex',
                             alignItems: 'center',

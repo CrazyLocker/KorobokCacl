@@ -8,6 +8,7 @@ import type {
     CalculationResponse,
     Construct,
     PrintTable,
+    Operation,
 } from '../types';
 
 const DEFAULT_PART_NAMES = [
@@ -23,7 +24,7 @@ const DEFAULT_PART_NAMES = [
 
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
-// Standard operations always present
+// Standard operations fallback — used when /api/operations is unavailable
 const STANDARD_EXTRAS: Extra[] = [
     { name: 'Лак', cost: 20, enabled: false },
     { name: 'Конгрев', cost: 30, enabled: false },
@@ -31,6 +32,12 @@ const STANDARD_EXTRAS: Extra[] = [
     { name: 'Ламинация', cost: 0, enabled: false },
     { name: 'Шелкография', cost: 0, enabled: false },
 ];
+
+// Map DB operations to calculator extras (fixed cost per detail)
+const toExtras = (operations: Operation[]): Extra[] =>
+    operations
+        .filter((op) => op.isActive !== false)
+        .map((op) => ({ name: op.name, cost: op.basePrice ?? 0, enabled: false }));
 
 // "Индивидуальная" — все стандартные детали, но все enabled: false
 const CUSTOM_CONSTRUCTION: Construct = {
@@ -51,11 +58,12 @@ export function useCalculator() {
     const [details, setDetails] = useState<Detail[]>([]);
     const [extras, setExtras] = useState<Extra[]>(STANDARD_EXTRAS.map((e) => ({ ...e })));
     const [printSettings, setPrintSettings] = useState<PrintSettings>({
-        enabled: false,
+        enabled: true,
         format: 1,
         quantity: 100,
     });
     const [workPrice, setWorkPrice] = useState<number>(5);
+    const [marginValue, setMarginValue] = useState<number>(30);
     const [priceList, setPriceList] = useState<Record<string, number>>({});
     const [result, setResult] = useState<CalculationResponse | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
@@ -72,6 +80,18 @@ export function useCalculator() {
                 }
             })
             .catch((err) => setError('Ошибка загрузки данных: ' + err.message));
+
+        // Operations from DB; fall back to built-in constants on failure
+        calculatorApi
+            .getOperations()
+            .then((ops) => {
+                if (ops && ops.length > 0) {
+                    setExtras(toExtras(ops));
+                }
+            })
+            .catch(() => {
+                // keep STANDARD_EXTRAS
+            });
     }, []);
 
     // --- Load construction ---
@@ -136,6 +156,7 @@ export function useCalculator() {
                 extras,
                 printSettings,
                 workPrice,
+                marginValue,
                 priceList,
             };
             const response = await calculatorApi.calculate(request);
@@ -145,7 +166,22 @@ export function useCalculator() {
         } finally {
             setLoading(false);
         }
-    }, [currentConstruction, details, extras, printSettings, workPrice, priceList]);
+    }, [currentConstruction, details, extras, printSettings, workPrice, marginValue, priceList]);
+
+    // --- Auto-recalculate on parameter changes (debounced 500ms) ---
+    // Mirrors the HTML prototype's instant reactive behavior
+    const calculateRef = useCallback(() => {
+        if (currentConstruction) {
+            calculate();
+        }
+    }, [calculate, currentConstruction]);
+
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            calculateRef();
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [calculateRef]);
 
     // --- Detail operations ---
     const updateDetail = useCallback((index: number, field: keyof Detail, value: any) => {
@@ -239,6 +275,7 @@ export function useCalculator() {
         extras,
         printSettings,
         workPrice,
+        marginValue,
         priceList,
         result,
         loading,
@@ -247,7 +284,7 @@ export function useCalculator() {
         individualConstruction: CUSTOM_CONSTRUCTION,
         // actions
         loadConstruction,
-        calculate,
+        calculate: calculateRef,
         updateDetail,
         updateDetailOperation,
         addCustomDetail,
@@ -258,5 +295,6 @@ export function useCalculator() {
         updatePriceList,
         updatePrintSettings,
         setWorkPrice,
+        setMarginValue,
     };
 }
