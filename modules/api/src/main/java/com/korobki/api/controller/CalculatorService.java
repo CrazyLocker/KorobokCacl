@@ -32,6 +32,13 @@ public class CalculatorService {
     private final PriceCalculator priceCalculator;
     private final PrintCostCalculator printCostCalculator;
 
+    /**
+     * Runs the full calculation pipeline for a box.
+     *
+     * @param request calculation input (construction, details, extras, print settings, price list)
+     * @return calculation result with total cost and per-tier client prices
+     * @throws IllegalArgumentException on business-rule validation failure
+     */
     public CalculationResponse calculate(CalculationRequest request) {
         validate(request);
 
@@ -95,6 +102,12 @@ public class CalculatorService {
         return response;
     }
 
+    /**
+     * Converts API detail DTOs into internal cost-calculation types.
+     *
+     * @param dtos detail DTOs, may be null
+     * @return list of internal detail info (never null)
+     */
     private List<CostCalculator.DetailInfo> convertDetails(List<DetailDto> dtos) {
         if (dtos == null) return new ArrayList<>();
         return dtos.stream().map(dto -> {
@@ -110,6 +123,12 @@ public class CalculatorService {
         }).collect(Collectors.toList());
     }
 
+    /**
+     * Converts API extra DTOs into internal cost-calculation types.
+     *
+     * @param dtos extra DTOs, may be null
+     * @return list of internal extra info (never null)
+     */
     private List<CostCalculator.ExtraInfo> convertExtras(List<ExtraDto> dtos) {
         if (dtos == null) return new ArrayList<>();
         return dtos.stream().map(dto -> {

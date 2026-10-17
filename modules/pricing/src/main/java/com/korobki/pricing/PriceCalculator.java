@@ -48,6 +48,11 @@ public class PriceCalculator {
         return java.util.Arrays.stream(TIERS).map(t -> t.label).toList();
     }
 
+    /**
+     * Creates a price calculator with externalized pricing configuration.
+     *
+     * @param config pricing configuration (margins, VAT, tier steps)
+     */
     public PriceCalculator(PricingConfig config) {
         this.config = config;
     }
@@ -196,6 +201,7 @@ public class PriceCalculator {
 
     // --- Inner types ---
 
+    /** Price tier definition: display label and representative quantity. */
     private static class Tier {
         final String label;
         final int qty;
@@ -206,6 +212,9 @@ public class PriceCalculator {
         }
     }
 
+    /**
+     * Resulting price for a single tier.
+     */
     @Data
     public static class PriceRow {
         private final String label;

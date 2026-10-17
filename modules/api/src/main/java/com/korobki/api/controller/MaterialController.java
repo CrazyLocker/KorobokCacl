@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * REST controller for sheet materials reference data (read-only).
+ */
 @RestController
 @RequestMapping("/api/materials")
 @RequiredArgsConstructor
@@ -16,6 +19,11 @@ public class MaterialController {
 
     private final MaterialService materialService;
 
+    /**
+     * Returns all active materials.
+     *
+     * @return list of active materials
+     */
     @GetMapping
     public List<Material> getAllMaterials() {
         return materialService.getAllActiveMaterials();

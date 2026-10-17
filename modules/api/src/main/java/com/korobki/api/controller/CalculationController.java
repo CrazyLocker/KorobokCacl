@@ -11,6 +11,9 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * REST controller for saved calculations (CRUD).
+ */
 @RestController
 @RequestMapping("/api/calculations")
 @RequiredArgsConstructor
@@ -18,21 +21,44 @@ public class CalculationController {
 
     private final CalculationService calculationService;
 
+    /**
+     * Saves a new calculation.
+     *
+     * @param request calculation data (name, client, manager, state)
+     * @return the saved calculation
+     */
     @PostMapping("/save")
     public ResponseEntity<CalculationDto> save(@Valid @RequestBody CalculationSaveRequest request) {
         return ResponseEntity.ok(calculationService.save(request));
     }
 
+    /**
+     * Lists all saved calculations, newest first.
+     *
+     * @return list of saved calculations
+     */
     @GetMapping("/list")
     public ResponseEntity<List<CalculationDto>> list() {
         return ResponseEntity.ok(calculationService.list());
     }
 
+    /**
+     * Returns a saved calculation by its identifier.
+     *
+     * @param id calculation identifier
+     * @return the calculation
+     */
     @GetMapping("/{id}")
     public ResponseEntity<CalculationDto> get(@PathVariable UUID id) {
         return ResponseEntity.ok(calculationService.get(id));
     }
 
+    /**
+     * Deletes a saved calculation.
+     *
+     * @param id calculation identifier
+     * @return empty response
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         calculationService.delete(id);

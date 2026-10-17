@@ -12,10 +12,24 @@ import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.List;
 
+/**
+ * Spring Security configuration.
+ * All REST endpoints are currently open (permitAll); HTTP Basic is enabled
+ * as a fallback for any request not matched by the whitelist.
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+    /**
+     * Builds the HTTP security filter chain.
+     * Disables CSRF (stateless REST API), applies CORS and permits
+     * all whitelisted API and Swagger endpoints.
+     *
+     * @param http security builder
+     * @return configured filter chain
+     * @throws Exception on configuration error
+     */
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -46,6 +60,11 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /**
+     * Builds the CORS configuration allowing all origins with credentials.
+     *
+     * @return permissive CORS configuration source
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();

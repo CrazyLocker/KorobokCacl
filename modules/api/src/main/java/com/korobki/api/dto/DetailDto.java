@@ -7,8 +7,13 @@ import java.util.Map;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 
+/**
+ * DTO for a single box detail (part) in the calculation request.
+ */
 @Data
 public class DetailDto {
+
+    /** Detail name, e.g. "Дно", "Крышка". */
     private String name;
 
     /** 0 допустим для отключённых деталей; для включённых проверяется > 0 в сервисе. */
@@ -16,11 +21,18 @@ public class DetailDto {
     @DecimalMin(value = "0", message = "Detail countOnSheet must be >= 0")
     private BigDecimal countOnSheet;
 
+    /** Material price per sheet (rubles). */
     @NotNull(message = "Detail sheetPrice is required")
     @DecimalMin(value = "0", message = "Detail sheetPrice must be >= 0")
     private BigDecimal sheetPrice;
+
+    /** Whether print cost is applied to this detail. */
     private Boolean isPrinted;
+
+    /** Whether the detail was added by the user (not from the construction). */
     private Boolean isCustom;
+
+    /** Whether the detail participates in the calculation. */
     private Boolean enabled;
 
     /**

@@ -21,6 +21,11 @@ public class KnifeCalculator {
 
     private final PricingConfig pricingConfig;
 
+    /**
+     * Creates a knife calculator with externalized pricing configuration.
+     *
+     * @param pricingConfig pricing configuration (price per mm, base cost)
+     */
     public KnifeCalculator(PricingConfig pricingConfig) {
         this.pricingConfig = pricingConfig;
     }
@@ -137,6 +142,7 @@ public class KnifeCalculator {
         }
     }
 
+    /** Checks whether the SVG element type is supported for length calculation. */
     private boolean isSupportedElement(String tag) {
         return "line".equals(tag) || "rect".equals(tag) || "path".equals(tag)
                 || "polyline".equals(tag) || "circle".equals(tag) || "ellipse".equals(tag);
@@ -168,6 +174,7 @@ public class KnifeCalculator {
         }
     }
 
+    /** Computes the length of a "line" element. */
     private double lineLength(Element el) {
         double x1 = parseAttr(el, "x1", 0);
         double y1 = parseAttr(el, "y1", 0);
@@ -176,12 +183,14 @@ public class KnifeCalculator {
         return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     }
 
+    /** Computes the perimeter of a "rect" element. */
     private double rectLength(Element el) {
         double w = parseAttr(el, "width", 0);
         double h = parseAttr(el, "height", 0);
         return 2 * (w + h);
     }
 
+    /** Computes the length of a "path" element via its "d" attribute. */
     private double pathLength(Element el) {
         String d = el.getAttribute("d");
         if (d == null || d.isEmpty()) return 0;
@@ -233,6 +242,7 @@ public class KnifeCalculator {
         return totalLen;
     }
 
+    /** Accumulates the length contribution of one path command's parameters. */
     private double processPathParams(String cmd, java.util.List<Double> params, double px, double py) {
         double totalLen = 0;
         int idx = 0;
@@ -283,6 +293,7 @@ public class KnifeCalculator {
         return totalLen;
     }
 
+    /** Approximates cubic bezier length with a 10-segment polyline. */
     private double cubicBezierLen(double x1, double y1, double cx1, double cy1, double cx2, double cy2, double x2, double y2) {
         // Approximate with 4-segment polyline
         int segments = 10;
@@ -299,11 +310,13 @@ public class KnifeCalculator {
         return total;
     }
 
+    /** Evaluates a cubic bezier point at parameter t. */
     private double bezierPoint(double p0, double p1, double p2, double p3, double t) {
         double mt = 1 - t;
         return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3;
     }
 
+    /** Computes the total length of a "polyline" element. */
     private double polylineLength(Element el) {
         String points = el.getAttribute("points");
         if (points == null || points.isEmpty()) return 0;
@@ -329,11 +342,13 @@ public class KnifeCalculator {
         return total;
     }
 
+    /** Computes the circumference of a "circle" element. */
     private double circleLength(Element el) {
         double r = parseAttr(el, "r", 0);
         return 2 * Math.PI * r;
     }
 
+    /** Computes the perimeter of an "ellipse" element (Ramanujan approximation). */
     private double ellipseLength(Element el) {
         double rx = parseAttr(el, "rx", 0);
         double ry = parseAttr(el, "ry", 0);
@@ -343,10 +358,12 @@ public class KnifeCalculator {
         return Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
     }
 
+    /** Euclidean distance between two points. */
     private double dist(double x1, double y1, double x2, double y2) {
         return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
     }
 
+    /** Parses a numeric SVG attribute with a fallback default. */
     private double parseAttr(Element el, String attr, double defaultVal) {
         String val = el.getAttribute(attr);
         if (val == null || val.isEmpty()) return defaultVal;
@@ -359,6 +376,7 @@ public class KnifeCalculator {
 
     // --- Result DTO ---
 
+    /** Immutable calculation result: lengths, cost, scale and per-element breakdown. */
     public static class KnifeResult {
         private final double totalLengthPx;
         private final double totalLengthMm;
@@ -382,6 +400,7 @@ public class KnifeCalculator {
         public java.util.List<KnifeElementDto> getDetails() { return details; }
     }
 
+    /** Length of a single SVG element in pixels and millimeters. */
     public static class KnifeElementDto {
         private final String type;
         private final double lengthPx;

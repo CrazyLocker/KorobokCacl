@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * REST controller for additional operations reference data (read-only).
+ */
 @RestController
 @RequestMapping("/api/operations")
 @RequiredArgsConstructor
@@ -18,11 +21,22 @@ public class OperationController {
 
     private final OperationService operationService;
 
+    /**
+     * Returns all active operations.
+     *
+     * @return list of active operations
+     */
     @GetMapping
     public List<Operation> getAllOperations() {
         return operationService.getAllActiveOperations();
     }
 
+    /**
+     * Returns an operation by its identifier.
+     *
+     * @param id operation identifier
+     * @return the operation
+     */
     @GetMapping("/{id}")
     public Operation getOperationById(@PathVariable UUID id) {
         return operationService.getOperationById(id);

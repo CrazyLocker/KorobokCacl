@@ -26,6 +26,8 @@ public class CostCalculator {
 
     /**
      * Get the default work price per detail from configuration.
+     *
+     * @return default work price per detail (rubles)
      */
     public BigDecimal getDefaultWorkPrice() {
         return pricingConfig.getManufacturingCost();
@@ -91,6 +93,13 @@ public class CostCalculator {
         return sum;
     }
 
+    /**
+     * Looks up the cost of an operation by name.
+     *
+     * @param extras all known operations
+     * @param name   operation name to find
+     * @return operation cost, or ZERO if not found
+     */
     private BigDecimal findExtraCost(List<ExtraInfo> extras, String name) {
         return extras.stream()
                 .filter(e -> name.equals(e.getName()))
@@ -101,6 +110,7 @@ public class CostCalculator {
 
     // --- Inner DTOs for cost calculation (decoupled from API DTOs) ---
 
+    /** Input data for a single detail (part) of the box. */
     public static class DetailInfo {
         private String name;
         private BigDecimal countOnSheet;
@@ -126,6 +136,7 @@ public class CostCalculator {
         public void setOperations(Map<String, Boolean> operations) { this.operations = operations; }
     }
 
+    /** Input data for a single operation (extra) applied to details. */
     public static class ExtraInfo {
         private String name;
         private BigDecimal cost;

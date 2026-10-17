@@ -7,7 +7,16 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Repository for box constructions.
+ */
 @Repository
 public interface ConstructRepository extends JpaRepository<Construct, UUID> {
+
+    /**
+     * Returns all active (not soft-deleted) constructions.
+     *
+     * @return list of active constructions
+     */
     List<Construct> findAllByIsActiveTrue();
 }

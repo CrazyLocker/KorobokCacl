@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AmplicodeDatabaseMigrationSettings" lastSelectedDirectory="db/changelog/#date(&quot;yyyy&quot;)/#date(&quot;MM&quot;)" flywayMigrationDescription="">
+    <database-infos>
+      <database-info>
+        <option name="enabled" value="true" />
+        <dbms-id>postgres</dbms-id>
+      </database-info>
+    </database-infos>
+  </component>
+  <component name="AmplicodeJpaPluginProjectSettings" commentSavingStrategy="Java Doc" reExcludeTablePrefixes="" reExcludeColumnPrefixes="" reExcludeTableSuffixes="" reExcludeColumnSuffixes="" />
+  <component name="AmplicodePersistenceUnitSettings">
+    <persistence-units>
+      <persistence-unit moduleName="korobki-calculator.modules.api.main" name="Default">
+        <packages>
+          <package value="com.korobki.persistence.entity" />
+        </packages>
+      </persistence-unit>
+      <persistence-unit moduleName="korobki-calculator.modules.calculator.main" name="Default" />
+      <persistence-unit moduleName="korobki-calculator.modules.persistence.main" name="Default" />
+    </persistence-units>
+  </component>
+</project>

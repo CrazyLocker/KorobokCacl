@@ -30,9 +30,14 @@ public class KnifeController {
     private final KnifeCalculator knifeCalculator;
     private final KnifeRepository knifeRepository;
 
+    /**
+     * Calculates knife metrics from SVG content.
+     *
+     * @param request request containing the SVG markup
+     * @return total cut length, cost and per-element breakdown
+     */
     @PostMapping("/calculate")
-    public ResponseEntity<KnifeResponse> calculate(@RequestBody KnifeRequest request) {
-        KnifeCalculator.KnifeResult result = knifeCalculator.calculate(request.getSvgContent());
+    public ResponseEntity<KnifeResponse> calculate(@RequestBody KnifeRequest request) {        KnifeCalculator.KnifeResult result = knifeCalculator.calculate(request.getSvgContent());
 
         KnifeResponse response = new KnifeResponse();
         response.setTotalLengthPx(result.getTotalLengthPx());
@@ -52,6 +57,12 @@ public class KnifeController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Saves a knife with its computed metrics.
+     *
+     * @param request knife data (name, SVG, length, cost, client, manager)
+     * @return the saved knife
+     */
     @PostMapping("/save")
     public ResponseEntity<KnifeDto> save(@Valid @RequestBody KnifeSaveRequest request) {
         Knife knife = new Knife();
@@ -66,6 +77,11 @@ public class KnifeController {
         return ResponseEntity.ok(toDto(saved));
     }
 
+    /**
+     * Lists all saved knives, newest first.
+     *
+     * @return list of saved knives
+     */
     @GetMapping("/list")
     public ResponseEntity<List<KnifeDto>> list() {
         return ResponseEntity.ok(knifeRepository.findAllByOrderByCreatedAtDesc().stream()
@@ -73,12 +89,24 @@ public class KnifeController {
                 .toList());
     }
 
+    /**
+     * Deletes a saved knife.
+     *
+     * @param id knife identifier
+     * @return empty response
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         knifeRepository.deleteById(id);
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Maps a knife entity to its DTO.
+     *
+     * @param knife entity to map
+     * @return knife DTO
+     */
     private KnifeDto toDto(Knife knife) {
         KnifeDto dto = new KnifeDto();
         dto.setId(knife.getId());

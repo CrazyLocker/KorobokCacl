@@ -40,6 +40,9 @@ public class ReferencesController {
      *   },
      *   ...
      * }
+     *
+     * @param json import payload keyed by construction name
+     * @return counts of imported and updated constructions
      */
     @PostMapping("/import-constructs")
     public ResponseEntity<Map<String, Object>> importConstructs(@RequestBody Map<String, Object> json) {
@@ -107,6 +110,9 @@ public class ReferencesController {
      *     ...
      *   ]
      * }
+     *
+     * @param json import payload (direct map or "items" array format)
+     * @return counts of imported and updated price lists
      */
     @PostMapping("/import-price-lists")
     public ResponseEntity<Map<String, Object>> importPriceLists(@RequestBody Map<String, Object> json) {
@@ -185,6 +191,9 @@ public class ReferencesController {
      *   },
      *   ...
      * }
+     *
+     * @param json import payload keyed by numeric format id
+     * @return counts of imported and updated print tables
      */
     @PostMapping("/import-print-tables")
     public ResponseEntity<Map<String, Object>> importPrintTables(@RequestBody Map<String, Object> json) {

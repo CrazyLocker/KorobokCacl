@@ -8,9 +8,28 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Repository for sheet materials.
+ */
 @Repository
 public interface MaterialRepository extends JpaRepository<Material, UUID> {
+
+    /**
+     * Returns all active (not soft-deleted) materials.
+     *
+     * @return list of active materials
+     */
     List<Material> findAllByIsActiveTrue();
+
+    /**
+     * Finds active materials of the given type whose purchase price
+     * fits within the specified range (inclusive on both ends).
+     *
+     * @param type     material category
+     * @param minPrice lower bound of purchase price
+     * @param maxPrice upper bound of purchase price
+     * @return list of matching materials
+     */
     List<Material> findByTypeAndMinPurchasePriceLessThanEqualAndMaxPurchasePriceGreaterThanEqual(
             Material.MaterialType type,
             BigDecimal minPrice,
