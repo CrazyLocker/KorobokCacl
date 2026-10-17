@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Макет: обмен данными «Раскладка» ⇄ «Расчет коробки»</title>
+<style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Roboto', 'Segoe UI', sans-serif; background: #f0f2f5; color: #202124; padding: 24px 32px 60px; }
+    .wrap { max-width: 1500px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 600; color: #1a73e8; margin-bottom: 6px; }
+    .sub { font-size: 13px; color: #5f6368; margin-bottom: 18px; line-height: 1.5; }
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: #5f6368; margin-bottom: 22px; }
+    .legend span { display: flex; align-items: center; gap: 6px; }
+    .legend i { width: 22px; height: 12px; border-radius: 4px; display: inline-block; }
+    .lg-old { background: #f1f3f4; border: 1px solid #e8eaed; }
+    .lg-new { background: #e8f0fe; border: 1px dashed #1a73e8; }
+    .lg-future { background: #fff; border: 1px dashed #9aa0a6; }
+
+    /* ===== общие карточки как в приложении ===== */
+    .card { background: #fff; border-radius: 16px; padding: 20px 22px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .card-title { font-size: 14px; font-weight: 500; color: #202124; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid #e8eaed; }
+    .card-title .badge { background: #1a73e8; color: white; font-size: 10px; font-weight: 500; padding: 0 12px; border-radius: 16px; line-height: 20px; margin-left: auto; }
+    .panel-title { font-size: 13px; font-weight: 500; color: #5f6368; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .btn-primary { background: #1a73e8; color: #fff; border: none; padding: 8px 20px; border-radius: 24px; font-weight: 500; font-size: 13px; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .btn-primary:hover { background: #1557b0; }
+    .btn-success { background: #137333; color: #fff; border: none; padding: 8px 20px; border-radius: 24px; font-weight: 500; font-size: 13px; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+    .btn-success:hover { background: #0d5a28; }
+    .btn-outline { background: #fff; color: #1a73e8; border: 1px solid #dadce0; padding: 7px 18px; border-radius: 24px; font-weight: 500; font-size: 13px; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-outline:hover { background: #e8f0fe; border-color: #1a73e8; }
+    .btn-primary[disabled], .btn-success[disabled] { background: #e8eaed; color: #9aa0a6; box-shadow: none; cursor: not-allowed; }
+    .hint { font-size: 12px; color: #9aa0a6; }
+
+    /* ===== таблица деталей (как .layout-table) ===== */
+    .layout-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .layout-table th { text-align: left; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; color: #5f6368; padding: 6px 8px 6px 0; border-bottom: 2px solid #e8eaed; }
+    .layout-table td { padding: 7px 8px 7px 0; border-bottom: 1px solid #f1f3f4; vertical-align: middle; }
+    .layout-table tr:last-child td { border-bottom: none; }
+    .layout-table .part-name { font-weight: 500; color: #202124; white-space: nowrap; font-size: 12px; }
+    .layout-table .part-input { width: 70px; padding: 6px 8px; border: 1px solid #dadce0; border-radius: 6px; font-size: 12px; font-family: inherit; text-align: center; background: #fff; }
+    .layout-table .part-input.input-zero { color: #9aa0a6; background: #f8f9fa; }
+    .layout-table .part-input-name { width: 130px; padding: 6px 8px; border: 1px solid #dadce0; border-radius: 6px; font-size: 12px; font-family: inherit; }
+    .layout-table .col-center { text-align: center; }
+    .layout-table .remove-row-btn { background: transparent; border: none; color: #d93025; cursor: pointer; font-size: 15px; padding: 0 4px; opacity: 0.5; }
+    .layout-table tr.part-disabled { opacity: 0.45; }
+    .layout-table tr.part-disabled .part-input { background: #f1f3f4; color: #9aa0a6; }
+
+    /* ===== новое: бейджи источника данных ===== */
+    .src-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 12px; background: #e8f0fe; color: #1a73e8; border: 1px dashed #1a73e8; margin-left: 6px; cursor: help; white-space: nowrap; }
+    .src-badge.stale { background: #fef7e0; color: #b06000; border-color: #f9ab00; }
+    .src-badge.new-row { background: #e6f4ea; color: #137333; border-color: #34a853; }
+    .src-badge.none { background: #f1f3f4; color: #5f6368; border-color: #dadce0; }
+    .src-badge a { color: inherit; text-decoration: underline; }
+
+    /* ===== новое: полоса отчёта о переносе ===== */
+    .transfer-report { margin-top: 14px; padding: 12px 16px; border-radius: 10px; background: #e6f4ea; border-left: 4px solid #34a853; font-size: 12px; color: #0d5c2f; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .transfer-report.warn { background: #fef7e0; border-left-color: #f9ab00; color: #8a5300; }
+    .transfer-report .actions { margin-left: auto; display: flex; gap: 10px; }
+    .transfer-report button { background: transparent; border: 1px solid currentColor; color: inherit; border-radius: 14px; font-size: 11px; padding: 3px 12px; cursor: pointer; font-family: inherit; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 1200px) { .grid2 { grid-template-columns: 1fr; } }
+
+    .marker { position: relative; }
+    .marker::after { content: attr(data-note); position: absolute; right: 0; top: -9px; font-size: 9px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: #1a73e8; background: #e8f0fe; border: 1px dashed #1a73e8; border-radius: 10px; padding: 1px 8px; }
+    .new { outline: 1px dashed #1a73e8; outline-offset: 3px; border-radius: 10px; }
+    .future { outline: 1px dashed #9aa0a6; outline-offset: 3px; border-radius: 10px; opacity: 0.9; }
+
+    /* ===== раскладка ===== */
+    .rasp-mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; background: #f1f3f4; padding: 4px; border-radius: 10px; max-width: 340px; }
+    .rasp-mode-tabs .rasp-tab { text-align: center; padding: 7px 6px; font-size: 13px; font-weight: 600; color: #5f6368; border-radius: 7px; cursor: pointer; }
+    .rasp-mode-tabs .rasp-tab.active { background: #fff; color: #1a73e8; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .sheet-line { display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: #f8f9fa; border-radius: 10px; font-size: 12px; color: #5f6368; margin-bottom: 14px; }
+    .sheet-line b { color: #202124; font-weight: 500; }
+    .rasp-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0 4px; }
+    .rasp-metric { background: #f8f9fa; border: 1px solid #ececec; border-radius: 9px; padding: 9px 12px; }
+    .rasp-metric .label { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.5px; }
+    .rasp-metric .value { font-size: 18px; font-weight: 700; color: #333; margin-top: 2px; }
+    .rasp-metric .value.green { color: #0d7c3f; }
+    .rasp-parts-table { border: 1px solid #e8e8e8; border-radius: 10px; padding: 8px; background: #fafafa; }
+    .rasp-parts-header, .rasp-part-row { display: grid; grid-template-columns: 12px 1.2fr 56px 56px 50px 20px; gap: 5px; align-items: center; }
+    .rasp-parts-header { font-size: 10px; text-transform: uppercase; color: #999; padding: 0 2px 6px; }
+    .rasp-parts-header span:nth-child(3), .rasp-parts-header span:nth-child(4), .rasp-parts-header span:nth-child(5) { text-align: center; }
+    .rasp-part-row input { width: 100%; padding: 4px 6px; font-size: 13px; border: 1px solid #e0e0e0; border-radius: 6px; font-family: inherit; }
+    .rasp-part-row input[type="number"] { text-align: center; }
+    .rasp-color-mark { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.15); }
+    .ok-note { font-size: 11px; color: #9aa0a6; margin-top: 10px; }
+
+    /* ===== галерея состояний ===== */
+    .states { margin-top: 26px; }
+    .states h2 { font-size: 16px; font-weight: 500; margin-bottom: 14px; color: #202124; }
+    .state-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 16px; }
+    .state { background: #fff; border-radius: 14px; padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .state h3 { font-size: 12px; font-weight: 600; color: #5f6368; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+    .state .demo { font-size: 12px; color: #202124; line-height: 1.6; }
+    .tooltip-note { font-size: 11px; color: #9aa0a6; margin-top: 8px; }
+    .qa { margin-top: 26px; background: #fff; border-radius: 14px; padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .qa h2 { font-size: 15px; font-weight: 500; margin-bottom: 10px; }
+    .qa ol { margin-left: 20px; font-size: 13px; line-height: 1.8; color: #202124; }
+    .qa .rec { color: #137333; font-weight: 500; }
+    .switch { display: inline-flex; gap: 6px; background: #f1f3f4; padding: 4px; border-radius: 10px; margin-bottom: 14px; }
+    .switch button { border: none; background: transparent; font-family: inherit; font-size: 12px; font-weight: 600; color: #5f6368; padding: 6px 14px; border-radius: 7px; cursor: pointer; }
+    .switch button.on { background: #fff; color: #1a73e8; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .only-after { display: none; }
+    body.after .only-after { display: block; }
+    body.after .only-before { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Макет: обмен данными «Раскладка» ⇄ «Расчет коробки»</h1>
+    <div class="sub">
+        Только внешний вид и тексты, без логики переноса. Синим пунктиром помечено новое, серым пунктиром — задел на этап 2 (несколько материалов в заказе).
+        Переключатель ниже показывает таблицу расчёта «до» и «после» переноса.
+    </div>
+    <div class="legend">
+        <span><i class="lg-old"></i> существующее</span>
+        <span><i class="lg-new"></i> новое (этот этап)</span>
+        <span><i class="lg-future"></i> задел на «несколько материалов»</span>
+    </div>
+
+    <div class="switch">
+        <button id="btnBefore" class="on" onclick="setState(false)">До переноса</button>
+        <button id="btnAfter" onclick="setState(true)">После переноса</button>
+    </div>
+
+    <div class="grid2">
+        <!-- ==================== РАСКЛАДКА ==================== -->
+        <div class="card">
+            <div class="card-title">📐 Калькулятор раскладки <span class="badge">страница «Раскладка»</span></div>
+
+            <!-- ЭТАП 2: материалы -->
+            <div class="future" style="padding:10px 12px; margin-bottom:14px;">
+                <div style="font-size:11px;color:#5f6368;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Материалы заказа <span style="text-transform:none;letter-spacing:0;">— этап 2</span></div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <span class="src-badge none" style="border-style:solid;">Мелованный картон 300 г · 700×1000</span>
+                    <span class="src-badge none" style="border-style:dashed;">+ материал</span>
+                </div>
+            </div>
+
+            <div class="sheet-line">
+                <span>Лист:</span> <b>700×1000 мм</b>
+                <span>· поля <b>10</b> · клапан <b>0</b> · зазор <b>3</b></span>
+                <span class="src-badge none" style="margin-left:auto;">пресет 1000×700</span>
+            </div>
+
+            <div class="rasp-mode-tabs">
+                <div class="rasp-tab">Одна деталь</div>
+                <div class="rasp-tab active">Несколько деталей</div>
+            </div>
+
+            <!-- Источник А -->
+            <div class="new" style="padding:12px 14px;margin-bottom:16px;">
+                <div style="font-size:11px;color:#1a73e8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Источник А — режим «Одна деталь»</div>
+                <div class="demo" style="font-size:12px;line-height:1.7;">
+                    Название детали: <input class="part-input-name" value="Дно" style="width:110px;"> ·
+                    размер <b>335×242</b> → <b>8 шт/лист</b>
+                </div>
+                <div class="hint" style="margin-top:6px;">Так собраны пресеты: у каждой детали своя цифра, деталь считается на листе одна.</div>
+                <div style="margin-top:10px;">
+                    <button class="btn-success">➡ Передать «Дно = 8» в расчёт</button>
+                </div>
+            </div>
+
+            <!-- Источник Б -->
+            <div class="new" style="padding:12px 14px;">
+                <div style="font-size:11px;color:#1a73e8;font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;">Источник Б — режим «Несколько деталей» (микс на одном листе)</div>
+                <div class="rasp-parts-table">
+                    <div class="rasp-parts-header">
+                        <span></span><span>Название</span><span>Длина</span><span>Ширина</span><span>Кол-во</span><span></span>
+                    </div>
+                    <div class="rasp-part-row">
+                        <span class="rasp-color-mark" style="background:#e3f0ff;border-color:#1a73e8"></span>
+                        <input value="Дно"><input type="number" value="335"><input type="number" value="242"><input type="number" value="8"><span>✕</span>
+                    </div>
+                    <div class="rasp-part-row">
+                        <span class="rasp-color-mark" style="background:#e6f4ea;border-color:#0d7c3f"></span>
+                        <input value="Крышка"><input type="number" value="224"><input type="number" value="242"><input type="number" value="12"><span>✕</span>
+                    </div>
+                    <div class="rasp-part-row">
+                        <span class="rasp-color-mark" style="background:#fff4e5;border-color:#e8710a"></span>
+                        <input value="Разделитель"><input type="number" value="110"><input type="number" value="137"><input type="number" value="42"><span>✕</span>
+                    </div>
+                </div>
+                <div class="rasp-metrics">
+                    <div class="rasp-metric"><div class="label">Деталей на листе</div><div class="value">11</div></div>
+                    <div class="rasp-metric"><div class="label">Загрузка листа</div><div class="value green">84.2 %</div></div>
+                    <div class="rasp-metric"><div class="label">Листов на заказ</div><div class="value">4</div></div>
+                </div>
+                <div class="hint" style="margin-top:4px;">
+                    Дно 3 / 8 · Крышка 2 / 12 · Разделитель 6 / 42 — детали делят лист, цифры взаимозависимы.
+                </div>
+                <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    <button class="btn-success">➡ Передать 3 детали в расчёт</button>
+                    <button class="btn-outline">⬅ Взять детали из заказа</button>
+                </div>
+                <div class="ok-note">Последний перенос: сегодня 14:32 → конструкция «Индивидуальная»</div>
+            </div>
+        </div>
+
+        <!-- ==================== РАСЧЕТ КОРОБКИ ==================== -->
+        <div class="card">
+            <div class="card-title">🧮 Расчет коробки <span class="badge">страница «Расчет коробки»</span></div>
+
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+                <span style="font-size:13px;font-weight:500;color:#5f6368;">Базовая коробка</span>
+                <select style="padding:8px 14px;border:1px solid #dadce0;border-radius:8px;font-size:13px;font-family:inherit;min-width:180px;">
+                    <option>Индивидуальная</option>
+                    <option>Элара 4</option>
+                </select>
+            </div>
+
+            <div class="panel-title">Раскладка деталей на лист 700×1000
+                <span class="src-badge" title="Заголовок берётся из раскладки">лист из раскладки</span>
+            </div>
+
+            <table class="layout-table">
+                <thead>
+                    <tr>
+                        <th style="width:26%;">Деталь</th>
+                        <th style="width:20%;text-align:center;">шт./лист</th>
+                        <th style="width:14%;text-align:center;">руб./лист</th>
+                        <th style="width:16%;text-align:center;">Дет./лист<br>(печать)</th>
+                        <th style="width:24%;text-align:center;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="part-name">☑ Дно</td>
+                        <td class="col-center">
+                            <input class="part-input only-before input-zero" value="0" disabled>
+                            <span class="only-after"><input class="part-input" value="8">
+                            <span class="src-badge" title="Лист 700×1000, поля 10, клапан 0, зазор 3 · перенесено 14:32">↧ из раскладки</span></span>
+                        </td>
+                        <td class="col-center"><input class="part-input" value="35"></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center hint only-before">заполняется вручную</td>
+                        <td class="col-center hint only-after">цена листа не менялась</td>
+                    </tr>
+                    <tr>
+                        <td class="part-name">☑ Крышка</td>
+                        <td class="col-center">
+                            <input class="part-input only-before input-zero" value="0" disabled>
+                            <span class="only-after"><input class="part-input" value="12">
+                            <span class="src-badge stale" title="В раскладке с тех пор изменили зазор: было 3, стало 5">↻ устарело · <a>обновить</a></span></span>
+                        </td>
+                        <td class="col-center"><input class="part-input" value="35"></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center hint only-before">заполняется вручную</td>
+                        <td class="col-center hint only-after">раскладку пересчитали</td>
+                    </tr>
+                    <tr>
+                        <td class="part-name">☑ Разделитель</td>
+                        <td class="col-center">
+                            <input class="part-input only-before input-zero" value="0" disabled>
+                            <span class="only-after"><input class="part-input" value="6">
+                            <span class="src-badge" title="Лист 700×1000, поля 10, клапан 0, зазор 3 · перенесено 14:32">↧ из раскладки</span></span>
+                        </td>
+                        <td class="col-center"><input class="part-input" value="35"></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center hint only-before">заполняется вручную</td>
+                        <td class="col-center hint only-after">цена листа не менялась</td>
+                    </tr>
+                    <tr class="only-after">
+                        <td class="part-name">☑ <input class="part-input-name" value="Вкладыш"></td>
+                        <td class="col-center"><input class="part-input" value="4">
+                            <span class="src-badge new-row" title="Строки не было — создана при переносе">＋ новая строка</span>
+                        </td>
+                        <td class="col-center"><input class="part-input" value="35"></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center"><button class="remove-row-btn">✕</button></td>
+                    </tr>
+                    <tr class="part-disabled only-before">
+                        <td class="part-name">☐ Окно</td>
+                        <td class="col-center"><input class="part-input input-zero" value="0" disabled></td>
+                        <td class="col-center"><input class="part-input" value="35" disabled></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center">—</td>
+                    </tr>
+                    <tr class="part-disabled">
+                        <td class="part-name">☐ Шубер</td>
+                        <td class="col-center"><input class="part-input input-zero" value="0" disabled></td>
+                        <td class="col-center"><input class="part-input" value="35" disabled></td>
+                        <td class="col-center"><input class="part-input input-zero" value="1" disabled></td>
+                        <td class="col-center">—</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- отчёт о переносе -->
+            <div class="transfer-report only-after">
+                <span>✅ Перенесено из раскладки: <b>Дно 8</b>, <b>Крышка 12</b>, <b>Разделитель 6</b>. Добавлено строкой: <b>Вкладыш 4</b>. Цена листа не менялась.</span>
+                <span class="actions">
+                    <button>Обновить все</button>
+                    <button>Отменить перенос</button>
+                </span>
+            </div>
+            <div class="transfer-report warn only-before">
+                <span>Данные из раскладки ещё не переносились. Кнопка переноса — на странице «Раскладка».</span>
+                <span class="actions"><button disabled style="opacity:.6;cursor:default;">Обновить все</button></span>
+            </div>
+
+            <div style="margin-top:14px; padding-top:14px; border-top:1px solid #e8eaed; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+                <button class="btn-primary">Применить настройки</button>
+                <button class="btn-outline only-after">⬅ Синхронизировать все строки с раскладкой</button>
+                <span class="hint">себестоимость = руб./лист ÷ шт./лист + работа</span>
+            </div>
+
+            <div class="only-after" style="margin-top:14px;">
+                <div style="font-size:13px;color:#202124;">Себестоимость коробки: <b>52.88 ₽</b>
+                    <span class="hint">(35/8 + 35/12 + 35/6 + 35/4 = 4.38 + 2.92 + 5.83 + 8.75, плюс работа 5 ₽ × 4 детали = 20 ₽ и допы)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== СОСТОЯНИЯ ==================== -->
+    <div class="states">
+        <h2>Состояния и тексты (что показываем в каждом случае)</h2>
+        <div class="state-grid">
+            <div class="state">
+                <h3>1. Перенос выполнен</h3>
+                <div class="demo">
+                    <span class="src-badge">↧ из раскладки</span> у трёх строк<br>
+                    <div class="transfer-report" style="margin-top:10px;">
+                        <span>✅ Перенесено: Дно 8, Крышка 12, Разделитель 6. Добавлено: Вкладыш 4.</span>
+                    </div>
+                </div>
+                <div class="tooltip-note">Подсказка при наведении на бейдж: «Лист 700×1000, поля 10, клапан 0, зазор 3 · перенесено сегодня 14:32».</div>
+            </div>
+            <div class="state">
+                <h3>2. Часть деталей не совпала</h3>
+                <div class="demo">
+                    <div class="transfer-report warn">
+                        <span>⚠️ «Шубер» есть в расчёте, но его нет в раскладке — значение оставлено прежним. «Вкладыш» добавлен новой строкой.</span>
+                    </div>
+                </div>
+                <div class="tooltip-note">Ничего не удаляем и не обнуляем молча: строки, которых нет в раскладке, остаются как были.</div>
+            </div>
+            <div class="state">
+                <h3>3. Раскладка изменилась после переноса</h3>
+                <div class="demo">
+                    <span class="src-badge stale">↻ устарело · <a>обновить</a></span>
+                    <div class="tooltip-note" style="margin-top:8px;">Сверяем ревизию раскладки и ревизию, записанную при переносе. В полосе отчёта — кнопка «Обновить все».</div>
+                </div>
+            </div>
+            <div class="state">
+                <h3>4. Выбрана не «Индивидуальная»</h3>
+                <div class="demo">
+                    <div class="transfer-report warn">
+                        <span>⚠️ Текущая конструкция — «Элара 4». Её детали и количества заданы пресетом и заблокированы. Перенести данные можно только в «Индивидуальную».</span>
+                        <span class="actions"><button>Переключить и перенести</button></span>
+                    </div>
+                </div>
+                <div class="tooltip-note">Для стандартных пресетов (Элара 4 и т. п.) раскладка не нужна — там всё известно из JSON.</div>
+            </div>
+            <div class="state">
+                <h3>5. Раскладка ещё не считалась</h3>
+                <div class="demo">
+                    <button class="btn-success" disabled>➡ Передать в расчёт</button>
+                    <div class="tooltip-note" style="margin-top:8px;">Кнопка неактивна, подпись: «Сначала нажмите «Рассчитать» на этой странице».</div>
+                </div>
+            </div>
+            <div class="state">
+                <h3>6. Несколько материалов (этап 2)</h3>
+                <div class="demo">
+                    <div class="future" style="padding:10px 12px;">
+                        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                            <span class="src-badge none" style="border-style:solid;">Мелованный 700×1000</span>
+                            <span class="src-badge none" style="border-style:solid;">Микрогофра 700×1000</span>
+                            <span class="src-badge none" style="border-style:dashed;">+ материал</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="tooltip-note">Перенос пойдёт по карточкам: у каждой детали будет свой лист и своя цена листа.</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ВОПРОСЫ ==================== -->
+    <div class="qa">
+        <h2>Что нужно подтвердить по макету</h2>
+        <ol>
+            <li>Какой источник «шт./лист» соответствует производству: <b>А</b> — каждая деталь считается на листе отдельно (как в пресетах: 8 / 12 / 42), или <b>Б</b> — дно, крышка и разделитель режутся с одного листа вместе (микс)? От этого зависит, какую цифру переносить.</li>
+            <li>Бейдж «устарело» нужен, или достаточно простого «из раскладки» без слежения за ревизиями?</li>
+            <li>Кнопка «⬅ Взять детали из заказа» на раскладке — нужна (переносит названия деталей, чтобы не набирать дважды), или лишняя?</li>
+            <li>Заголовок «Раскладка деталей на лист 700×1000» в расчёте — брать из раскладки автоматически или оставить как есть?</li>
+        </ol>
+        <div class="tooltip-note" style="margin-top:10px;">
+            <span class="rec">Рекомендую:</span> источник А как основной (совпадает с логикой пресетов) + источник Б для случаев, когда детали действительно делят лист; бейдж «устарело» оставить — он дешёвый и снимает главный риск ручного переноса (перепутать старую цифру с новой).
+        </div>
+    </div>
+</div>
+
+<script>
+    // Переключатель только для просмотра макета: никакой бизнес-логики.
+    function setState(after) {
+        document.body.classList.toggle('after', after);
+        document.getElementById('btnBefore').classList.toggle('on', !after);
+        document.getElementById('btnAfter').classList.toggle('on', after);
+    }
+</script>
+</body>
+</html>
