@@ -172,9 +172,9 @@ class CostCalculatorTest {
 
     @Test
     void printCost_addedPerPrintedDetail() {
-        // printPerUnit = 55 (5500/100)
+        // printPerUnit = 55 (pps = 1, 5500/100/1)
         // detail cost = 35/2 + 5 + 55 = 17.5 + 5 + 55 = 77.5
-        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100))
+        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100, 1))
                 .thenReturn(new BigDecimal("55"));
 
         CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
@@ -183,6 +183,7 @@ class CostCalculatorTest {
         detail.setSheetPrice(new BigDecimal("35"));
         detail.setEnabled(true);
         detail.setIsPrinted(true);
+        detail.setPartsPerSheetOnPrint(1);
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(detail),
@@ -196,11 +197,11 @@ class CostCalculatorTest {
 
     @Test
     void printCost_twoPrintedDetails_doubles() {
-        // printPerUnit = 55
+        // printPerUnit = 55 for both details (pps = 1)
         // d1: 35/2 + 5 + 55 = 77.5
         // d2: 35/4 + 5 + 55 = 68.75
         // Total = 146.25
-        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100))
+        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100, 1))
                 .thenReturn(new BigDecimal("55"));
 
         CostCalculator.DetailInfo d1 = new CostCalculator.DetailInfo();
@@ -209,6 +210,7 @@ class CostCalculatorTest {
         d1.setSheetPrice(new BigDecimal("35"));
         d1.setEnabled(true);
         d1.setIsPrinted(true);
+        d1.setPartsPerSheetOnPrint(1);
 
         CostCalculator.DetailInfo d2 = new CostCalculator.DetailInfo();
         d2.setName("Крышка");
@@ -216,6 +218,7 @@ class CostCalculatorTest {
         d2.setSheetPrice(new BigDecimal("35"));
         d2.setEnabled(true);
         d2.setIsPrinted(true);
+        d2.setPartsPerSheetOnPrint(1);
 
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(d1, d2),
@@ -225,6 +228,44 @@ class CostCalculatorTest {
         );
 
         assertBD("146.25", total);
+    }
+
+    @Test
+    void printCost_usesPartsPerSheetOfEachDetail() {
+        // d1 has pps=2 -> 5500/100/2 = 27.5
+        // d2 has pps=1 -> 5500/100/1 = 55
+        // d1: 35/2 + 5 + 27.5 = 50
+        // d2: 35/4 + 5 + 55 = 68.75
+        // Total = 118.75
+        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100, 2))
+                .thenReturn(new BigDecimal("27.5"));
+        when(printCostCalculator.calcPrintPerUnitNoVat(1, 100, 1))
+                .thenReturn(new BigDecimal("55"));
+
+        CostCalculator.DetailInfo d1 = new CostCalculator.DetailInfo();
+        d1.setName("Дно");
+        d1.setCountOnSheet(new BigDecimal("2"));
+        d1.setSheetPrice(new BigDecimal("35"));
+        d1.setEnabled(true);
+        d1.setIsPrinted(true);
+        d1.setPartsPerSheetOnPrint(2);
+
+        CostCalculator.DetailInfo d2 = new CostCalculator.DetailInfo();
+        d2.setName("Крышка");
+        d2.setCountOnSheet(new BigDecimal("4"));
+        d2.setSheetPrice(new BigDecimal("35"));
+        d2.setEnabled(true);
+        d2.setIsPrinted(true);
+        d2.setPartsPerSheetOnPrint(1);
+
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(d1, d2),
+                Collections.emptyList(),
+                true, 1, 100,
+                new BigDecimal("5")
+        );
+
+        assertBD("118.75", total);
     }
 
     @Test

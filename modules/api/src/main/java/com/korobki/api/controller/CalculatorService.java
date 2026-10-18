@@ -52,18 +52,37 @@ public class CalculatorService {
         Integer printQuantity = request.getPrintSettings() != null ? request.getPrintSettings().getQuantity() : null;
         BigDecimal workPrice = request.getWorkPrice() != null ? request.getWorkPrice() : costCalculator.getDefaultWorkPrice();
 
-        // --- 2. Calculate print cost per unit (before total cost, for response) ---
+        // --- 2. Reference print cost per unit for the response ---
+        // Each detail can have its own parts-per-sheet value, so there is no
+        // single per-unit value for the whole order. Keep the first active
+        // printed detail here for backward compatibility; totalCost below uses
+        // the correct per-detail value for every detail.
         BigDecimal printCostPerUnit = BigDecimal.ZERO;
         if (printEnabled && printFormat != null && printQuantity != null && printQuantity > 0) {
-            printCostPerUnit = printCostCalculator.calcPrintPerUnitNoVat(printFormat, printQuantity);
+            for (CostCalculator.DetailInfo d : details) {
+                if (Boolean.TRUE.equals(d.getEnabled())
+                        && Boolean.TRUE.equals(d.getIsPrinted())
+                        && d.getCountOnSheet() != null
+                        && d.getCountOnSheet().compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal value = printCostCalculator.calcPrintPerUnitNoVat(
+                            printFormat, printQuantity, d.getPartsPerSheetOnPrint());
+                    printCostPerUnit = value != null ? value : BigDecimal.ZERO;
+                    break;
+                }
+            }
         }
 
         // --- 3. Calculate total cost (full precision) ---
         BigDecimal totalCost = costCalculator.calculateTotalCost(
                 details, extras, printEnabled, printFormat, printQuantity, workPrice);
 
-        // --- 4. Round to integer (rounding #1) ---
-        BigDecimal roundedCost = totalCost.setScale(0, RoundingMode.HALF_UP);
+        // --- 4. Round to kopecks first, then to whole rubles (rounding #1) ---
+        // Material is divided with scale=10, so values on a .5 boundary may be
+        // represented as 92.4999999999. Rounding to kopecks first prevents an
+        // off-by-one-ruble result.
+        BigDecimal roundedCost = totalCost
+                .setScale(2, RoundingMode.HALF_UP)
+                .setScale(0, RoundingMode.HALF_UP);
 
         // --- 5. Generate prices (marginValue = "плечо" from request, if set) ---
         Map<String, BigDecimal> priceListMap = request.getPriceList();
@@ -116,6 +135,7 @@ public class CalculatorService {
             info.setCountOnSheet(dto.getCountOnSheet());
             info.setSheetPrice(dto.getSheetPrice());
             info.setIsPrinted(dto.getIsPrinted());
+            info.setPartsPerSheetOnPrint(dto.getPartsPerSheetOnPrint());
             info.setEnabled(dto.getEnabled());
             info.setIsCustom(dto.getIsCustom());
             info.setOperations(dto.getOperations());
@@ -158,6 +178,29 @@ public class CalculatorService {
                 if (d.getSheetPrice() != null && d.getSheetPrice().compareTo(BigDecimal.ZERO) < 0) {
                     throw new IllegalArgumentException(
                             "Detail '" + d.getName() + "' (index " + i + ") sheetPrice must be >= 0");
+                }
+
+                // Prototype validatePrint(): active printed details must fit
+                // into the box run (parts per sheet <= box count).
+                PrintSettingsDto ps = request.getPrintSettings();
+                boolean printIsEnabled = ps != null && Boolean.TRUE.equals(ps.getEnabled());
+                if (printIsEnabled
+                        && Boolean.TRUE.equals(d.getEnabled())
+                        && Boolean.TRUE.equals(d.getIsPrinted())
+                        && d.getCountOnSheet() != null
+                        && d.getCountOnSheet().compareTo(BigDecimal.ZERO) > 0
+                        && ps.getQuantity() != null
+                        && ps.getQuantity() > 0) {
+                    int partsPerSheet = d.getPartsPerSheetOnPrint() != null
+                            && d.getPartsPerSheetOnPrint() > 0
+                            ? d.getPartsPerSheetOnPrint()
+                            : 1;
+                    if (partsPerSheet > ps.getQuantity()) {
+                        throw new IllegalArgumentException(
+                                "Detail '" + d.getName() + "' (index " + i + ") has partsPerSheetOnPrint "
+                                        + partsPerSheet + " greater than print quantity " + ps.getQuantity()
+                                        + "; print calculation is blocked");
+                    }
                 }
             }
         }

@@ -29,6 +29,12 @@ public class DetailDto {
     /** Whether print cost is applied to this detail. */
     private Boolean isPrinted;
 
+    /**
+     * Number of identical details printed on one print sheet.
+     * Used by the prototype print formula; null or 0 is treated as 1.
+     */
+    private Integer partsPerSheetOnPrint;
+
     /** Whether the detail was added by the user (not from the construction). */
     private Boolean isCustom;
 

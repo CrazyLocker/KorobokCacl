@@ -98,14 +98,45 @@ public class PrintCostCalculator {
     }
 
     /**
-     * Calculate print cost per unit (without VAT).
+     * Calculate the print cost of one detail per box (without VAT).
+     *
+     * Mirrors the prototype formula:
+     * <pre>
+     *   rawSheets   = ceil(boxCount / partsPerSheetOnPrint)
+     *   printBill   = calcPrintCost(formatId, rawSheets)
+     *   printPerBox = (printBill / boxCount) / partsPerSheetOnPrint
+     * </pre>
+     *
+     * The second division is intentional: one print sheet carries several
+     * identical details, so the bill is shared between them.
+     *
+     * @param formatId              print format (1, 2, or 3)
+     * @param boxCount              number of boxes in the print run
+     * @param partsPerSheetOnPrint  details printed on one sheet; null/0 means 1
+     * @return print cost per detail per box, or ZERO for invalid input or when
+     *         there are more details on a sheet than boxes in the run
      */
-    public BigDecimal calcPrintPerUnitNoVat(Integer formatId, Integer quantity) {
-        if (quantity == null || quantity <= 0) {
+    public BigDecimal calcPrintPerUnitNoVat(Integer formatId, Integer boxCount, Integer partsPerSheetOnPrint) {
+        if (boxCount == null || boxCount <= 0) {
             return BigDecimal.ZERO;
         }
-        return calcPrintCost(formatId, quantity)
-                .divide(BigDecimal.valueOf(quantity), 10, RoundingMode.HALF_UP);
+
+        int partsPerSheet = partsPerSheetOnPrint != null && partsPerSheetOnPrint > 0
+                ? partsPerSheetOnPrint
+                : 1;
+
+        // The prototype blocks the calculation in this case; the calculator
+        // itself must not produce a nonsensical negative/zero-sheet bill.
+        if (partsPerSheet > boxCount) {
+            return BigDecimal.ZERO;
+        }
+
+        int rawSheets = (boxCount + partsPerSheet - 1) / partsPerSheet;
+        BigDecimal printBill = calcPrintCost(formatId, rawSheets);
+
+        return printBill
+                .divide(BigDecimal.valueOf(boxCount), 10, RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(partsPerSheet), 10, RoundingMode.HALF_UP);
     }
 
     private BigDecimal extractPrice(Map<String, Object> step) {

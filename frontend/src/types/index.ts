@@ -5,6 +5,9 @@ export interface Detail {
     countOnSheet: number;
     sheetPrice: number;
     isPrinted: boolean;
+    // Number of identical parts printed on one print sheet.
+    // Optional for backward compatibility with saved calculations; null/0 means 1.
+    partsPerSheetOnPrint?: number;
     isCustom: boolean;
     enabled: boolean;
     // Unified map for all operations (standard + custom).

@@ -1,6 +1,7 @@
 package com.korobki.api.controller;
 
 import com.korobki.api.dto.CalculationRequest;
+import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.DetailDto;
 import com.korobki.calculator.service.CostCalculator;
 import com.korobki.calculator.service.PrintCostCalculator;
@@ -17,11 +18,13 @@ import static org.junit.jupiter.api.Assertions.*;
 class CalculatorServiceValidationTest {
 
     private CalculatorService service;
+    private CostCalculator costCalculator;
+    private PriceCalculator priceCalculator;
 
     @BeforeEach
     void setUp() {
-        CostCalculator costCalculator = org.mockito.Mockito.mock(CostCalculator.class);
-        PriceCalculator priceCalculator = org.mockito.Mockito.mock(PriceCalculator.class);
+        costCalculator = org.mockito.Mockito.mock(CostCalculator.class);
+        priceCalculator = org.mockito.Mockito.mock(PriceCalculator.class);
         PrintCostCalculator printCostCalculator = org.mockito.Mockito.mock(PrintCostCalculator.class);
 
         // Stub the math so requests that pass validation complete without NPE
@@ -71,6 +74,24 @@ class CalculatorServiceValidationTest {
     @Test
     void validRequest_passesValidation() {
         assertDoesNotThrow(() -> service.calculate(validRequest()));
+    }
+
+    @Test
+    void totalCost_isRoundedToKopecksBeforeWholeRubles() {
+        // scale=10 material division can produce 92.4999999999 instead of 92.5.
+        // The service must round to kopecks first, then to whole rubles (93).
+        org.mockito.Mockito.when(costCalculator.calculateTotalCost(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new BigDecimal("92.4999999999"));
+        org.mockito.Mockito.when(priceCalculator.calcBasePrice(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        CalculationResponse response = service.calculate(validRequest());
+
+        assertEquals(0, new BigDecimal("93").compareTo(response.getBasePrice()));
     }
 
     @Test
@@ -149,5 +170,38 @@ class CalculatorServiceValidationTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
         assertTrue(ex.getMessage().contains("format is missing"));
+    }
+
+    @Test
+    void printedDetail_withPartsPerSheetGreaterThanQuantity_rejected() {
+        CalculationRequest request = validRequest();
+        request.getDetails().get(0).setIsPrinted(true);
+        request.getDetails().get(0).setPartsPerSheetOnPrint(101);
+
+        com.korobki.api.dto.PrintSettingsDto ps = new com.korobki.api.dto.PrintSettingsDto();
+        ps.setEnabled(true);
+        ps.setFormat(1);
+        ps.setQuantity(100);
+        request.setPrintSettings(ps);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.calculate(request));
+        assertTrue(ex.getMessage().contains("greater than print quantity"));
+    }
+
+    @Test
+    void disabledPrintedDetail_withPartsPerSheetGreaterThanQuantity_allowed() {
+        CalculationRequest request = validRequest();
+        request.getDetails().get(0).setIsPrinted(true);
+        request.getDetails().get(0).setPartsPerSheetOnPrint(101);
+        request.getDetails().get(0).setEnabled(false);
+
+        com.korobki.api.dto.PrintSettingsDto ps = new com.korobki.api.dto.PrintSettingsDto();
+        ps.setEnabled(true);
+        ps.setFormat(1);
+        ps.setQuantity(100);
+        request.setPrintSettings(ps);
+
+        assertDoesNotThrow(() -> service.calculate(request));
     }
 }

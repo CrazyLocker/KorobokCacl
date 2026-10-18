@@ -162,26 +162,64 @@ class PrintCostCalculatorTest {
 
     @Test
     void perUnit_dividesTotalByQuantity() {
-        // 5500 / 100 = 55
+        // pps = 1: rawSheets = 100; 5500 / 100 / 1 = 55
         stub(1, table(1, "1500", new Object[][]{
                 {100, 5500}, {300, 12000}
         }));
 
-        assertBD("55", calculator.calcPrintPerUnitNoVat(1, 100));
+        assertBD("55", calculator.calcPrintPerUnitNoVat(1, 100, 1));
+    }
+
+    @Test
+    void perUnit_dividesByRawSheetsAndPartsPerSheet() {
+        // pps = 2: rawSheets = ceil(100 / 2) = 50; 5500 / 100 / 2 = 27.50
+        stub(1, table(1, "1500", new Object[][]{
+                {100, 5500}, {300, 12000}
+        }));
+
+        assertBD("27.5", calculator.calcPrintPerUnitNoVat(1, 100, 2));
+    }
+
+    @Test
+    void perUnit_nullPartsPerSheet_defaultsToOne() {
+        stub(1, table(1, "1500", new Object[][]{
+                {100, 5500}
+        }));
+
+        assertBD("55", calculator.calcPrintPerUnitNoVat(1, 100, null));
+    }
+
+    @Test
+    void perUnit_zeroPartsPerSheet_defaultsToOne() {
+        stub(1, table(1, "1500", new Object[][]{
+                {100, 5500}
+        }));
+
+        assertBD("55", calculator.calcPrintPerUnitNoVat(1, 100, 0));
+    }
+
+    @Test
+    void perUnit_partsPerSheetGreaterThanBoxCount_returnsZero() {
+        // Prototype validatePrint() blocks this case; the calculator returns 0.
+        stub(1, table(1, "1500", new Object[][]{
+                {100, 5500}
+        }));
+
+        assertBD("0", calculator.calcPrintPerUnitNoVat(1, 100, 101));
     }
 
     @Test
     void perUnit_zeroQuantity_returnsZero() {
-        assertBD("0", calculator.calcPrintPerUnitNoVat(1, 0));
+        assertBD("0", calculator.calcPrintPerUnitNoVat(1, 0, 1));
     }
 
     @Test
     void perUnit_nullQuantity_returnsZero() {
-        assertBD("0", calculator.calcPrintPerUnitNoVat(1, null));
+        assertBD("0", calculator.calcPrintPerUnitNoVat(1, null, 1));
     }
 
     @Test
     void perUnit_negativeQuantity_returnsZero() {
-        assertBD("0", calculator.calcPrintPerUnitNoVat(1, -5));
+        assertBD("0", calculator.calcPrintPerUnitNoVat(1, -5, 1));
     }
 }

@@ -35,12 +35,14 @@ public class CostCalculator {
 
     /**
      * Calculate the total cost price for the given details, extras, and print settings.
+     * Print cost is calculated per detail because each detail may have its own
+     * number of parts per print sheet.
      *
      * @param details       list of detail DTOs (name, countOnSheet, sheetPrice, operations map)
      * @param extras        all operations (standard + custom) — cost per detail, looked up by name
      * @param printEnabled  whether print is enabled globally
      * @param printFormat   print format ID
-     * @param printQuantity print quantity
+     * @param printQuantity number of boxes in the print run
      * @param workPrice     work price per detail (global)
      * @return total cost as BigDecimal (NOT yet rounded — caller decides)
      */
@@ -53,11 +55,6 @@ public class CostCalculator {
             BigDecimal workPrice
     ) {
         BigDecimal sum = BigDecimal.ZERO;
-
-        BigDecimal printPerUnit = BigDecimal.ZERO;
-        if (printEnabled && printFormat != null && printQuantity != null) {
-            printPerUnit = printCostCalculator.calcPrintPerUnitNoVat(printFormat, printQuantity);
-        }
 
         for (DetailInfo d : details) {
             if (!Boolean.TRUE.equals(d.getEnabled()) || d.getCountOnSheet() == null
@@ -82,8 +79,11 @@ public class CostCalculator {
                 }
             }
 
-            // Print: each printed detail gets printPerUnit added
+            // Print: each printed detail gets its own per-unit print cost,
+            // based on that detail's parts-per-sheet value.
             if (Boolean.TRUE.equals(d.getIsPrinted()) && printEnabled) {
+                BigDecimal printPerUnit = printCostCalculator.calcPrintPerUnitNoVat(
+                        printFormat, printQuantity, d.getPartsPerSheetOnPrint());
                 cost = cost.add(printPerUnit);
             }
 
@@ -116,6 +116,7 @@ public class CostCalculator {
         private BigDecimal countOnSheet;
         private BigDecimal sheetPrice;
         private Boolean isPrinted;
+        private Integer partsPerSheetOnPrint;
         private Boolean enabled;
         private Boolean isCustom;
         private Map<String, Boolean> operations;
@@ -128,6 +129,8 @@ public class CostCalculator {
         public void setSheetPrice(BigDecimal sheetPrice) { this.sheetPrice = sheetPrice; }
         public Boolean getIsPrinted() { return isPrinted; }
         public void setIsPrinted(Boolean isPrinted) { this.isPrinted = isPrinted; }
+        public Integer getPartsPerSheetOnPrint() { return partsPerSheetOnPrint; }
+        public void setPartsPerSheetOnPrint(Integer partsPerSheetOnPrint) { this.partsPerSheetOnPrint = partsPerSheetOnPrint; }
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
         public Boolean getIsCustom() { return isCustom; }

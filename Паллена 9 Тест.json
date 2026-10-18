@@ -1,0 +1,160 @@
+{
+  "version": "2.1",
+  "timestamp": "2026-10-18T16:11:09.916Z",
+  "construction": "Паллена 9",
+  "orderDescription": "",
+  "details": [
+    {
+      "name": "Дно",
+      "countOnSheet": 6,
+      "sheetPrice": 200,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": true,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Дно+Разделитель",
+      "countOnSheet": 0,
+      "sheetPrice": 35,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": false,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Крышка",
+      "countOnSheet": 6,
+      "sheetPrice": 35,
+      "isPrinted": true,
+      "isCustom": false,
+      "enabled": true,
+      "partsPerSheetOnPrint": 2,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Окно",
+      "countOnSheet": 0,
+      "sheetPrice": 35,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": false,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Разделитель",
+      "countOnSheet": 15,
+      "sheetPrice": 200,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": true,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Дно-лайнер",
+      "countOnSheet": 0,
+      "sheetPrice": 35,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": false,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Крышка-лайнер",
+      "countOnSheet": 0,
+      "sheetPrice": 35,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": false,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    },
+    {
+      "name": "Шубер",
+      "countOnSheet": 0,
+      "sheetPrice": 35,
+      "isPrinted": false,
+      "isCustom": false,
+      "enabled": false,
+      "partsPerSheetOnPrint": 1,
+      "hasЛак": false,
+      "hasКонгрев": false,
+      "hasТиснение": false,
+      "hasЛаминация": false,
+      "hasШелкография": false
+    }
+  ],
+  "extras": [
+    {
+      "name": "Лак",
+      "cost": 20
+    },
+    {
+      "name": "Конгрев",
+      "cost": 30
+    },
+    {
+      "name": "Тиснение",
+      "cost": 10
+    },
+    {
+      "name": "Ламинация",
+      "cost": 8
+    },
+    {
+      "name": "Шелкография",
+      "cost": 0
+    }
+  ],
+  "printSettings": {
+    "enabled": true,
+    "format": 1,
+    "boxCount": 300,
+    "autoPps": true,
+    "gripper": 10
+  },
+  "workPrice": 5,
+  "marginValue": 30,
+  "priceList": {
+    "до 9": 86,
+    "10–49": 79,
+    "50–199": 77,
+    "200–499": 75,
+    "500–699": 73,
+    "700–1499": 71,
+    "от 1500": 69
+  }
+}
