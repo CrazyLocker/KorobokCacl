@@ -16,7 +16,7 @@ function pack(parts: PartInput[], patch = {}): PackResult {
 describe('Layout Engine', () => {
     it('T-1 single part 100x180 on 350x333 gives 3 per sheet', () => {
         const r = gridLayout(350, 333, 100, 180, 8, 10, 15, true);
-        if (!r.ok) throw new Error(r.error);
+        if ('error' in r) throw new Error(r.error);
         expect(r.best.total).toBe(3);
     });
 
