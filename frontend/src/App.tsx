@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Paper, Box, Typography, Button, Divider, Alert, ToggleButton, ToggleButtonGroup, Snackbar, Alert as MuiAlert, CircularProgress } from '@mui/material';
 import { Sidebar } from './components/Layout/Sidebar';
 import { ConstructionSelector } from './components/Calculator/ConstructionSelector';
@@ -12,10 +12,31 @@ import { NewApp } from './components/NewApp';
 import { ReferencesPage } from './components/References/ReferencesPage';
 import { SettingsPage } from './components/Settings/SettingsPage';
 import { DevStub } from './components/DevStub';
+import { LayoutPage } from './features/layout/ui/LayoutPage';
 import { calculatorApi } from './api/calculatorApi';
 import './App.css';
 
-type PageType = 'calculator' | 'knife' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings';
+type PageType = 'calculator' | 'knife' | 'layout' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings';
+
+/** URL path of every page, so direct links like /layout keep working. */
+const PAGE_PATHS: Record<PageType, string> = {
+    calculator: '/',
+    knife: '/knife',
+    layout: '/layout',
+    cliche: '/cliche',
+    congrev: '/congrev',
+    silkscreen: '/silkscreen',
+    references: '/references',
+    settings: '/settings',
+};
+
+/** Page for the current URL; unknown paths fall back to the calculator. */
+const pageFromPath = (pathname: string): PageType => {
+    const normalized = pathname.replace(/\/+$/, '') || '/';
+    const entry = (Object.entries(PAGE_PATHS) as Array<[PageType, string]>)
+        .find(([, path]) => path === normalized);
+    return entry ? entry[0] : 'calculator';
+};
 
 // Результат расчёта ножа (ответ /api/knife/calculate)
 interface KnifeResult {
@@ -145,13 +166,28 @@ const KnifePage = () => {
 function App() {
     const calc = useCalculator();
     const [view, setView] = useState<'classic' | 'new'>('classic');
-    const [activePage, setActivePage] = useState<PageType>('calculator');
+    const [activePage, setActivePage] = useState<PageType>(() => pageFromPath(window.location.pathname));
     const [saveDialogOpen, setSaveDialogOpen] = useState(false);
     const [notification, setNotification] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
         open: false,
         message: '',
         severity: 'info',
     });
+
+    // Keep the page and the address bar in sync, including browser back/forward.
+    useEffect(() => {
+        const handlePopState = () => setActivePage(pageFromPath(window.location.pathname));
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
+    const navigateToPage = useCallback((page: PageType) => {
+        setActivePage(page);
+        const path = PAGE_PATHS[page];
+        if (window.location.pathname !== path) {
+            window.history.pushState({}, '', path);
+        }
+    }, []);
 
     const handleViewChange = (_: React.MouseEvent<HTMLElement>, newView: 'classic' | 'new') => {
         if (newView !== null) setView(newView);
@@ -339,6 +375,9 @@ function App() {
                     </>
                 );
 
+            case 'layout':
+                return <LayoutPage />;
+
             case 'knife':
                 return <KnifePage />;
 
@@ -369,7 +408,7 @@ function App() {
     return (
         <>
             <Box sx={{ display: 'flex', gap: 2.5, p: { xs: 1, sm: 2, md: 3 } }}>
-                <Sidebar activePage={activePage} onNavigate={setActivePage} />
+                <Sidebar activePage={activePage} onNavigate={navigateToPage} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                     {renderPage()}
                 </Box>

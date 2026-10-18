@@ -1,13 +1,16 @@
 // frontend/src/components/Layout/Sidebar.tsx
 import { Box, Paper } from '@mui/material';
 
+type PageType = 'calculator' | 'knife' | 'layout' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings';
+
 interface SidebarProps {
     activePage: string;
-    onNavigate: (page: 'calculator' | 'knife' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings') => void;
+    onNavigate: (page: PageType) => void;
 }
 
 const navItems = [
     { key: 'calculator', label: 'Расчет коробки', dev: false },
+    { key: 'layout', label: 'Раскладка', dev: false },
     { key: 'knife', label: 'Расчет ножа', dev: false },
     { key: 'cliche', label: 'Расчет клише', dev: true },
     { key: 'congrev', label: 'Расчет конгрев', dev: true },
@@ -37,7 +40,7 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                 {navItems.map((item) => (
                     <Box
                         key={item.key}
-                        onClick={() => onNavigate(item.key as 'calculator' | 'knife' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings')}
+                        onClick={() => onNavigate(item.key as PageType)}
                         sx={{
                             display: 'flex',
                             alignItems: 'center',
