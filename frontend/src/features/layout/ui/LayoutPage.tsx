@@ -4,14 +4,15 @@
  *
  * The mode switch follows the prototype: single mode edits one part, multi mode
  * edits the part list. Sheet presets and the parts table only change state; the
- * canvas renders LayoutSvgSingle for a GridOk (single mode) and LayoutSvg for a
- * PackOk (multi mode). Engine failures are reported above the canvas; single
- * mode also prints a compact count in the panel.
+ * result pane renders LayoutSvgSingle for a GridOk (single mode) and LayoutSvg
+ * for a PackOk (multi mode), an empty hint while the list has no parts, or a red
+ * block with the localised engine error. A successful multi packing adds the
+ * metrics block under the drawing: big placed count, work-zone bar and three
+ * summary cards. Single mode also prints a compact count in the panel.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import {
-  Alert,
   Box,
   Button,
   Checkbox,
@@ -27,14 +28,25 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { paletteFor } from '../model/constants.ts';
+import { packParts } from '../engine/packParts.ts';
 import { useLayout } from '../hooks/useLayout.ts';
 import type { LayoutMode, LayoutResult } from '../hooks/useLayout.ts';
-import type { GridOk, PackOk, PartInput } from '../model/types.ts';
+import type {
+  ByTypeItem,
+  GridOk,
+  NotPlacedItem,
+  PackOk,
+  PartInput,
+  SheetSpec,
+} from '../model/types.ts';
 import { LayoutSvg } from './LayoutSvg.tsx';
 import { LayoutSvgSingle } from './LayoutSvgSingle.tsx';
 
 /** Part added by the button; the name is generated on every click. */
 const DEFAULT_PART = { L: 100, W: 180, qty: 1 } as const;
+
+/** Quantity used to ask the engine how many parts fit alone; prototype uses 999. */
+const ALONE_QTY = 999;
 
 /** Quick sheet formats of the prototype. Clicking one overwrites sheetL/sheetW. */
 const SHEET_PRESETS = [
@@ -46,6 +58,29 @@ const SHEET_PRESETS = [
 
 /** Columns of one parts-table row: colour, name, L, W, qty, delete. */
 const PART_ROW_COLUMNS = '10px minmax(0, 1fr) 58px 58px 46px 26px';
+
+/** Shared look of the three summary cards under the packing drawing. */
+const METRIC_CARD_SX = {
+  backgroundColor: '#f8f9fa',
+  border: '1px solid #ececec',
+  borderRadius: '9px',
+  px: '12px',
+  py: '10px',
+} as const;
+
+const METRIC_LABEL_SX = {
+  fontSize: 10,
+  color: '#999',
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+} as const;
+
+const METRIC_VALUE_SX = {
+  mt: '2px',
+  fontSize: 18,
+  fontWeight: 700,
+  color: '#333',
+} as const;
 
 /**
  * Stable identity of a table row. Rows are editable and deletable, so an index
@@ -157,6 +192,258 @@ function errorOf(result: LayoutResult | null): string | null {
   return result.error;
 }
 
+/**
+ * Russian wording of engine errors.
+ *
+ * The engine reports machine-readable English messages; the pane must not show
+ * them to the user. Unknown messages fall through unchanged, so a new engine
+ * error stays visible instead of being swallowed.
+ */
+const ENGINE_ERRORS: Record<string, string> = {
+  'add at least one part': 'Добавьте хотя бы одну деталь.',
+  'work area is not positive: reduce margin or flap':
+    'Рабочая зона отрицательная! Уменьшите поля или клапан.',
+  'no part fits the sheet with the given parameters':
+    'Ни одна деталь не помещается на лист с заданными параметрами.',
+  'no part fits the working area':
+    'Ни одна деталь не помещается на лист с заданными параметрами.',
+  'no part could be placed on the sheet':
+    'Не удалось разместить ни одной детали на листе.',
+};
+
+/** Bad input is reported per part, e.g. "Дно: size must be positive". */
+const BAD_SIZE_SUFFIX = ': size must be positive';
+const INTERNAL_PREFIX = 'internal layout error: ';
+
+function errorText(error: string): string {
+  if (error.startsWith(INTERNAL_PREFIX)) {
+    return 'Внутренняя ошибка раскладки: ' + error.slice(INTERNAL_PREFIX.length);
+  }
+  if (error.includes(BAD_SIZE_SUFFIX)) {
+    return error.split(BAD_SIZE_SUFFIX).join(': размер должен быть больше нуля');
+  }
+  return ENGINE_ERRORS[error] ?? error;
+}
+
+/** Prototype thresholds: 80% and more is green, 60% and more orange. */
+function utilizationColor(percent: number): string {
+  if (percent >= 80) return '#0d7c3f';
+  if (percent >= 60) return '#e8710a';
+  return '#d32f2f';
+}
+
+/**
+ * Russian wording of one "not placed" row.
+ *
+ * A noSpace row carries no quantity of its own, so the missing count of the
+ * same type is used. Oversized parts never reach byType.
+ */
+function notPlacedText(item: NotPlacedItem, byType: ByTypeItem[]): string {
+  if (item.reason === 'oversized') return 'не помещается в рабочую зону';
+  if (item.reason === 'badInput') return 'некорректные размеры детали';
+
+  const type = byType.find((b) => (item.partId ? b.partId === item.partId : b.name === item.name));
+  return type && type.missing > 0
+    ? `не хватило места на листе (осталось ${type.missing} шт.)`
+    : 'не хватило места на листе';
+}
+
+/**
+ * Multi-mode results of the prototype: the big placed count, the work-zone
+ * utilisation bar, three summary cards, the per-type summary and the list of
+ * parts that did not fit. Rendered under the packing drawing.
+ */
+const MultiMetrics = ({ result, sheet }: { result: PackOk; sheet: SheetSpec }) => {
+  const utilWork = result.utilizationWork;
+  const utilColor = utilizationColor(utilWork);
+  const barWidth = Math.max(0, Math.min(100, utilWork));
+
+  // How many parts of each type fit alone: the prototype asks the engine with
+  // qty 999 and shows the badge only when the mix fits a different number.
+  const aloneCounts = useMemo(
+    () =>
+      result.byType.map((type) => {
+        const alone = packParts({
+          sheet,
+          parts: [{ name: type.name, L: type.L, W: type.W, qty: ALONE_QTY }],
+        });
+        return alone.ok ? alone.placedCount : 0;
+      }),
+    [result, sheet],
+  );
+
+  return (
+    <>
+      <Box
+        sx={{
+          mt: 2,
+          mb: 2,
+          p: 2.5,
+          borderLeft: '4px solid #1a73e8',
+          borderRadius: '10px',
+          backgroundColor: '#f8f9fa',
+        }}
+      >
+        <Box sx={{ fontSize: 42, fontWeight: 700, lineHeight: 1, color: '#1a73e8' }}>
+          {result.placedCount}
+        </Box>
+        <Typography sx={{ fontSize: 14, color: '#666', mt: 0.5 }}>
+          деталей размещается на листе
+          {result.requestedCount > 0 ? ` (из ${result.requestedCount} заказанных)` : ''}
+        </Typography>
+      </Box>
+
+      <Box
+        sx={{
+          mt: 1.5,
+          mb: 0.5,
+          height: 10,
+          borderRadius: '6px',
+          backgroundColor: '#eceff1',
+          overflow: 'hidden',
+        }}
+      >
+        <Box
+          sx={{
+            width: `${barWidth}%`,
+            height: '100%',
+            borderRadius: '6px',
+            backgroundColor: utilColor,
+            transition: 'width 0.3s',
+          }}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          mt: '14px',
+          mb: '4px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: '10px',
+        }}
+      >
+        <Box sx={METRIC_CARD_SX}>
+          <Typography sx={METRIC_LABEL_SX}>Загрузка рабочей зоны</Typography>
+          <Box sx={{ ...METRIC_VALUE_SX, color: utilColor }}>{utilWork.toFixed(1)}%</Box>
+        </Box>
+
+        <Box sx={METRIC_CARD_SX}>
+          <Typography sx={METRIC_LABEL_SX}>Загрузка листа</Typography>
+          <Box sx={{ ...METRIC_VALUE_SX, color: '#0d7c3f' }}>
+            {result.utilizationSheet.toFixed(1)}%
+          </Box>
+        </Box>
+
+        <Box sx={METRIC_CARD_SX}>
+          <Typography sx={METRIC_LABEL_SX}>Листов на заказ</Typography>
+          <Box sx={METRIC_VALUE_SX}>{result.sheetsForOrder || 1}</Box>
+        </Box>
+      </Box>
+
+      <Box sx={{ mt: '14px' }}>
+        {result.byType.map((type, index) => {
+          const alone = aloneCounts[index];
+          return (
+            <Box
+              key={`${type.partId ?? type.name}-${type.typeIndex}`}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                px: '10px',
+                py: '7px',
+                mb: '6px',
+                borderRadius: '8px',
+                backgroundColor: '#f8f9fa',
+                fontSize: 13,
+              }}
+            >
+              <Box
+                sx={{
+                  flex: '0 0 auto',
+                  width: 10,
+                  height: 10,
+                  borderRadius: '3px',
+                  backgroundColor: type.color.fill,
+                  border: `1px solid ${type.color.stroke}`,
+                }}
+              />
+              <Box
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontWeight: 600,
+                  color: '#333',
+                }}
+              >
+                {type.name}
+              </Box>
+              <Box sx={{ color: '#666', fontVariantNumeric: 'tabular-nums' }}>
+                {type.L}×{type.W} мм
+              </Box>
+              <Box
+                sx={{
+                  color: type.missing === 0 ? '#0d7c3f' : '#d32f2f',
+                  fontWeight: 700,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {type.placed} / {type.requested} шт
+              </Box>
+              {alone !== type.placed && (
+                <Box
+                  component="span"
+                  title="Столько влезает, если резать только эту деталь"
+                  sx={{ fontSize: 11, color: '#999' }}
+                >
+                  отдельно {alone} шт
+                </Box>
+              )}
+              {type.sheets ? (
+                <Box component="span" sx={{ fontSize: 11, color: '#999' }}>
+                  {type.sheets} л.
+                </Box>
+              ) : null}
+            </Box>
+          );
+        })}
+      </Box>
+
+      {result.notPlaced.length > 0 && (
+        <Box
+          sx={{
+            mt: 1.5,
+            px: '14px',
+            py: '12px',
+            borderRadius: '8px',
+            backgroundColor: '#fff8e1',
+            borderLeft: '4px solid #f9ab00',
+            fontSize: 13,
+          }}
+        >
+          <Typography
+            component="h3"
+            sx={{ fontSize: 13, fontWeight: 600, color: '#b06000', mb: '6px' }}
+          >
+            ⚠️ Не разместилось на листе
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: '18px', color: '#795548' }}>
+            {result.notPlaced.map((item, index) => (
+              <li key={`${item.partId ?? item.name}-${item.reason}-${index}`}>
+                {item.name} — {notPlacedText(item, result.byType)}
+              </li>
+            ))}
+          </Box>
+        </Box>
+      )}
+    </>
+  );
+};
+
 export const LayoutPage = () => {
   const {
     sheet,
@@ -174,6 +461,8 @@ export const LayoutPage = () => {
   const packResult = toPackOk(result);
   const grid = toGridOk(result);
   const error = errorOf(result);
+  // packParts reports an empty list as an error; the pane shows a calmer hint.
+  const isMultiEmpty = mode === 'multi' && parts.length === 0;
 
   const handleAddPart = () => {
     const id = nextPartId();
@@ -507,51 +796,107 @@ export const LayoutPage = () => {
           </Stack>
         </Paper>
 
-        {/* Preview */}
+        {/* Results */}
         <Paper
           elevation={0}
           sx={{
             width: { xs: '100%', md: 'auto' },
             flex: 1,
             minWidth: 0,
-            p: 2,
+            minHeight: 400,
+            p: 3,
             borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           }}
         >
-          {error && (mode === 'single' || parts.length > 0) && (
-            <Alert severity="warning" sx={{ mb: 1.5 }}>
-              Не удалось выполнить раскладку: {error}
-            </Alert>
-          )}
+          <Typography component="h2" sx={{ fontSize: 18, fontWeight: 500, color: '#333', mb: 2 }}>
+            📊 Результат
+          </Typography>
 
-          <Box sx={{ position: 'relative', maxWidth: 720, mx: 'auto' }}>
-            {mode === 'single' ? (
-              <LayoutSvgSingle result={grid} sheet={sheet} />
-            ) : (
-              <LayoutSvg result={packResult} sheet={sheet} />
-            )}
+          {isMultiEmpty ? (
+            <Box sx={{ py: '60px', px: 2.5, textAlign: 'center', color: '#999' }}>
+              <Box sx={{ fontSize: 48, lineHeight: 1, mb: 1.5 }}>➕</Box>
+              <Typography sx={{ fontSize: 14, color: '#999' }}>
+                Добавьте хотя бы одну деталь в таблицу
+              </Typography>
+            </Box>
+          ) : error ? (
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: '8px',
+                backgroundColor: '#ffebee',
+                color: '#d32f2f',
+                fontSize: 14,
+                fontWeight: 500,
+              }}
+            >
+              ⚠️ {errorText(error)}
+            </Box>
+          ) : (
+            <Box
+              sx={{
+                mt: 2.5,
+                p: 2,
+                backgroundColor: '#fafafa',
+                border: '1px solid #e8e8e8',
+                borderRadius: '8px',
+                overflow: 'auto',
+                textAlign: 'center',
+              }}
+            >
+              <Box sx={{ position: 'relative', maxWidth: 720, mx: 'auto' }}>
+                {mode === 'single' ? (
+                  <LayoutSvgSingle result={grid} sheet={sheet} />
+                ) : (
+                  <LayoutSvg result={packResult} sheet={sheet} />
+                )}
 
-            {isCalculating && (
-              <Box
+                {isCalculating && (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: 'rgba(255,255,255,0.7)',
+                    }}
+                  >
+                    <Stack alignItems="center" spacing={1}>
+                      <CircularProgress size={36} />
+                      <Typography variant="body2" color="text.secondary">
+                        Расчёт…
+                      </Typography>
+                    </Stack>
+                  </Box>
+                )}
+              </Box>
+
+              <Button
+                variant="contained"
+                aria-label="Печать раскладки"
+                onClick={() => window.print()}
                 sx={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'rgba(255,255,255,0.7)',
+                  mt: 1.5,
+                  px: 2.5,
+                  py: 1,
+                  borderRadius: '6px',
+                  backgroundColor: '#5f6368',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  boxShadow: 'none',
+                  '&:hover': { backgroundColor: '#414549', boxShadow: 'none' },
                 }}
               >
-                <Stack alignItems="center" spacing={1}>
-                  <CircularProgress size={36} />
-                  <Typography variant="body2" color="text.secondary">
-                    Расчёт…
-                  </Typography>
-                </Stack>
-              </Box>
-            )}
-          </Box>
+                🖨 Печать
+              </Button>
+            </Box>
+          )}
+
+          {packResult && <MultiMetrics result={packResult} sheet={sheet} />}
         </Paper>
       </Box>
     </Box>
