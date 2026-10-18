@@ -38,19 +38,22 @@ export const LayoutTable = ({
                 <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '6px 8px 6px 0' } }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ width: '16%', fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell sx={{ width: '14%', fontSize: '12px', fontWeight: 500, color: '#5f6368', borderBottom: '2px solid #e8eaed' }}>
                                 Деталь
                             </TableCell>
-                            <TableCell align="center" sx={{ width: '14%', fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '2px solid #e8eaed' }}>
-                                шт./лист
+                            <TableCell align="center" sx={{ width: '11%', fontSize: '12px', fontWeight: 500, color: '#5f6368', borderBottom: '2px solid #e8eaed' }}>
+                                Шт./лист
                             </TableCell>
-                            <TableCell align="center" sx={{ width: '14%', fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '2px solid #e8eaed' }}>
-                                руб./лист
+                            <TableCell align="center" sx={{ width: '11%', fontSize: '12px', fontWeight: 500, color: '#5f6368', borderBottom: '2px solid #e8eaed' }}>
+                                Руб./лист
                             </TableCell>
-                            <TableCell align="center" sx={{ width: '36%', fontSize: '10px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell align="center" sx={{ width: '13%', fontSize: '12px', fontWeight: 500, color: '#5f6368', borderBottom: '2px solid #e8eaed' }}>
+                                Дет./лист<br />(печать)
+                            </TableCell>
+                            <TableCell align="center" sx={{ width: '33%', fontSize: '10px', fontWeight: 500, color: '#5f6368', borderBottom: '2px solid #e8eaed' }}>
                                 Операции
                             </TableCell>
-                            <TableCell align="center" sx={{ width: '20%', borderBottom: '2px solid #e8eaed' }} />
+                            <TableCell align="center" sx={{ width: '18%', borderBottom: '2px solid #e8eaed' }} />
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -128,6 +131,29 @@ export const LayoutTable = ({
                                             size="small"
                                             disabled={!isEnabled}
                                             inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                            sx={numberInputSx}
+                                        />
+                                    </TableCell>
+
+                                    {/* partsPerSheetOnPrint — how many identical parts are printed on one print sheet */}
+                                    <TableCell align="center" sx={{ borderBottom: '1px solid #f1f3f4' }}>
+                                        <TextField
+                                            type="number"
+                                            value={d.partsPerSheetOnPrint ?? 1}
+                                            onChange={(e) => {
+                                                const value = parseInt(e.target.value, 10);
+                                                onUpdateDetail(
+                                                    index,
+                                                    'partsPerSheetOnPrint',
+                                                    Number.isNaN(value) || value < 1 ? 1 : value,
+                                                );
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') (e.target as HTMLElement).blur();
+                                            }}
+                                            size="small"
+                                            disabled={!isEnabled || !d.isPrinted}
+                                            inputProps={{ ...numberInputProps(1), min: 1, style: { ...numberInputProps().style, width: 50 } }}
                                             sx={numberInputSx}
                                         />
                                     </TableCell>

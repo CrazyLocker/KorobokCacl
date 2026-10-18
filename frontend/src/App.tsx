@@ -258,9 +258,6 @@ function App() {
                             <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 3, lg: 4 }, borderRadius: { xs: '8px', sm: '10px', md: '12px' }, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
                                 {/* === РАСКЛАДКА (на всю ширину) === */}
                                 <Box sx={{ backgroundColor: '#f8f9fa', borderRadius: { xs: '8px', sm: '10px', md: '12px' }, p: { xs: 1.5, sm: 2, md: 3 }, mb: 3, border: '1px solid #e8eaed' }}>
-                                    <Typography sx={{ fontSize: { xs: '13px', sm: '14px', md: '14px' }, fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, textAlign: 'left' }}>
-                                        Раскладка на лист 100×70
-                                    </Typography>
                                     <ConstructionSelector constructs={calc.constructs} value={calc.currentConstruction} onChange={(name) => calc.loadConstruction(name)} additionalConstruct={calc.individualConstruction} />
                                     <LayoutTable details={calc.details} extras={calc.extras} onUpdateDetail={calc.updateDetail} onUpdateDetailOperation={calc.updateDetailOperation} onAddCustomDetail={calc.addCustomDetail} onRemoveCustomDetail={calc.removeCustomDetail} />
                                 </Box>
@@ -274,7 +271,7 @@ function App() {
                                             <Typography sx={{ fontSize: { xs: '13px', sm: '14px', md: '14px' }, fontWeight: 500, mb: 1.5, pb: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #e8eaed', flexWrap: 'wrap', textAlign: 'left' }}>
                                                 Детали
                                                 <Box sx={{ ml: { xs: 0, sm: 'auto' }, backgroundColor: '#1a73e8', color: '#fff', fontSize: { xs: '9px', sm: '10px' }, fontWeight: 500, px: 1.5, py: 0.25, borderRadius: '16px', whiteSpace: 'nowrap' }}>
-                                                    материал + работа{printPerUnit > 0 ? ' + печать' : ''}
+                                                    Материал + работа{printPerUnit > 0 ? ' + печать' : ''}
                                                 </Box>
                                             </Typography>
                                             {calc.details.filter((d) => d.enabled && d.countOnSheet > 0).length === 0 ? (
@@ -344,26 +341,26 @@ function App() {
 
                                     {/* Правый столбец: Цены для клиента */}
                                     <Box sx={{ backgroundColor: '#f8f9fa', borderRadius: { xs: '8px', sm: '10px', md: '12px' }, p: { xs: 1.5, sm: 2, md: 2.5 }, border: '1px solid #e8eaed', overflow: 'hidden', flex: 1 }}>
-                                        <Typography sx={{ fontSize: { xs: '13px', sm: '14px', md: '14px' }, fontWeight: 500, mb: 1.5, pb: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #e8eaed', flexWrap: 'wrap', textAlign: 'left' }}>
+                                        <Typography sx={{ fontSize: { xs: '15px', sm: '16px', md: '16px' }, fontWeight: 500, mb: 1.5, pb: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #e8eaed', flexWrap: 'wrap', textAlign: 'left' }}>
                                             Цена коробки
                                         </Typography>
-                                        {calc.error && <Alert severity="error" sx={{ mb: 2, fontSize: '13px' }}>{calc.error}</Alert>}
+                                        {calc.error && <Alert severity="error" sx={{ mb: 2, fontSize: '15px' }}>{calc.error}</Alert>}
                                         {calc.result ? (
                                             <>
-                                                <Box sx={{ '& .MuiTable-root': { fontSize: '12px', '& th': { fontSize: '10px', padding: '4px 6px' }, '& td': { fontSize: '11px', padding: '4px 6px' } } }}>
+                                                <Box sx={{ '& .MuiTable-root': { fontSize: '14px', '& th': { fontSize: '12px', padding: '4px 6px' }, '& td': { fontSize: '13px', padding: '4px 6px' } } }}>
                                                     <PriceTable prices={calc.result.prices} branch={calc.result.branch} basePrice={Number(calc.result.basePrice)} onUpdatePriceList={calc.updatePriceList} loading={calc.loading} />
                                                 </Box>
                                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1.5, borderTop: '1px solid #e8eaed' }}>
-                                                    <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#202124', textAlign: 'left' }}>
+                                                    <Typography sx={{ fontSize: '15px', fontWeight: 600, color: '#202124', textAlign: 'left' }}>
                                                         Себестоимость коробки
                                                     </Typography>
-                                                    <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#1a73e8', textAlign: 'left' }}>
+                                                    <Typography sx={{ fontSize: '16px', fontWeight: 700, color: '#1a73e8', textAlign: 'left' }}>
                                                         {calc.result.totalCost.toFixed(2)} руб.
                                                     </Typography>
                                                 </Box>
                                             </>
                                         ) : (
-                                            <Typography sx={{ color: '#9aa0a6', fontSize: '13px', py: 2, textAlign: 'left' }}>
+                                            <Typography sx={{ color: '#9aa0a6', fontSize: '15px', py: 2, textAlign: 'left' }}>
                                                 Цены рассчитываются автоматически
                                             </Typography>
                                         )}

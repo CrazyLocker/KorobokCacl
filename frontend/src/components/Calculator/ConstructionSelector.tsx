@@ -32,7 +32,6 @@ export const ConstructionSelector = ({ constructs, value, onChange, additionalCo
                     fontSize: '12px',
                     fontWeight: 500,
                     color: '#5f6368',
-                    textTransform: 'uppercase',
                     letterSpacing: '0.04em',
                     display: 'flex',
                     alignItems: 'center',
@@ -56,7 +55,7 @@ export const ConstructionSelector = ({ constructs, value, onChange, additionalCo
                 </Select>
             </FormControl>
             <Typography sx={{ fontSize: '11px', color: '#9aa0a6' }}>
-                выберите конструкцию, и раскладка деталей обновится
+                Выберите конструкцию, и раскладка деталей обновится
             </Typography>
         </Box>
     );

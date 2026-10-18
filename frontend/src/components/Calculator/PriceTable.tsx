@@ -27,7 +27,7 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
             {/* Branch info */}
             <Box
                 sx={{
-                    fontSize: '13px',
+                    fontSize: '15px',
                     padding: '8px 12px',
                     backgroundColor: '#e8f0fe',
                     borderRadius: '8px',
@@ -38,13 +38,13 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                     flexWrap: 'wrap',
                 }}
             >
-                <Typography sx={{ fontSize: '13px' }}>
+                <Typography sx={{ fontSize: '15px' }}>
                     Выбрана ветка: <span style={{ fontWeight: 500, color: '#1a73e8' }}>{branch}</span>
                 </Typography>
-                <Typography sx={{ fontSize: '13px', color: '#5f6368' }}>
+                <Typography sx={{ fontSize: '15px', color: '#5f6368' }}>
                     (базовая цена = {basePrice.toFixed(2)} ₽)
                 </Typography>
-                <Typography sx={{ fontSize: '13px', color: '#5f6368' }}>
+                <Typography sx={{ fontSize: '15px', color: '#5f6368' }}>
                     {branch === '×3'
                         ? '→ применяется коэффициент в зависимости от тиража'
                         : '→ применяется скидка в рублях'}
@@ -55,19 +55,19 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                 <Table size="small">
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
+                            <TableCell sx={{ fontSize: '14px', fontWeight: 500, color: '#5f6368', borderBottom: '1px solid #e8eaed' }}>
                                 Тираж
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
+                            <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 500, color: '#5f6368', borderBottom: '1px solid #e8eaed' }}>
                                 Без НДС
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
+                            <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 500, color: '#5f6368', borderBottom: '1px solid #e8eaed' }}>
                                 С НДС 11%
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#d93025', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
+                            <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 500, color: '#d93025', borderBottom: '1px solid #e8eaed' }}>
                                 Прайс (₽)
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 500, color: '#1a73e8', textTransform: 'uppercase', borderBottom: '1px solid #e8eaed' }}>
+                            <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 500, color: '#1a73e8', borderBottom: '1px solid #e8eaed' }}>
                                 Итог
                             </TableCell>
                         </TableRow>
@@ -81,23 +81,23 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                                     '& td': { borderBottom: '1px solid #f1f3f4' },
                                 }}
                             >
-                                <TableCell sx={{ fontSize: '13px' }}>
+                                <TableCell sx={{ fontSize: '15px' }}>
                                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                                         {row.label}
                                         {row.isBase && (
-                                            <Typography sx={{ fontSize: '11px', color: '#5f6368' }}>базовая</Typography>
+                                            <Typography sx={{ fontSize: '13px', color: '#5f6368' }}>Базовая</Typography>
                                         )}
                                         {row.isPriceListUsed && (
-                                            <Typography sx={{ fontSize: '10px', color: '#d93025', fontWeight: 500, ml: 0.5 }}>
-                                                прайс
+                                            <Typography sx={{ fontSize: '12px', color: '#d93025', fontWeight: 500, ml: 0.5 }}>
+                                                Прайс
                                             </Typography>
                                         )}
                                     </Box>
                                 </TableCell>
-                                <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 500 }}>
+                                <TableCell align="right" sx={{ fontSize: '16px', fontWeight: 500 }}>
                                     {row.withoutVAT.toFixed(2)} ₽
                                 </TableCell>
-                                <TableCell align="right" sx={{ fontSize: '14px', fontWeight: 600, color: '#137333' }}>
+                                <TableCell align="right" sx={{ fontSize: '16px', fontWeight: 600, color: '#137333' }}>
                                     {row.calculatedPrice} ₽
                                 </TableCell>
                                 <TableCell align="right">
@@ -106,11 +106,12 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                                         value={row.priceListPrice}
                                         onChange={(e) => onUpdatePriceList(row.label, parseInt(e.target.value) || 0)}
                                         size="small"
-                                        inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
+                                        inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, fontSize: '14px', width: 50 } }}
                                         sx={{
                                             ...numberInputSx,
                                             '& .MuiOutlinedInput-root': {
                                                 ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
+                                                fontSize: '14px',
                                                 borderColor: row.priceListPrice > 0 ? '#d93025' : '#dadce0',
                                                 backgroundColor: row.priceListPrice > 0 ? '#fce8e6' : '#fff',
                                             },
@@ -120,7 +121,7 @@ export const PriceTable = ({ prices, branch, basePrice, onUpdatePriceList }: Pro
                                 <TableCell
                                     align="right"
                                     sx={{
-                                        fontSize: '14px',
+                                        fontSize: '16px',
                                         fontWeight: 700,
                                         color: row.isPriceListUsed ? '#d93025' : '#137333',
                                     }}
