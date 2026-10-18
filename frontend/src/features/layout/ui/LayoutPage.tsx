@@ -9,6 +9,9 @@
  * block with the localised engine error. A successful multi packing adds the
  * metrics block under the drawing: big placed count, work-zone bar and three
  * summary cards. Single mode also prints a compact count in the panel.
+ *
+ * The left panel ends with "Передать в расчёт": it sends the placed counts of
+ * the current result to the calculator through an App-owned callback.
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { SyntheticEvent } from 'react';
@@ -81,6 +84,26 @@ const METRIC_VALUE_SX = {
   fontWeight: 700,
   color: '#333',
 } as const;
+
+/** One row handed to the calculator: a detail name and how many fit per sheet. */
+export interface LayoutTransferItem {
+  name: string;
+  placed: number;
+}
+
+/** Names the calculator updated and created while applying the layout. */
+export interface LayoutTransferReport {
+  updated: string[];
+  added: string[];
+}
+
+export interface LayoutPageProps {
+  /**
+   * App owns the calculator state, so the page only reports what to write.
+   * Kept optional so the page can still be rendered standalone.
+   */
+  onTransferToCalculator?: (items: LayoutTransferItem[]) => LayoutTransferReport;
+}
 
 /**
  * Stable identity of a table row. Rows are editable and deletable, so an index
@@ -444,7 +467,7 @@ const MultiMetrics = ({ result, sheet }: { result: PackOk; sheet: SheetSpec }) =
   );
 };
 
-export const LayoutPage = () => {
+export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
   const {
     sheet,
     setSheet,
@@ -458,11 +481,53 @@ export const LayoutPage = () => {
     isCalculating,
   } = useLayout();
 
+  const [transferStatus, setTransferStatus] = useState<string | null>(null);
+
   const packResult = toPackOk(result);
   const grid = toGridOk(result);
   const error = errorOf(result);
   // packParts reports an empty list as an error; the pane shows a calmer hint.
   const isMultiEmpty = mode === 'multi' && parts.length === 0;
+
+  // A new layout invalidates the report of the previous transfer.
+  useEffect(() => {
+    setTransferStatus(null);
+  }, [result]);
+
+  // Multi mode sends exactly the byType rows of the current packing; single
+  // mode has no byType, so it sends the best grid count of the edited part.
+  const transferItems = useMemo<LayoutTransferItem[]>(() => {
+    if (mode === 'multi') {
+      return (packResult?.byType ?? [])
+        .filter((type) => type.placed > 0)
+        .map((type) => ({ name: type.name, placed: type.placed }));
+    }
+
+    const name = singlePart.name.trim();
+    return grid && name ? [{ name, placed: grid.best.total }] : [];
+  }, [mode, packResult, grid, singlePart.name]);
+
+  const canTransfer =
+    Boolean(onTransferToCalculator) && transferItems.length > 0 && !isCalculating;
+
+  const transferHint =
+    transferItems.length === 0
+      ? 'Сначала рассчитайте раскладку — передавать будет нечего.'
+      : `Передаст в расчёт: ${transferItems
+          .map((item) => `${item.name} — ${item.placed} шт/лист`)
+          .join(', ')}.`;
+
+  const handleTransfer = () => {
+    if (!canTransfer || !onTransferToCalculator) return;
+
+    const report = onTransferToCalculator(transferItems);
+    const changes = [
+      report.updated.length > 0 ? `обновлено: ${report.updated.join(', ')}` : '',
+      report.added.length > 0 ? `добавлено: ${report.added.join(', ')}` : '',
+    ].filter(Boolean);
+
+    setTransferStatus(changes.length > 0 ? changes.join(' · ') : 'изменений нет');
+  };
 
   const handleAddPart = () => {
     const id = nextPartId();
@@ -794,6 +859,39 @@ export const LayoutPage = () => {
               </>
             )}
           </Stack>
+
+          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e8eaed' }}>
+            <Button
+              fullWidth
+              variant="contained"
+              disabled={!canTransfer}
+              onClick={handleTransfer}
+              sx={{
+                py: 1,
+                borderRadius: '8px',
+                backgroundColor: '#0d7c3f',
+                color: '#fff',
+                fontSize: 14,
+                fontWeight: 600,
+                textTransform: 'none',
+                boxShadow: 'none',
+                '&:hover': { backgroundColor: '#0b6a36', boxShadow: 'none' },
+                '&.Mui-disabled': { backgroundColor: '#f1f3f4', color: '#9aa0a6' },
+              }}
+            >
+              ➡ Передать в расчёт
+            </Button>
+            <Typography
+              sx={{
+                mt: 0.75,
+                fontSize: 11.5,
+                lineHeight: 1.45,
+                color: transferStatus ? '#0d7c3f' : '#5f6368',
+              }}
+            >
+              {transferStatus ? `✅ ${transferStatus}` : transferHint}
+            </Typography>
+          </Box>
         </Paper>
 
         {/* Results */}

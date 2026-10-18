@@ -376,7 +376,9 @@ function App() {
                 );
 
             case 'layout':
-                return <LayoutPage />;
+                // The calculator state lives here, so the layout page receives a
+                // callback instead of reaching into another page's hook.
+                return <LayoutPage onTransferToCalculator={calc.applyLayoutCounts} />;
 
             case 'knife':
                 return <KnifePage />;

@@ -33,6 +33,22 @@ const STANDARD_EXTRAS: Extra[] = [
     { name: 'Шелкография', cost: 0, enabled: false },
 ];
 
+/** One row passed from the layout page: a detail name and how many fit per sheet. */
+export interface LayoutCount {
+    name: string;
+    placed: number;
+}
+
+/** What applyLayoutCounts changed in the calculator. */
+export interface LayoutCountsReport {
+    updated: string[];
+    added: string[];
+}
+
+/** Prototype normDetailName: case, ё and whitespace insensitive. */
+const normalizeDetailName = (name: string): string =>
+    name.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ');
+
 // Map DB operations to calculator extras (fixed cost per detail)
 const toExtras = (operations: Operation[]): Extra[] =>
     operations
@@ -222,6 +238,57 @@ export function useCalculator() {
         setDetails((prev) => prev.filter((_, i) => i !== index));
     }, []);
 
+    // --- Layout transfer ---
+    // Copies "placed per sheet" from the layout page into the matching details.
+    // Names are matched like the prototype (trim/lowercase/ё->е/spaces).
+    // A layout part that is not in the construction yet is appended as a custom
+    // detail, so a packed part is never silently lost on the way to the price.
+    const applyLayoutCounts = useCallback(
+        (items: LayoutCount[]): LayoutCountsReport => {
+            const byName = new Map<string, LayoutCount>();
+            items.forEach((item) => {
+                const key = normalizeDetailName(item.name);
+                if (key && item.placed > 0 && !byName.has(key)) {
+                    byName.set(key, item);
+                }
+            });
+
+            const updated: string[] = [];
+            const added: string[] = [];
+            const matched = new Set<string>();
+
+            const next = details.map((detail) => {
+                const key = normalizeDetailName(detail.name);
+                const item = byName.get(key);
+                if (!item) return detail;
+
+                matched.add(key);
+                updated.push(`${detail.name} — ${item.placed} шт/лист`);
+                return { ...detail, countOnSheet: item.placed, enabled: true };
+            });
+
+            byName.forEach((item, key) => {
+                if (matched.has(key)) return;
+
+                const name = item.name.trim();
+                added.push(`${name} — ${item.placed} шт/лист`);
+                next.push({
+                    name,
+                    countOnSheet: item.placed,
+                    sheetPrice: 35,
+                    isPrinted: false,
+                    isCustom: true,
+                    enabled: true,
+                    operations: {},
+                });
+            });
+
+            setDetails(next);
+            return { updated, added };
+        },
+        [details],
+    );
+
     // --- Extra operations (unified: standard + custom) ---
     const updateExtra = useCallback((index: number, field: keyof Extra, value: any) => {
         setExtras((prev) => {
@@ -289,6 +356,7 @@ export function useCalculator() {
         updateDetailOperation,
         addCustomDetail,
         removeCustomDetail,
+        applyLayoutCounts,
         updateExtra,
         addCustomExtra,
         removeCustomExtra,
