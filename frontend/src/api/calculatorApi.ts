@@ -10,6 +10,7 @@ import type {
     CalculationSaveRequest,
     SavedKnife,
     KnifeSaveRequest,
+    Operation,
 } from '../types';
 
 const API_BASE = '/api';
