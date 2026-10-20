@@ -7,7 +7,6 @@ import {
     Card,
     Checkbox,
     Col,
-    ConfigProvider,
     Divider,
     Flex,
     Form,
@@ -22,13 +21,11 @@ import {
     Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import ruRU from 'antd/locale/ru_RU';
 import { Header } from './Layout/Header';
 import { ViewToggle } from './Layout/ViewToggle';
 import type { AppView } from './Layout/ViewToggle';
 import { useCalculator } from '../hooks/useCalculator';
 import type { Detail, Extra, PriceRow } from '../types';
-import { tokens } from '../theme';
 
 const { Text, Title } = Typography;
 
@@ -70,7 +67,7 @@ const calculateDetailCost = (
 
 /**
  * Пилот Ant Design для страницы «Расчёт коробки».
- * Русская локаль подключается через ConfigProvider, тема — нативные токены antd.
+ * Локаль, тема и контекст уведомлений подключаются глобально в main.tsx.
  */
 export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
     const calc = useCalculator();
@@ -234,16 +231,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
     ];
 
     return (
-        <ConfigProvider
-            locale={ruRU}
-            theme={{
-                token: {
-                    colorPrimary: '#1677ff',
-                    borderRadius: 8,
-                    fontFamily: tokens.typography.fontFamily,
-                },
-            }}
-        >
+        <>
             <Header actions={<ViewToggle view={view} onChange={onViewChange} />} />
 
             <div
@@ -614,7 +602,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                     </Col>
                 </Row>
             </div>
-        </ConfigProvider>
+        </>
     );
 };
 

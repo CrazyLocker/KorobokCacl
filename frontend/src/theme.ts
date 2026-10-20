@@ -1,61 +1,12 @@
 // frontend/src/theme.ts
-// Precision Instrument — единая MUI-тема приложения.
-// Токены собраны в одном месте, чтобы компоненты не хардкодили цвета,
-// радиусы и типографику. До миграции компонентов часть их sx-стилей
-// всё ещё может переопределять эти значения — это ожидаемо.
+// Precision Instrument — MUI-тема переходного периода.
+// Общие токены живут в designTokens.ts и используются также темой Ant Design;
+// до завершения миграции часть sx-стилей компонентов может переопределять
+// эти значения — это ожидаемо.
 import { createTheme } from '@mui/material/styles';
+import { fontFamily, tokens } from './designTokens';
 
-const fontFamily = [
-    'Inter',
-    '-apple-system',
-    'BlinkMacSystemFont',
-    '"Segoe UI"',
-    'Roboto',
-    '"Helvetica Neue"',
-    'Arial',
-    'sans-serif',
-].join(', ');
-
-export const tokens = {
-    color: {
-        background: '#F7F8FA',
-        surface: '#FFFFFF',
-        surfaceSubtle: '#FAFAFA',
-        ink: '#18181B',
-        inkMuted: '#71717A',
-        inkSubtle: '#A1A1AA',
-        border: '#E4E4E7',
-        borderStrong: '#D4D4D8',
-        surfaceHover: '#F4F4F5',
-        accent: '#2563EB',
-        accentHover: '#1D4ED8',
-        accentSoft: '#EFF6FF',
-        accentSoftHover: '#DBEAFE',
-        accentRing: 'rgba(37, 99, 235, 0.14)',
-        success: '#16A34A',
-        warning: '#D97706',
-        warningSoft: '#FEF3C7',
-        error: '#DC2626',
-        info: '#2563EB',
-        onAccent: '#FFFFFF',
-    },
-    radius: {
-        field: 8,
-        panel: 12,
-        pill: 999,
-    },
-    shadow: {
-        xs: '0 1px 2px rgba(24, 24, 27, 0.04)',
-        sm: '0 1px 3px rgba(24, 24, 27, 0.06), 0 1px 2px rgba(24, 24, 27, 0.04)',
-        md: '0 8px 24px rgba(24, 24, 27, 0.08)',
-        lg: '0 16px 40px rgba(24, 24, 27, 0.12)',
-    },
-    typography: {
-        fontFamily,
-        bodySize: '0.875rem', // 14px
-        bodyLineHeight: 1.43, // 20px
-    },
-} as const;
+export { tokens } from './designTokens';
 
 export const theme = createTheme({
     palette: {
