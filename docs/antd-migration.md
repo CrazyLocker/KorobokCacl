@@ -1,6 +1,6 @@
 # Миграция WebCalc на Ant Design 6
 
-Статус: план согласован, выполняется Этап 0.
+Статус: Этап 0 реализован и ожидает merge; Этап 1 не начат.
 Базовая ветка: `develop`.
 Пилот: `frontend/src/components/NewAppAntd.tsx`.
 
