@@ -11,6 +11,7 @@ import { PriceTable } from './components/Calculator/PriceTable';
 import { SaveCalculationDialog } from './components/Calculator/SaveCalculationDialog';
 import { useCalculator } from './hooks/useCalculator';
 import { NewApp } from './components/NewApp';
+import { NewAppAntd } from './components/NewAppAntd';
 import { ReferencesPage } from './components/References/ReferencesPage';
 import { SettingsPage } from './components/Settings/SettingsPage';
 import { DevStub } from './components/DevStub';
@@ -222,6 +223,9 @@ function App() {
     const renderPage = () => {
         switch (activePage) {
             case 'calculator':
+                if (view === 'antd') {
+                    return <NewAppAntd view={view} onViewChange={handleViewChange} />;
+                }
                 return view === 'new' ? <NewApp view={view} onViewChange={handleViewChange} /> : (
                     <>
                         <Typography

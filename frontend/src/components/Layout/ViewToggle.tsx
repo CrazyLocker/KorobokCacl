@@ -3,7 +3,7 @@ import { ToggleButton, ToggleButtonGroup } from '@mui/material';
 import type { SxProps, Theme } from '@mui/material';
 import { tokens } from '../../theme';
 
-export type AppView = 'classic' | 'new';
+export type AppView = 'classic' | 'new' | 'antd';
 
 interface ViewToggleProps {
     view: AppView;
@@ -57,6 +57,9 @@ export const ViewToggle = ({ view, onChange }: ViewToggleProps) => {
             </ToggleButton>
             <ToggleButton value="new" sx={toggleButtonSx}>
                 Новый UI
+            </ToggleButton>
+            <ToggleButton value="antd" sx={toggleButtonSx}>
+                Ant Design
             </ToggleButton>
         </ToggleButtonGroup>
     );
