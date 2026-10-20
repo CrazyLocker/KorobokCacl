@@ -54,7 +54,8 @@
 - `SaveCalculationDialog` → Ant Design `Modal` + `Form`;
 - уведомления → `App.useApp().message`;
 - удаление `ViewToggle`, `NewApp`, классического калькулятора — **только после** проверки паритета;
-- стабильные идентификаторы строк и `rowKey` для таблиц деталей и цен.
+- стабильные идентификаторы строк и `rowKey` для таблиц деталей и цен;
+- убрать предупреждения Ant Design 6, найденные при проверке Этапа 0: `rowKey` по индексу, `InputNumber.addonAfter`, `Statistic.valueStyle`.
 
 ### Последующие PR
 
