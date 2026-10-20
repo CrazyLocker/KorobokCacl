@@ -1,21 +1,29 @@
 // frontend/src/components/NewApp.tsx
 import { Box, Typography, Select, MenuItem, Paper } from '@mui/material';
 import { Header } from './Layout/Header';
+import { ViewToggle } from './Layout/ViewToggle';
+import type { AppView } from './Layout/ViewToggle';
 import { LayoutTable } from './NewApp/LayoutTable';
 import { CostBlock } from './NewApp/CostBlock';
 import { OperationsBlock } from './NewApp/OperationsBlock';
 import { PricesBlock } from './NewApp/PricesBlock';
 import { useCalculator } from '../hooks/useCalculator';
+import { tokens } from '../theme';
+
+interface NewAppProps {
+    view: AppView;
+    onViewChange: (event: React.MouseEvent<HTMLElement>, value: AppView | null) => void;
+}
 
 /**
  * Новый UI калькулятора — строго по макету
  */
-export const NewApp = () => {
+export const NewApp = ({ view, onViewChange }: NewAppProps) => {
     const calc = useCalculator();
 
     return (
         <>
-            <Header />
+            <Header actions={<ViewToggle view={view} onChange={onViewChange} />} />
 
             <Box
                 sx={{
@@ -33,15 +41,15 @@ export const NewApp = () => {
                     sx={{
                         p: 2,
                         mb: 2,
-                        borderRadius: '12px',
-                        border: '1px solid #e8eaed',
-                        backgroundColor: '#f8f9fa',
+                        borderRadius: `${tokens.radius.panel}px`,
+                        border: `1px solid ${tokens.color.border}`,
+                        backgroundColor: tokens.color.surfaceSubtle,
                     }}
                 >
                     <Typography
                         sx={{
                             fontSize: '12px',
-                            color: '#5f6368',
+                            color: tokens.color.inkMuted,
                             mb: 1,
                             textTransform: 'uppercase',
                             letterSpacing: '0.04em',
@@ -55,20 +63,20 @@ export const NewApp = () => {
                         onChange={(e) => calc.loadConstruction(e.target.value as string)}
                         fullWidth
                         sx={{
-                            backgroundColor: '#fff',
-                            borderRadius: '8px',
+                            backgroundColor: tokens.color.surface,
+                            borderRadius: `${tokens.radius.field}px`,
                             '& .MuiSelect-select': {
                                 fontSize: '14px',
                                 py: 0.75,
                             },
                             '& .MuiOutlinedInput-notchedOutline': {
-                                borderColor: '#dadce0',
+                                borderColor: tokens.color.borderStrong,
                             },
                             '&:hover .MuiOutlinedInput-notchedOutline': {
-                                borderColor: '#1a73e8',
+                                borderColor: tokens.color.accent,
                             },
                             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-                                borderColor: '#1a73e8',
+                                borderColor: tokens.color.accent,
                                 borderWidth: '2px',
                             },
                         }}
@@ -87,16 +95,16 @@ export const NewApp = () => {
                     sx={{
                         p: 2,
                         mb: 2,
-                        borderRadius: '12px',
-                        border: '1px solid #e8eaed',
-                        backgroundColor: '#fff',
+                        borderRadius: `${tokens.radius.panel}px`,
+                        border: `1px solid ${tokens.color.border}`,
+                        backgroundColor: tokens.color.surface,
                     }}
                 >
                     <Typography
                         sx={{
                             fontSize: '16px',
                             fontWeight: 600,
-                            color: '#1a73e8',
+                            color: tokens.color.accent,
                             mb: 2,
                         }}
                     >

@@ -1,5 +1,6 @@
 // frontend/src/components/Layout/Sidebar.tsx
 import { Box, Paper } from '@mui/material';
+import { tokens } from '../../theme';
 
 type PageType = 'calculator' | 'knife' | 'layout' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings';
 
@@ -26,9 +27,10 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
             sx={{
                 width: 200,
                 flexShrink: 0,
-                borderRadius: '16px',
-                border: '1px solid #e8eaed',
-                backgroundColor: '#fff',
+                borderRadius: `${tokens.radius.panel}px`,
+                border: `1px solid ${tokens.color.border}`,
+                backgroundColor: tokens.color.surface,
+                boxShadow: tokens.shadow.xs,
                 p: 1.5,
                 height: 'fit-content',
                 position: 'sticky',
@@ -45,17 +47,20 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                             display: 'flex',
                             alignItems: 'center',
                             p: '8px 12px',
-                            borderRadius: '8px',
+                            borderRadius: `${tokens.radius.field}px`,
                             cursor: 'pointer',
-                            backgroundColor: activePage === item.key ? '#e8f0fe' : 'transparent',
-                            color: activePage === item.key ? '#1a73e8' : '#5f6368',
+                            backgroundColor: activePage === item.key ? tokens.color.accentSoft : 'transparent',
+                            color: activePage === item.key ? tokens.color.accent : tokens.color.inkMuted,
                             fontWeight: activePage === item.key ? 500 : 400,
-                            fontSize: '13px',
-                            transition: 'all 0.15s ease',
-                            borderLeft: activePage === item.key ? '3px solid #1a73e8' : '3px solid transparent',
+                            fontSize: '0.8125rem',
+                            lineHeight: 1.45,
+                            transition: 'background-color 150ms ease, color 150ms ease',
+                            borderLeft: `3px solid ${activePage === item.key ? tokens.color.accent : 'transparent'}`,
                             '&:hover': {
-                                backgroundColor: '#f1f3f4',
-                                color: '#1a73e8',
+                                backgroundColor: activePage === item.key
+                                    ? tokens.color.accentSoftHover
+                                    : tokens.color.surfaceHover,
+                                color: activePage === item.key ? tokens.color.accent : tokens.color.ink,
                             },
                         }}
                     >
@@ -63,15 +68,15 @@ export const Sidebar = ({ activePage, onNavigate }: SidebarProps) => {
                         {item.dev && (
                             <Box
                                 sx={{
-                                    fontSize: '9px',
-                                    backgroundColor: '#e8eaed',
-                                    color: '#9aa0a6',
-                                    px: 1.5,
+                                    fontSize: '0.625rem',
+                                    backgroundColor: tokens.color.background,
+                                    color: tokens.color.inkMuted,
+                                    px: 1,
                                     py: 0.25,
-                                    borderRadius: '12px',
-                                    fontWeight: 400,
+                                    borderRadius: `${tokens.radius.pill}px`,
+                                    fontWeight: 500,
                                     textTransform: 'uppercase',
-                                    letterSpacing: '0.03em',
+                                    letterSpacing: '0.04em',
                                 }}
                             >
                                 dev

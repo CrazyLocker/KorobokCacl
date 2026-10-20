@@ -1,14 +1,22 @@
 // frontend/src/components/Layout/Header.tsx
-import { AppBar, Toolbar, Typography } from '@mui/material';
+import type { ReactNode } from 'react';
+import { AppBar, Box, Toolbar, Typography } from '@mui/material';
+import { tokens } from '../../theme';
 
-export const Header = () => {
+interface HeaderProps {
+    /** Дополнительные элементы справа от заголовка (например, переключатель вида). */
+    actions?: ReactNode;
+}
+
+export const Header = ({ actions }: HeaderProps) => {
     return (
         <AppBar
             position="static"
             sx={{
                 height: '64px',
-                backgroundColor: '#fff',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.06)',
+                backgroundColor: tokens.color.surface,
+                color: tokens.color.ink,
+                boxShadow: tokens.shadow.sm,
                 justifyContent: 'center',
                 padding: '0 24px',
             }}
@@ -28,13 +36,20 @@ export const Header = () => {
                     variant="h6"
                     sx={{
                         fontWeight: 600,
-                        color: '#1a73e8',
-                        fontSize: '18px',
-                        letterSpacing: '0.02em',
+                        color: tokens.color.ink,
+                        fontSize: '1.125rem',
+                        letterSpacing: '-0.01em',
                     }}
                 >
                     Расчет заказа
                 </Typography>
+
+                {/* Действия справа */}
+                {actions && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        {actions}
+                    </Box>
+                )}
             </Toolbar>
         </AppBar>
     );

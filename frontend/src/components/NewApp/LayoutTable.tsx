@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import type { Detail, Extra } from '../../types';
 import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
+import { tokens } from '../../theme';
 
 interface Props {
     details: Detail[];
@@ -31,6 +32,17 @@ const OPERATION_LABELS: Record<string, string> = {
     'Ламинация': 'Лам',
 };
 
+const tableHeadCellSx = {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: tokens.color.accent,
+    borderBottom: `1px solid ${tokens.color.border}`,
+};
+
+const tableBodyCellSx = {
+    borderBottom: `1px solid ${tokens.color.border}`,
+};
+
 export const LayoutTable = ({
     details,
     extras,
@@ -41,19 +53,25 @@ export const LayoutTable = ({
     return (
         <Box>
             <TableContainer>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '6px 8px' } }}>
+                <Table
+                    size="small"
+                    sx={{
+                        fontVariantNumeric: 'tabular-nums',
+                        '& .MuiTableCell-root': { padding: '6px 8px' },
+                    }}
+                >
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell sx={tableHeadCellSx}>
                                 Деталь
                             </TableCell>
-                            <TableCell align="center" sx={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed', width: 80 }}>
+                            <TableCell align="center" sx={{ ...tableHeadCellSx, width: 80 }}>
                                 Шт/Лист
                             </TableCell>
-                            <TableCell align="center" sx={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed', width: 80 }}>
+                            <TableCell align="center" sx={{ ...tableHeadCellSx, width: 80 }}>
                                 Руб/Лист
                             </TableCell>
-                            <TableCell align="center" sx={{ fontSize: '13px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell align="center" sx={tableHeadCellSx}>
                                 Дополнительные операции
                             </TableCell>
                         </TableRow>
@@ -63,27 +81,26 @@ export const LayoutTable = ({
                             <TableRow
                                 key={index}
                                 sx={{
-                                    backgroundColor: d.isCustom ? '#f8f9fa' : 'transparent',
+                                    backgroundColor: d.isCustom ? tokens.color.surfaceSubtle : 'transparent',
                                     '&:last-child td': { borderBottom: 'none' },
                                 }}
                             >
                                 {/* Detail name */}
-                                <TableCell sx={{ borderBottom: '1px solid #e8eaed' }}>
-                    <Typography
-                        sx={{
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#1a73e8',
-                            mb: 2,
-                            textAlign: 'left',
-                        }}
-                    >
-                        Раскладка деталей на лист 70х100
-                    </Typography>
+                                <TableCell sx={tableBodyCellSx}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: '14px',
+                                            fontWeight: 500,
+                                            color: tokens.color.ink,
+                                            textAlign: 'left',
+                                        }}
+                                    >
+                                        {d.name}
+                                    </Typography>
                                 </TableCell>
 
                                 {/* countOnSheet */}
-                                <TableCell align="center" sx={{ borderBottom: '1px solid #e8eaed' }}>
+                                <TableCell align="center" sx={tableBodyCellSx}>
                                     <TextField
                                         type="number"
                                         value={d.countOnSheet}
@@ -98,7 +115,7 @@ export const LayoutTable = ({
                                 </TableCell>
 
                                 {/* sheetPrice */}
-                                <TableCell align="center" sx={{ borderBottom: '1px solid #e8eaed' }}>
+                                <TableCell align="center" sx={tableBodyCellSx}>
                                     <TextField
                                         type="number"
                                         value={d.sheetPrice}
@@ -113,7 +130,7 @@ export const LayoutTable = ({
                                 </TableCell>
 
                                 {/* Operations checkboxes */}
-                                <TableCell align="center" sx={{ borderBottom: '1px solid #e8eaed' }}>
+                                <TableCell align="center" sx={tableBodyCellSx}>
                                     <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1 }}>
                                         {extras.map((extra) => (
                                             <Box
@@ -125,11 +142,11 @@ export const LayoutTable = ({
                                                     onChange={(e) => onUpdateDetailOperation(index, extra.name, e.target.checked)}
                                                     size="small"
                                                     sx={{
-                                                        '&.Mui-checked': { color: '#1a73e8' },
+                                                        '&.Mui-checked': { color: tokens.color.accent },
                                                         padding: '2px',
                                                     }}
                                                 />
-                                                <Typography sx={{ fontSize: '11px', color: '#5f6368' }}>
+                                                <Typography sx={{ fontSize: '11px', color: tokens.color.inkMuted }}>
                                                     {OPERATION_LABELS[extra.name] || extra.name.charAt(0)}
                                                 </Typography>
                                             </Box>
@@ -148,12 +165,12 @@ export const LayoutTable = ({
                     mt: 1.5,
                     fontSize: '13px',
                     textTransform: 'none',
-                    color: '#1a73e8',
-                    border: '1px dashed #1a73e8',
-                    borderRadius: '8px',
+                    color: tokens.color.accent,
+                    border: `1px dashed ${tokens.color.accent}`,
+                    borderRadius: `${tokens.radius.field}px`,
                     px: 2,
                     py: 0.5,
-                    '&:hover': { backgroundColor: '#e8f0fe' },
+                    '&:hover': { backgroundColor: tokens.color.accentSoft },
                 }}
             >
                 + Добавить деталь

@@ -1,7 +1,9 @@
 // frontend/src/App.tsx
 import { useState, useCallback, useEffect } from 'react';
-import { Paper, Box, Typography, Button, Divider, Alert, ToggleButton, ToggleButtonGroup, Snackbar, Alert as MuiAlert, CircularProgress } from '@mui/material';
+import { Paper, Box, Typography, Button, Divider, Alert, Snackbar, Alert as MuiAlert, CircularProgress, CssBaseline, ThemeProvider } from '@mui/material';
 import { Sidebar } from './components/Layout/Sidebar';
+import { ViewToggle } from './components/Layout/ViewToggle';
+import type { AppView } from './components/Layout/ViewToggle';
 import { ConstructionSelector } from './components/Calculator/ConstructionSelector';
 import { LayoutTable } from './components/Calculator/LayoutTable';
 import { ExtrasBlock } from './components/Calculator/ExtrasBlock';
@@ -14,7 +16,7 @@ import { SettingsPage } from './components/Settings/SettingsPage';
 import { DevStub } from './components/DevStub';
 import { LayoutPage } from './features/layout/ui/LayoutPage';
 import { calculatorApi } from './api/calculatorApi';
-import './App.css';
+import { theme, tokens } from './theme';
 
 type PageType = 'calculator' | 'knife' | 'layout' | 'cliche' | 'congrev' | 'silkscreen' | 'references' | 'settings';
 
@@ -165,7 +167,7 @@ const KnifePage = () => {
 
 function App() {
     const calc = useCalculator();
-    const [view, setView] = useState<'classic' | 'new'>('classic');
+    const [view, setView] = useState<AppView>('classic');
     const [activePage, setActivePage] = useState<PageType>(() => pageFromPath(window.location.pathname));
     const [saveDialogOpen, setSaveDialogOpen] = useState(false);
     const [notification, setNotification] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -189,7 +191,7 @@ function App() {
         }
     }, []);
 
-    const handleViewChange = (_: React.MouseEvent<HTMLElement>, newView: 'classic' | 'new') => {
+    const handleViewChange = (_: React.MouseEvent<HTMLElement>, newView: AppView | null) => {
         if (newView !== null) setView(newView);
     };
 
@@ -220,7 +222,7 @@ function App() {
     const renderPage = () => {
         switch (activePage) {
             case 'calculator':
-                return view === 'new' ? <NewApp /> : (
+                return view === 'new' ? <NewApp view={view} onViewChange={handleViewChange} /> : (
                     <>
                         <Typography
                             variant="h4"
@@ -241,18 +243,22 @@ function App() {
                                 variant="outlined"
                                 size="small"
                                 onClick={() => setSaveDialogOpen(true)}
-                                sx={{ textTransform: 'none', fontSize: '12px', borderRadius: '20px', borderColor: '#1a73e8', color: '#1a73e8' }}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontSize: '12px',
+                                    borderRadius: `${tokens.radius.pill}px`,
+                                    borderColor: tokens.color.accent,
+                                    color: tokens.color.accent,
+                                    '&:hover': {
+                                        borderColor: tokens.color.accentHover,
+                                        color: tokens.color.accentHover,
+                                        backgroundColor: tokens.color.accentSoft,
+                                    },
+                                }}
                             >
                                 Сохранить расчёт
                             </Button>
-                            <ToggleButtonGroup value={view} exclusive onChange={handleViewChange} size="small" sx={{ backgroundColor: '#f8f9fa', borderRadius: '20px', border: '1px solid #e8eaed' }}>
-                                <ToggleButton value="classic" sx={{ fontSize: '12px', textTransform: 'none', px: 2, py: 0.5, borderRadius: '20px', '&.Mui-selected': { backgroundColor: '#1a73e8', color: '#fff', '&:hover': { backgroundColor: '#1557b0' } } }}>
-                                    Классический
-                                </ToggleButton>
-                                <ToggleButton value="new" sx={{ fontSize: '12px', textTransform: 'none', px: 2, py: 0.5, borderRadius: '20px', '&.Mui-selected': { backgroundColor: '#1a73e8', color: '#fff', '&:hover': { backgroundColor: '#1557b0' } } }}>
-                                    Новый UI
-                                </ToggleButton>
-                            </ToggleButtonGroup>
+                            <ViewToggle view={view} onChange={handleViewChange} />
                         </Box>
                         <Box sx={{ mt: { xs: 1.5, sm: 2, md: 3 }, px: { xs: 1, sm: 1.5, md: 2, lg: 3 }, width: '100%', maxWidth: { xs: '100%', sm: '100%', md: '130%', lg: '150%', xl: '2400px' }, mx: 'auto' }}>
                             <Paper elevation={0} sx={{ p: { xs: 1.5, sm: 2, md: 3, lg: 4 }, borderRadius: { xs: '8px', sm: '10px', md: '12px' }, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}>
@@ -270,7 +276,7 @@ function App() {
                                         <Box sx={{ backgroundColor: '#f8f9fa', borderRadius: { xs: '8px', sm: '10px', md: '12px' }, p: { xs: 1.5, sm: 2, md: 2.5 }, border: '1px solid #e8eaed', overflow: 'hidden', flex: 1 }}>
                                             <Typography sx={{ fontSize: { xs: '13px', sm: '14px', md: '14px' }, fontWeight: 500, mb: 1.5, pb: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid #e8eaed', flexWrap: 'wrap', textAlign: 'left' }}>
                                                 Детали
-                                                <Box sx={{ ml: { xs: 0, sm: 'auto' }, backgroundColor: '#1a73e8', color: '#fff', fontSize: { xs: '9px', sm: '10px' }, fontWeight: 500, px: 1.5, py: 0.25, borderRadius: '16px', whiteSpace: 'nowrap' }}>
+                                                <Box sx={{ ml: { xs: 0, sm: 'auto' }, backgroundColor: tokens.color.accent, color: tokens.color.onAccent, fontSize: { xs: '9px', sm: '10px' }, fontWeight: 500, px: 1.5, py: 0.25, borderRadius: `${tokens.radius.pill}px`, whiteSpace: 'nowrap' }}>
                                                     Материал + работа{printPerUnit > 0 ? ' + печать' : ''}
                                                 </Box>
                                             </Typography>
@@ -405,7 +411,8 @@ function App() {
     };
 
     return (
-        <>
+        <ThemeProvider theme={theme}>
+            <CssBaseline />
             <Box sx={{ display: 'flex', gap: 2.5, p: { xs: 1, sm: 2, md: 3 } }}>
                 <Sidebar activePage={activePage} onNavigate={navigateToPage} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -431,7 +438,7 @@ function App() {
                     {notification.message}
                 </MuiAlert>
             </Snackbar>
-        </>
+        </ThemeProvider>
     );
 }
 

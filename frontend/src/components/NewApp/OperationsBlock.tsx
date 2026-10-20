@@ -2,6 +2,7 @@
 import { Box, Typography, TextField, Button, Select, MenuItem } from '@mui/material';
 import type { Extra, PrintSettings, PrintTable } from '../../types';
 import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
+import { tokens } from '../../theme';
 
 interface Props {
     extras: Extra[];
@@ -39,9 +40,9 @@ export const OperationsBlock = ({
     return (
         <Box
             sx={{
-                backgroundColor: '#fff',
-                borderRadius: '12px',
-                border: '1px solid #e8eaed',
+                backgroundColor: tokens.color.surface,
+                borderRadius: `${tokens.radius.panel}px`,
+                border: `1px solid ${tokens.color.border}`,
                 p: 2,
                 mb: 2,
                 textAlign: 'left',
@@ -51,10 +52,10 @@ export const OperationsBlock = ({
                 sx={{
                     fontSize: '14px',
                     fontWeight: 600,
-                    color: '#202124',
+                    color: tokens.color.ink,
                     mb: 2,
                     pb: 1,
-                    borderBottom: '2px solid #1a73e8',
+                    borderBottom: `2px solid ${tokens.color.accent}`,
                     textAlign: 'left',
                 }}
             >
@@ -69,7 +70,7 @@ export const OperationsBlock = ({
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '4px 0',
-                        borderBottom: '2px solid #1a73e8',
+                        borderBottom: `2px solid ${tokens.color.accent}`,
                         paddingBottom: '8px',
                         marginBottom: '4px',
                         flexWrap: 'wrap',
@@ -112,7 +113,14 @@ export const OperationsBlock = ({
                                 </MenuItem>
                             ))}
                         </Select>
-                        <Typography sx={{ fontSize: '11px', color: '#9aa0a6', textAlign: 'left' }}>
+                        <Typography
+                            sx={{
+                                fontSize: '11px',
+                                color: tokens.color.inkSubtle,
+                                fontVariantNumeric: 'tabular-nums',
+                                textAlign: 'left',
+                            }}
+                        >
                             → {printPerUnit.toFixed(2)} руб./ед.
                         </Typography>
                     </Box>
@@ -120,14 +128,15 @@ export const OperationsBlock = ({
                         sx={{
                             fontSize: '12px',
                             fontWeight: 500,
-                            color: '#1a73e8',
-                            backgroundColor: '#e8f0fe',
+                            color: tokens.color.onAccent,
+                            backgroundColor: tokens.color.accent,
                             padding: '2px 12px',
-                            borderRadius: '20px',
+                            borderRadius: `${tokens.radius.pill}px`,
+                            fontVariantNumeric: 'tabular-nums',
                             textAlign: 'left',
                         }}
                     >
-                        {printPerUnit.toFixed(2)} <span style={{ fontSize: '11px', fontWeight: 400 }}>руб.</span>
+                        {printPerUnit.toFixed(2)} <Box component="span" sx={{ fontSize: '11px', fontWeight: 400, opacity: 0.75 }}>руб.</Box>
                     </Typography>
                 </Box>
             </Box>
@@ -141,7 +150,7 @@ export const OperationsBlock = ({
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         padding: '4px 0',
-                        borderBottom: '1px solid #e8eaed',
+                        borderBottom: `1px solid ${tokens.color.border}`,
                         textAlign: 'left',
                     }}
                 >
@@ -157,7 +166,7 @@ export const OperationsBlock = ({
                                 disabled={false}
                                 placeholder="Название"
                                 inputProps={{ style: { fontSize: '12px', width: 70 } }}
-                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '6px', fontSize: '12px' } }}
+                                sx={{ '& .MuiOutlinedInput-root': { borderRadius: `${tokens.radius.field}px`, fontSize: '12px' } }}
                             />
                         ) : (
                             <Typography sx={{ fontWeight: 500, fontSize: '12px', textAlign: 'left' }}>{extra.name}</Typography>
@@ -173,20 +182,22 @@ export const OperationsBlock = ({
                             inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
                             sx={numberInputSx}
                         />
-                        <Typography sx={{ fontSize: '11px', color: '#9aa0a6', textAlign: 'left' }}>руб.</Typography>
+                        <Typography sx={{ fontSize: '11px', color: tokens.color.inkSubtle, textAlign: 'left' }}>руб.</Typography>
                     </Box>
                     <Typography
                         sx={{
                             fontSize: '13px',
                             fontWeight: 500,
-                            backgroundColor: '#fff',
+                            color: tokens.color.onAccent,
+                            backgroundColor: tokens.color.accent,
                             padding: '2px 12px',
-                            borderRadius: '20px',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                            borderRadius: `${tokens.radius.pill}px`,
+                            fontVariantNumeric: 'tabular-nums',
                             textAlign: 'left',
                         }}
                     >
-                        {extra.cost.toFixed(2)} <span style={{ fontSize: '11px', fontWeight: 400, color: '#9aa0a6' }}>руб.</span>
+                        {extra.cost.toFixed(2)}{' '}
+                        <Box component="span" sx={{ fontSize: '11px', fontWeight: 400, opacity: 0.75 }}>руб.</Box>
                     </Typography>
                 </Box>
             ))}
@@ -198,12 +209,12 @@ export const OperationsBlock = ({
                     mt: 1.5,
                     fontSize: '12px',
                     textTransform: 'none',
-                    color: '#1a73e8',
-                    border: '1px dashed #1a73e8',
-                    borderRadius: '8px',
+                    color: tokens.color.accent,
+                    border: `1px dashed ${tokens.color.accent}`,
+                    borderRadius: `${tokens.radius.field}px`,
                     px: 2,
                     py: 0.5,
-                    '&:hover': { backgroundColor: '#e8f0fe' },
+                    '&:hover': { backgroundColor: tokens.color.accentSoft },
                     textAlign: 'left',
                 }}
             >

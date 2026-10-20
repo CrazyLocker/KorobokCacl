@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import type { PriceRow } from '../../types';
 import { numberInputSx, numberInputProps } from '../../styles/uiStyles';
+import { tokens } from '../../theme';
 
 interface Props {
     prices: PriceRow[];
@@ -21,6 +22,13 @@ interface Props {
 }
 
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
+
+const tableHeadCellSx = {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: tokens.color.accent,
+    borderBottom: `1px solid ${tokens.color.border}`,
+};
 
 export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props) => {
     const displayPrices = prices.length > 0 ? prices : TIER_LABELS.map((label) => ({
@@ -36,9 +44,9 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
     return (
         <Box
             sx={{
-                backgroundColor: '#fff',
-                borderRadius: '12px',
-                border: '1px solid #e8eaed',
+                backgroundColor: tokens.color.surface,
+                borderRadius: `${tokens.radius.panel}px`,
+                border: `1px solid ${tokens.color.border}`,
                 p: 2,
             }}
         >
@@ -47,7 +55,7 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
                 sx={{
                     mb: 2,
                     pb: 1,
-                    borderBottom: '2px solid #1a73e8',
+                    borderBottom: `2px solid ${tokens.color.accent}`,
                     textAlign: 'left',
                 }}
             >
@@ -55,7 +63,7 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
                     sx={{
                         fontSize: '14px',
                         fontWeight: 600,
-                        color: '#202124',
+                        color: tokens.color.ink,
                         textAlign: 'left',
                     }}
                 >
@@ -65,19 +73,25 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
 
             {/* Price table */}
             <TableContainer sx={{ textAlign: 'left' }}>
-                <Table size="small" sx={{ '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '12px' } }}>
+                <Table
+                    size="small"
+                    sx={{
+                        fontVariantNumeric: 'tabular-nums',
+                        '& .MuiTableCell-root': { padding: '4px 8px', fontSize: '12px' },
+                    }}
+                >
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontSize: '11px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed', textAlign: 'left' }}>
+                            <TableCell sx={{ ...tableHeadCellSx, textAlign: 'left' }}>
                                 Тираж
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '11px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell align="right" sx={tableHeadCellSx}>
                                 с НДС 11%
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '11px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell align="right" sx={tableHeadCellSx}>
                                 Прайс (₽)
                             </TableCell>
-                            <TableCell align="right" sx={{ fontSize: '11px', fontWeight: 600, color: '#1a73e8', borderBottom: '2px solid #e8eaed' }}>
+                            <TableCell align="right" sx={tableHeadCellSx}>
                                 Итог
                             </TableCell>
                         </TableRow>
@@ -87,14 +101,14 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
                             <TableRow
                                 key={index}
                                 sx={{
-                                    backgroundColor: row.isBase ? '#fff8e1' : 'transparent',
-                                    '& td': { borderBottom: '1px solid #f1f3f4' },
+                                    backgroundColor: row.isBase ? tokens.color.warningSoft : 'transparent',
+                                    '& td': { borderBottom: `1px solid ${tokens.color.border}` },
                                 }}
                             >
                                 <TableCell sx={{ fontSize: '12px', fontWeight: row.isBase ? 600 : 400, textAlign: 'left' }}>
                                     {row.label}
                                     {row.isBase && (
-                                        <Typography component="span" sx={{ fontSize: '10px', color: '#5f6368', ml: 0.5 }}>
+                                        <Typography component="span" sx={{ fontSize: '10px', color: tokens.color.inkMuted, ml: 0.5 }}>
                                             (базовая)
                                         </Typography>
                                     )}
@@ -117,8 +131,7 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
                                     sx={{
                                         fontSize: '13px',
                                         fontWeight: 700,
-                                        color: row.isPriceListUsed ? '#d93025' : '#137333',
-                                        textAlign: 'left',
+                                        color: row.isPriceListUsed ? tokens.color.error : tokens.color.success,
                                     }}
                                 >
                                     {row.finalPrice > 0 ? `${row.finalPrice} ₽` : '—'}
@@ -130,11 +143,19 @@ export const PricesBlock = ({ prices, onUpdatePriceList, totalCost = 0 }: Props)
             </TableContainer>
 
             {/* Box cost info */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1.5, borderTop: '1px solid #e8eaed' }}>
-                <Typography sx={{ fontSize: '13px', fontWeight: 600, color: '#202124', textAlign: 'left' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5, pt: 1.5, borderTop: `1px solid ${tokens.color.border}` }}>
+                <Typography sx={{ fontSize: '13px', fontWeight: 600, color: tokens.color.ink, textAlign: 'left' }}>
                     Себестоимость коробки
                 </Typography>
-                <Typography sx={{ fontSize: '14px', fontWeight: 700, color: '#1a73e8', textAlign: 'left' }}>
+                <Typography
+                    sx={{
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: tokens.color.accent,
+                        fontVariantNumeric: 'tabular-nums',
+                        textAlign: 'left',
+                    }}
+                >
                     {totalCost.toFixed(2)} руб.
                 </Typography>
             </Box>
