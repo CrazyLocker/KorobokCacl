@@ -1,0 +1,10 @@
+node_modules/
+build/
+dist/
+.gradle/
+.idea/
+target/
+*.log
+*.png
+*.jpg
+*.pdf
