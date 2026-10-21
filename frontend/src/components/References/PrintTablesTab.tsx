@@ -1,51 +1,50 @@
 // frontend/src/components/References/PrintTablesTab.tsx
 import { useState, useEffect } from 'react';
 import {
-    Box,
-    Typography,
-    Select,
-    MenuItem,
-    TextField,
-    Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    CircularProgress,
-    Alert,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-} from '@mui/material';
+    Alert, App as AntdApp, Button, Card, Flex, Input, InputNumber,
+    Select, Spin, Table, Typography,
+} from 'antd';
 import type { PrintTable } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
-import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
+
+/** Шаг таблицы печати + стабильный клиентский ключ строки. */
+type StepWithKey = PrintTable['steps'][number] & { uiKey: string };
+
+/** PrintTable, шаги которой нормализованы uiKey (используется только в UI-состоянии). */
+type PrintTableWithKeys = Omit<PrintTable, 'steps'> & { steps: StepWithKey[] };
+
+let stepSequence = 0;
+
+/**
+ * Стабильный клиентский ключ шага: нужен как rowKey для antd Table и для
+ * адресации правок вместо индекса (antd переиспользует строки при удалении/добавлении).
+ * На backend не уходит — вырезается в handleSave.
+ */
+const createStepUiKey = (): string => `step-${Date.now().toString(36)}-${++stepSequence}`;
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
 
 export const PrintTablesTab = ({ onNotify }: Props) => {
-    const [printTables, setPrintTables] = useState<PrintTable[]>([]);
+    const { modal } = AntdApp.useApp();
+    const [printTables, setPrintTables] = useState<PrintTableWithKeys[]>([]);
     const [selectedFormat, setSelectedFormat] = useState<number | ''>('');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    // Диалог подтверждения удаления
-    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
     // Загрузка таблиц печати
     useEffect(() => {
         setLoading(true);
         calculatorApi.getPrintTables()
             .then((data) => {
-                setPrintTables(data);
+                // Нормализуем шаги: каждому даём стабильный uiKey для antd rowKey
+                const normalized: PrintTableWithKeys[] = data.map((t) => ({
+                    ...t,
+                    steps: t.steps.map((s) => ({ ...s, uiKey: createStepUiKey() })),
+                }));
+                setPrintTables(normalized);
                 if (data.length > 0 && !selectedFormat) {
                     setSelectedFormat(data[0].formatId);
                 }
@@ -66,7 +65,12 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
         }
         setSaving(true);
         try {
-            await calculatorApi.savePrintTable(selectedTable);
+            // uiKey — клиентский: перед отправкой вырезаем его из шагов
+            const payload: PrintTable = {
+                ...selectedTable,
+                steps: selectedTable.steps.map((step) => ({ minQty: step.minQty, price: step.price })),
+            };
+            await calculatorApi.savePrintTable(payload);
             onNotify('Таблица печати сохранена', 'success');
         } catch (err: any) {
             onNotify('Ошибка сохранения: ' + (err.response?.data?.message || err.message), 'error');
@@ -75,26 +79,32 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
         }
     };
 
-    // Открыть диалог удаления
+    // Удаление формата: подтверждение через modal.confirm (App.useApp)
     const handleDeleteClick = () => {
         if (!selectedTable) return;
-        setDeleteTarget({ id: selectedTable.id, name: selectedTable.formatName });
-        setDeleteDialogOpen(true);
-    };
 
-    // Подтвердить удаление
-    const handleDeleteConfirm = async () => {
-        if (!deleteTarget) return;
-        try {
-            await calculatorApi.deletePrintTable(deleteTarget.id);
-            setPrintTables((prev) => prev.filter((t) => t.id !== deleteTarget.id));
-            setSelectedFormat(printTables.length > 1 ? printTables[0].formatId : '');
-            onNotify('Формат удалён', 'success');
-        } catch (err: any) {
-            onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
-        }
-        setDeleteDialogOpen(false);
-        setDeleteTarget(null);
+        const { id, formatId, formatName } = selectedTable;
+
+        modal.confirm({
+            title: 'Удаление формата',
+            content: `Удалить формат "${formatName}"?`,
+            okText: 'Удалить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deletePrintTable(id);
+                    // remaining — список уже без удалённого формата.
+                    // Раньше здесь читался старый printTables (он ещё содержал удалённый формат).
+                    const remaining = printTables.filter((t) => t.formatId !== formatId);
+                    setPrintTables(remaining);
+                    setSelectedFormat(remaining.length > 0 ? remaining[0].formatId : '');
+                    onNotify('Формат удалён', 'success');
+                } catch (err: any) {
+                    onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
+                }
+            },
+        });
     };
 
     // Добавить шаг
@@ -109,234 +119,227 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
 
         const updated = {
             ...selectedTable,
-            steps: [...selectedTable.steps, { minQty: newQty, price: newPrice }],
+            steps: [...selectedTable.steps, { minQty: newQty, price: newPrice, uiKey: createStepUiKey() }],
         };
 
         setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
         onNotify('Шаг добавлен', 'success');
     };
 
-    // Обновить шаг
-    const handleStepChange = (index: number, field: 'minQty' | 'price', value: number) => {
+    // Обновить шаг (адресуем по uiKey, а не по индексу строки)
+    const handleStepChange = (uiKey: string, field: 'minQty' | 'price', value: number) => {
         if (!selectedTable) return;
 
-        const updatedSteps = selectedTable.steps.map((step, i) =>
-            i === index ? { ...step, [field]: value } : step
+        const updatedSteps = selectedTable.steps.map((step) =>
+            step.uiKey === uiKey ? { ...step, [field]: value } : step
         );
 
         const updated = { ...selectedTable, steps: updatedSteps };
         setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
     };
 
-    // Удалить шаг
-    const handleDeleteStep = (index: number) => {
+    // Удалить шаг (по uiKey, а не по индексу строки)
+    const handleDeleteStep = (uiKey: string) => {
         if (!selectedTable) return;
 
-        const updatedSteps = selectedTable.steps.filter((_, i) => i !== index);
+        const updatedSteps = selectedTable.steps.filter((step) => step.uiKey !== uiKey);
         const updated = { ...selectedTable, steps: updatedSteps };
         setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
         onNotify('Шаг удалён', 'success');
     };
 
     return (
-        <Box>
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <div>
+            {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
 
             {/* Конструктор */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 2,
-                    mb: 2,
-                    borderRadius: '12px',
+            <Card
+                style={{
+                    marginBottom: 16,
+                    borderRadius: 12,
                     border: '1px solid #e8eaed',
                     backgroundColor: '#f8f9fa',
+                    boxShadow: 'none',
                 }}
+                styles={{ body: { padding: 16 } }}
             >
-                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <Typography.Text
+                    style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: '#5f6368',
+                        marginBottom: 8,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                    }}
+                >
                     Формат печати
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                </Typography.Text>
+                <Flex gap={16} wrap="wrap" align="center">
                     <Select
-                        value={selectedFormat}
-                        onChange={(e) => setSelectedFormat(e.target.value as number)}
-                        sx={{ ...selectSx, minWidth: 200 }}
-                    >
-                        {printTables.map((t) => (
-                            <MenuItem key={t.formatId} value={t.formatId} sx={menuItemSx}>{t.formatName}</MenuItem>
-                        ))}
-                    </Select>
-                    <TextField
+                        value={selectedFormat || undefined}
+                        onChange={(value) => setSelectedFormat(value)}
+                        options={printTables.map((t) => ({ value: t.formatId, label: t.formatName }))}
+                        placeholder="Выберите формат"
+                        style={{ minWidth: 200 }}
+                    />
+                    <Input
                         value={selectedTable?.formatName || ''}
                         onChange={(e) => {
                             if (!selectedTable) return;
                             const updated = { ...selectedTable, formatName: e.target.value };
                             setPrintTables((prev) => prev.map((t) => (t.formatId === updated.formatId ? updated : t)));
                         }}
-                        label="Название"
-                        size="small"
-                        sx={{ minWidth: 200 }}
+                        placeholder="Название"
+                        style={{ minWidth: 200, maxWidth: 260 }}
                     />
                     <Button
-                        variant="outlined"
                         size="small"
                         onClick={handleSave}
-                        disabled={saving}
-                        sx={{
+                        loading={saving}
+                        style={{
                             borderColor: '#137333',
                             color: '#137333',
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderRadius: '20px',
-                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
+                            fontSize: 12,
+                            borderRadius: 20,
                         }}
                     >
-                        {saving ? <CircularProgress size={16} color="inherit" /> : 'Сохранить'}
+                        Сохранить
                     </Button>
                     <Button
-                        variant="outlined"
                         size="small"
+                        danger
                         onClick={handleDeleteClick}
                         disabled={!selectedTable}
-                        sx={{
+                        style={{
                             borderColor: '#d93025',
                             color: '#d93025',
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderRadius: '20px',
-                            '&:hover': { backgroundColor: '#fce8e6', borderColor: '#d93025' },
+                            fontSize: 12,
+                            borderRadius: 20,
                         }}
                     >
                         Удалить
                     </Button>
-                </Box>
-            </Paper>
+                </Flex>
+            </Card>
 
             {/* Таблица шагов */}
-            <Paper elevation={0} sx={{ borderRadius: '12px', border: '1px solid #e8eaed', overflow: 'hidden' }}>
-                <Box
-                    sx={{
-                        p: 2,
-                        pb: 1,
-                        borderBottom: '1px solid #e8eaed',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                    }}
-                >
-                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', pb: 1, borderBottom: '2px solid #1a73e8', flex: 1, textAlign: 'left' }}>
+            <Card style={{ borderRadius: 12, border: '1px solid #e8eaed', overflow: 'hidden', boxShadow: 'none' }} styles={{ body: { padding: 0 } }}>
+                <Flex justify="space-between" align="center" style={{ padding: 16, paddingBottom: 8, borderBottom: '1px solid #e8eaed' }}>
+                    <Typography.Text
+                        strong
+                        style={{
+                            fontSize: 14,
+                            color: '#202124',
+                            paddingBottom: 8,
+                            borderBottom: '2px solid #1a73e8',
+                            flex: 1,
+                            textAlign: 'left',
+                        }}
+                    >
                         Стоимость печати по форматам
-                    </Typography>
-                    <Typography
-                        sx={{
-                            fontSize: '10px',
+                    </Typography.Text>
+                    <Typography.Text
+                        style={{
+                            fontSize: 10,
                             fontWeight: 500,
                             backgroundColor: '#1a73e8',
                             color: '#fff',
-                            px: 2,
-                            py: 0.25,
-                            borderRadius: '16px',
+                            padding: '2px 16px',
+                            borderRadius: 16,
                         }}
                     >
                         {selectedTable?.steps.length || 0} шагов
-                    </Typography>
-                </Box>
+                    </Typography.Text>
+                </Flex>
 
                 {loading ? (
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <CircularProgress />
-                    </Box>
+                    <div style={{ padding: 32, textAlign: 'center' }}>
+                        <Spin />
+                    </div>
                 ) : !selectedTable ? (
-                    <Box sx={{ p: 4, textAlign: 'center', color: '#9aa0a6' }}>
+                    <div style={{ padding: 32, textAlign: 'center', color: '#9aa0a6' }}>
                         Выберите формат
-                    </Box>
+                    </div>
                 ) : (
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell align="center" sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', width: 120 }}>
-                                        Мин. тираж
-                                    </TableCell>
-                                    <TableCell align="center" sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', width: 120 }}>
-                                        Цена (₽)
-                                    </TableCell>
-                                    <TableCell sx={{ width: 40 }} />
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {selectedTable.steps.map((step, index) => (
-                                    <TableRow key={index}>
-                                        <TableCell align="center">
-                                            <TextField
-                                                type="number"
-                                                value={step.minQty}
-                                                onChange={(e) => handleStepChange(index, 'minQty', parseFloat(e.target.value) || 0)}
-                                                size="small"
-                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
-                                                sx={numberInputSx}
-                                            />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <TextField
-                                                type="number"
-                                                value={step.price}
-                                                onChange={(e) => handleStepChange(index, 'price', parseFloat(e.target.value) || 0)}
-                                                size="small"
-                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
-                                                sx={numberInputSx}
-                                            />
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <Button
-                                                size="small"
-                                                onClick={() => handleDeleteStep(index)}
-                                                sx={{ color: '#d93025', opacity: 0.5, '&:hover': { opacity: 1 } }}
-                                            >
-                                                Удалить
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                    <Table
+                        rowKey="uiKey"
+                        size="small"
+                        pagination={false}
+                        dataSource={selectedTable.steps}
+                        columns={[
+                            {
+                                title: 'Мин. тираж',
+                                dataIndex: 'minQty',
+                                key: 'minQty',
+                                align: 'center',
+                                width: 120,
+                                render: (_: number, step: StepWithKey) => (
+                                    <InputNumber
+                                        value={step.minQty}
+                                        onChange={(value) => handleStepChange(step.uiKey, 'minQty', value ?? 0)}
+                                        min={0}
+                                        step={1}
+                                        size="small"
+                                        style={{ width: 50 }}
+                                    />
+                                ),
+                            },
+                            {
+                                title: 'Цена (₽)',
+                                dataIndex: 'price',
+                                key: 'price',
+                                align: 'center',
+                                width: 120,
+                                render: (_: number, step: StepWithKey) => (
+                                    <InputNumber
+                                        value={step.price}
+                                        onChange={(value) => handleStepChange(step.uiKey, 'price', value ?? 0)}
+                                        min={0}
+                                        step={1}
+                                        size="small"
+                                        style={{ width: 50 }}
+                                    />
+                                ),
+                            },
+                            {
+                                title: '',
+                                key: 'actions',
+                                width: 40,
+                                align: 'center',
+                                render: (_: unknown, step: StepWithKey) => (
+                                    <Button
+                                        size="small"
+                                        type="text"
+                                        danger
+                                        onClick={() => handleDeleteStep(step.uiKey)}
+                                        style={{ color: '#d93025', opacity: 0.5 }}
+                                    >
+                                        Удалить
+                                    </Button>
+                                ),
+                            },
+                        ]}
+                    />
                 )}
 
                 {/* Действия */}
-                <Box sx={{ p: 2, borderTop: '1px solid #e8eaed', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+                <Flex gap={12} wrap="wrap" align="center" style={{ padding: 16, borderTop: '1px solid #e8eaed' }}>
                     <Button
-                        variant="outlined"
                         size="small"
                         onClick={handleAddStep}
                         disabled={!selectedTable}
-                        sx={{
+                        style={{
                             borderColor: '#1a73e8',
                             color: '#1a73e8',
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderRadius: '20px',
-                            '&:hover': { backgroundColor: '#e8f0fe', borderColor: '#1a73e8' },
+                            fontSize: 12,
+                            borderRadius: 20,
                         }}
                     >
                         Добавить шаг
                     </Button>
-                </Box>
-            </Paper>
-
-            {/* Диалог подтверждения удаления */}
-            <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
-                <DialogTitle>Удаление формата</DialogTitle>
-                <DialogContent>
-                    <Typography>Удалить формат "{deleteTarget?.name}"?</Typography>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setDeleteDialogOpen(false)}>Отмена</Button>
-                    <Button onClick={handleDeleteConfirm} variant="contained" sx={{ backgroundColor: '#d93025', '&:hover': { backgroundColor: '#b71c1c' } }}>
-                        Удалить
-                    </Button>
-                </DialogActions>
-            </Dialog>
-        </Box>
+                </Flex>
+            </Card>
+        </div>
     );
 };
