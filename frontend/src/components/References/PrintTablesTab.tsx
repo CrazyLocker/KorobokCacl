@@ -255,7 +255,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
 
                 {loading ? (
                     <div style={{ padding: 32, textAlign: 'center' }}>
-                        <Spin />
+                        <Spin size="large" />
                     </div>
                 ) : !selectedTable ? (
                     <div style={{ padding: 32, textAlign: 'center', color: '#9aa0a6' }}>

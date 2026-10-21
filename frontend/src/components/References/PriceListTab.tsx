@@ -1,25 +1,11 @@
-// frontend/src/components/References/PriceListTab.tsx
+ // frontend/src/components/References/PriceListTab.tsx
 import { useState, useEffect } from 'react';
 import {
-    Box,
-    Typography,
-    Select,
-    MenuItem,
-    TextField,
-    Button,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    Paper,
-    CircularProgress,
-    Alert,
-} from '@mui/material';
+    Alert, App as AntdApp, Button, Card, Flex, Input, InputNumber,
+    Select, Spin, Table, Typography,
+} from 'antd';
 import type { Construct, PriceListData } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
-import { selectSx, menuItemSx, numberInputSx, numberInputProps } from '../../styles/uiStyles';
 
 const PRICE_RANGES = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
@@ -28,6 +14,7 @@ interface Props {
 }
 
 export const PriceListTab = ({ onNotify }: Props) => {
+    const { modal } = AntdApp.useApp();
     const [constructs, setConstructs] = useState<Construct[]>([]);
     const [selectedConstruct, setSelectedConstruct] = useState<string>('');
     const [priceCode, setPriceCode] = useState<string>('');
@@ -97,21 +84,28 @@ export const PriceListTab = ({ onNotify }: Props) => {
     };
 
     // Удаление прайс-листа
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!selectedConstruct || !priceCode) {
             onNotify('Прайс-лист не найден', 'error');
             return;
         }
-        if (!confirm(`Удалить прайс-лист для "${selectedConstructData?.name}"?`)) return;
-
-        try {
-            await calculatorApi.deletePriceList(priceCode);
-            setPriceData({});
-            setPriceCode('');
-            onNotify('Прайс-лист удалён', 'success');
-        } catch (err: any) {
-            onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
-        }
+        modal.confirm({
+            title: 'Удалить прайс-лист?',
+            content: `Удалить прайс-лист для "${selectedConstructData?.name}"?`,
+            okText: 'Удалить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deletePriceList(priceCode);
+                    setPriceData({});
+                    setPriceCode('');
+                    onNotify('Прайс-лист удалён', 'success');
+                } catch (err: any) {
+                    onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
+                }
+            },
+        });
     };
 
     // Обновление цены
@@ -120,160 +114,162 @@ export const PriceListTab = ({ onNotify }: Props) => {
     };
 
     return (
-        <Box>
-            {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        <div>
+            {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
 
             {/* Конструктор */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 2,
-                    mb: 2,
-                    borderRadius: '12px',
+            <Card
+                style={{
+                    marginBottom: 16,
+                    borderRadius: 12,
                     border: '1px solid #e8eaed',
                     backgroundColor: '#f8f9fa',
+                    boxShadow: 'none',
                 }}
+                styles={{ body: { padding: 16 } }}
             >
-                <Typography sx={{ fontSize: '12px', color: '#5f6368', mb: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <Typography.Text
+                    style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: '#5f6368',
+                        marginBottom: 8,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                    }}
+                >
                     Конструкция
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                </Typography.Text>
+                <Flex gap={16} wrap="wrap" align="center">
                     <Select
-                        value={selectedConstruct || ''}
-                        onChange={(e) => setSelectedConstruct(e.target.value)}
-                        sx={{ ...selectSx, minWidth: 200 }}
-                    >
-                        {constructs.map((c) => (
-                            <MenuItem key={c.id} value={c.id} sx={menuItemSx}>{c.name}</MenuItem>
-                        ))}
-                    </Select>
-                    <TextField
+                        value={selectedConstruct || undefined}
+                        onChange={(value) => setSelectedConstruct(value)}
+                        options={constructs.map((c) => ({ value: c.id, label: c.name }))}
+                        placeholder="Выберите конструкцию"
+                        style={{ minWidth: 200 }}
+                    />
+                    <Input
                         value={priceCode}
                         onChange={(e) => setPriceCode(e.target.value)}
-                        label="Код"
-                        size="small"
                         placeholder="UUID"
-                        sx={{ minWidth: 120 }}
+                        style={{ minWidth: 120, maxWidth: 180 }}
                     />
                     <Button
-                        variant="outlined"
                         size="small"
                         onClick={handleSave}
-                        disabled={saving}
-                        sx={{
+                        loading={saving}
+                        style={{
                             borderColor: '#137333',
                             color: '#137333',
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderRadius: '20px',
-                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
+                            fontSize: 12,
+                            borderRadius: 20,
                         }}
                     >
-                        {saving ? <CircularProgress size={16} color="inherit" /> : 'Сохранить'}
+                        Сохранить
                     </Button>
                     <Button
-                        variant="outlined"
                         size="small"
+                        danger
                         onClick={handleDelete}
                         disabled={!priceCode}
-                        sx={{
+                        style={{
                             borderColor: '#d93025',
                             color: '#d93025',
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderRadius: '20px',
-                            '&:hover': { backgroundColor: '#fce8e6', borderColor: '#d93025' },
+                            fontSize: 12,
+                            borderRadius: 20,
                         }}
                     >
                         Удалить
                     </Button>
-                </Box>
-            </Paper>
+                </Flex>
+            </Card>
 
             {/* Таблица прайса */}
-            <Paper elevation={0} sx={{ borderRadius: '12px', border: '1px solid #e8eaed', overflow: 'hidden' }}>
-                <Box
-                    sx={{
-                        p: 2,
-                        pb: 1,
-                        borderBottom: '1px solid #e8eaed',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                    }}
-                >
-                    <Typography sx={{ fontSize: '14px', fontWeight: 600, color: '#202124', pb: 1, borderBottom: '2px solid #1a73e8', flex: 1, textAlign: 'left' }}>
+            <Card
+                style={{ borderRadius: 12, border: '1px solid #e8eaed', overflow: 'hidden', boxShadow: 'none' }}
+                styles={{ body: { padding: 0 } }}
+            >
+                <Flex justify="space-between" align="center" style={{ padding: 16, paddingBottom: 8, borderBottom: '1px solid #e8eaed' }}>
+                    <Typography.Text
+                        strong
+                        style={{
+                            fontSize: 14,
+                            color: '#202124',
+                            paddingBottom: 8,
+                            borderBottom: '2px solid #1a73e8',
+                            flex: 1,
+                            textAlign: 'left',
+                        }}
+                    >
                         Прайс-лист коробок
-                    </Typography>
-                    <Typography
-                        sx={{
-                            fontSize: '10px',
+                    </Typography.Text>
+                    <Typography.Text
+                        style={{
+                            fontSize: 10,
                             fontWeight: 500,
                             backgroundColor: '#1a73e8',
                             color: '#fff',
-                            px: 2,
-                            py: 0.25,
-                            borderRadius: '16px',
+                            padding: '2px 16px',
+                            borderRadius: 16,
                         }}
                     >
                         {Object.keys(priceData).length} позиций
-                    </Typography>
-                </Box>
+                    </Typography.Text>
+                </Flex>
 
                 {loading ? (
-                    <Box sx={{ p: 4, textAlign: 'center' }}>
-                        <CircularProgress />
-                    </Box>
+                    <div style={{ padding: 32, textAlign: 'center' }}>
+                        <Spin />
+                    </div>
                 ) : !selectedConstruct ? (
-                    <Box sx={{ p: 4, textAlign: 'center', color: '#9aa0a6' }}>
+                    <div style={{ padding: 32, textAlign: 'center', color: '#9aa0a6' }}>
                         Выберите конструкцию
-                    </Box>
+                    </div>
                 ) : (
-                    <TableContainer>
-                        <Table size="small">
-                            <TableHead>
-                                <TableRow>
-                                    <TableCell sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase' }}>
-                                        Диапазон
-                                    </TableCell>
-                                    <TableCell align="center" sx={{ fontSize: '11px', fontWeight: 500, color: '#5f6368', textTransform: 'uppercase', width: 120 }}>
-                                        Цена (₽)
-                                    </TableCell>
-                                    <TableCell sx={{ width: 40 }} />
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {PRICE_RANGES.map((range) => (
-                                    <TableRow key={range}>
-                                        <TableCell>
-                                            <Typography sx={{ fontSize: '13px', fontWeight: 500 }}>
-                                                {range}
-                                            </Typography>
-                                        </TableCell>
-                                        <TableCell align="center">
-                                            <TextField
-                                                type="number"
-                                                value={priceData[range] || 0}
-                                                onChange={(e) => handlePriceChange(range, parseFloat(e.target.value) || 0)}
-                                                size="small"
-                                                inputProps={{ ...numberInputProps(1), style: { ...numberInputProps().style, width: 50 } }}
-                                                sx={{
-                                                    ...numberInputSx,
-                                                    '& .MuiOutlinedInput-root': {
-                                                        ...((numberInputSx as any)['& .MuiOutlinedInput-root'] || {}),
-                                                        backgroundColor: (priceData[range] || 0) === 0 ? '#f8f9fa' : '#fff',
-                                                    },
-                                                }}
-                                            />
-                                        </TableCell>
-                                        <TableCell />
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
+                    <Table
+                        rowKey="range"
+                        size="small"
+                        pagination={false}
+                        dataSource={PRICE_RANGES.map((range) => ({ range, price: priceData[range] || 0 }))}
+                        columns={[
+                            {
+                                title: 'Диапазон',
+                                dataIndex: 'range',
+                                key: 'range',
+                                render: (range: string) => (
+                                    <Typography.Text strong style={{ fontSize: 13 }}>{range}</Typography.Text>
+                                ),
+                            },
+                            {
+                                title: 'Цена (₽)',
+                                dataIndex: 'price',
+                                key: 'price',
+                                align: 'center',
+                                width: 120,
+                                render: (price: number, row: { range: string; price: number }) => (
+                                    <InputNumber
+                                        value={price}
+                                        onChange={(value) => handlePriceChange(row.range, value ?? 0)}
+                                        min={0}
+                                        step={1}
+                                        size="small"
+                                        style={{
+                                            width: 50,
+                                            backgroundColor: price === 0 ? '#f8f9fa' : '#fff',
+                                        }}
+                                    />
+                                ),
+                            },
+                            {
+                                title: '',
+                                key: 'actions',
+                                width: 40,
+                                align: 'center',
+                            },
+                        ]}
+                    />
                 )}
-            </Paper>
-        </Box>
+            </Card>
+        </div>
     );
 };
