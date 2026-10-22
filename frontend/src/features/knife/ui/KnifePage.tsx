@@ -51,6 +51,9 @@ export const KnifePage = () => {
                 Загрузите SVG-файл развёртки. Стоимость = длина линий (мм) × 3 + 500 ₽.
             </Typography.Paragraph>
 
+            {/* Почему нативный input + onDrop, а не AntD Upload.Dragger:
+                сохраняем текущий UX (клик по всей зоне, drag-n-drop, скрытый input);
+                Upload.Dragger меняет разметку и подпись — кандидат на будущий рефакторинг. */}
             <div
                 className="knife-dropzone"
                 onClick={() => document.getElementById('knife-file-input')?.click()}
