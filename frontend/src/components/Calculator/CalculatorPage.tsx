@@ -332,7 +332,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     <Alert
                         type="error"
                         showIcon
-                        message={calc.error}
+                        title={calc.error}
                         style={{ marginBottom: 16 }}
                     />
                 )}

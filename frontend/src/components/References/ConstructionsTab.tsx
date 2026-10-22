@@ -155,7 +155,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
 
     return (
         <div>
-            {error && <Alert type="error" message={error} style={{ marginBottom: 16 }} />}
+            {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} />}
 
             {/* Конструктор */}
             <Card
