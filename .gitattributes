@@ -1,0 +1,39 @@
+# Нормализация переносов строк.
+# Все текстовые файлы — LF в репозитории, независимо от ОС.
+* text=auto eol=lf
+
+# Явно текстовые (для надёжности)
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.java  text eol=lf
+*.gradle text eol=lf
+*.kts   text eol=lf
+*.sql   text eol=lf
+*.sh    text eol=lf
+
+# Windows-скрипты — CRLF (иначе cmd.exe может ругаться)
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Бинарные — не трогать
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.pdf   binary
+*.jar   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.svg   text eol=lf
