@@ -1,6 +1,7 @@
 // frontend/src/hooks/useCalculator.ts
 import { useState, useCallback, useEffect } from 'react';
 import { calculatorApi } from '../api/calculatorApi';
+import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
 import type {
     Detail,
     Extra,
@@ -128,6 +129,7 @@ export function useCalculator() {
                 const part = partsData.find((p) => p.name === partName);
                 const countOnSheet = part ? part.perSheet : 0;
                 return {
+                    uiKey: createDetailUiKey(),
                     name: partName,
                     countOnSheet,
                     sheetPrice: 35,
@@ -169,7 +171,7 @@ export function useCalculator() {
         try {
             const request = {
                 construction: currentConstruction,
-                details,
+                details: toApiDetails(details),
                 extras,
                 printSettings,
                 workPrice,
@@ -201,29 +203,30 @@ export function useCalculator() {
     }, [calculateRef]);
 
     // --- Detail operations ---
-    const updateDetail = useCallback((index: number, field: keyof Detail, value: any) => {
-        setDetails((prev) => {
-            const next = [...prev];
-            next[index] = { ...next[index], [field]: value };
-            return next;
-        });
+    // Details are addressed by their client-side uiKey, never by row index:
+    // adding/removing a row must not redirect an edit to another detail.
+    const updateDetail = useCallback((uiKey: string, field: keyof Detail, value: any) => {
+        setDetails((prev) => prev.map((detail) => (
+            detail.uiKey === uiKey ? { ...detail, [field]: value } : detail
+        )));
     }, []);
 
-    const updateDetailOperation = useCallback((detailIndex: number, opName: string, value: boolean) => {
-        setDetails((prev) => {
-            const next = [...prev];
-            next[detailIndex] = {
-                ...next[detailIndex],
-                operations: { ...next[detailIndex].operations, [opName]: value },
-            };
-            return next;
-        });
+    const updateDetailOperation = useCallback((uiKey: string, opName: string, value: boolean) => {
+        setDetails((prev) => prev.map((detail) => (
+            detail.uiKey === uiKey
+                ? {
+                    ...detail,
+                    operations: { ...detail.operations, [opName]: value },
+                }
+                : detail
+        )));
     }, []);
 
     const addCustomDetail = useCallback(() => {
         setDetails((prev) => [
             ...prev,
             {
+                uiKey: createDetailUiKey(),
                 name: 'Деталь ' + (prev.length + 1),
                 countOnSheet: 1,
                 sheetPrice: 35,
@@ -236,8 +239,8 @@ export function useCalculator() {
         ]);
     }, []);
 
-    const removeCustomDetail = useCallback((index: number) => {
-        setDetails((prev) => prev.filter((_, i) => i !== index));
+    const removeCustomDetail = useCallback((uiKey: string) => {
+        setDetails((prev) => prev.filter((detail) => detail.uiKey !== uiKey));
     }, []);
 
     // --- Layout transfer ---
@@ -275,6 +278,7 @@ export function useCalculator() {
                 const name = item.name.trim();
                 added.push(`${name} — ${item.placed} шт/лист`);
                 next.push({
+                    uiKey: createDetailUiKey(),
                     name,
                     countOnSheet: item.placed,
                     sheetPrice: 35,
@@ -369,3 +373,6 @@ export function useCalculator() {
         setMarginValue,
     };
 }
+
+/** Состояние и действия калькулятора, передаваемые странице как единый объект. */
+export type CalculatorModel = ReturnType<typeof useCalculator>;

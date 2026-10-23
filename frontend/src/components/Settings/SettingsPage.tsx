@@ -1,21 +1,9 @@
 // frontend/src/components/Settings/SettingsPage.tsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import {
-    Box,
-    Paper,
-    Typography,
-    Tabs,
-    Tab,
-    Button,
-    Chip,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
-    CircularProgress,
-} from '@mui/material';
+    App as AntdApp, Button, Card, Flex, Spin, Table, Tabs, Tag, Typography, Upload,
+} from 'antd';
 import type { SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 
@@ -33,22 +21,19 @@ const STATUS_LABELS: Record<SavedCalculation['status'], string> = {
     closed: 'Закрыт',
 };
 
-const STATUS_COLORS: Record<SavedCalculation['status'], 'default' | 'primary' | 'success' | 'warning' | 'error'> = {
+const STATUS_COLORS: Record<SavedCalculation['status'], string> = {
     draft: 'default',
-    ready: 'primary',
+    ready: 'processing',
     sent: 'warning',
     in_work: 'success',
-    closed: 'error',
+    closed: 'red',
 };
 
 export const SettingsPage = ({ onNotify }: Props) => {
+    const { modal } = AntdApp.useApp();
     const [activeTab, setActiveTab] = useState<TabValue>('calculations');
 
     // --- Импорт/экспорт JSON ---
-    const constructsInputRef = useRef<HTMLInputElement>(null);
-    const priceInputRef = useRef<HTMLInputElement>(null);
-    const printInputRef = useRef<HTMLInputElement>(null);
-
     const handleImportFile = async (file: File | undefined, endpoint: string, label: string) => {
         if (!file) return;
         try {
@@ -167,274 +152,263 @@ export const SettingsPage = ({ onNotify }: Props) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleDeleteCalculation = async (id: string) => {
-        if (!confirm('Удалить расчёт?')) return;
-        try {
-            await calculatorApi.deleteCalculation(id);
-            setCalculations((prev) => prev.filter((c) => c.id !== id));
-            onNotify('Расчёт удалён', 'success');
-        } catch (err: any) {
-            onNotify('Ошибка удаления: ' + err.message, 'error');
-        }
+    // Удаление расчёта: подтверждение через modal.confirm (App.useApp)
+    const handleDeleteCalculation = (id: string) => {
+        modal.confirm({
+            title: 'Удаление расчёта',
+            content: 'Удалить расчёт?',
+            okText: 'Удалить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deleteCalculation(id);
+                    setCalculations((prev) => prev.filter((c) => c.id !== id));
+                    onNotify('Расчёт удалён', 'success');
+                } catch (err: any) {
+                    onNotify('Ошибка удаления: ' + err.message, 'error');
+                }
+            },
+        });
     };
 
     return (
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
             {/* Top bar */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: '16px 24px',
-                    mb: 2,
-                    borderRadius: '16px',
+            <Card
+                style={{
+                    marginBottom: 16,
+                    borderRadius: 16,
                     border: '1px solid #e8eaed',
                     backgroundColor: '#fff',
+                    boxShadow: 'none',
                 }}
+                styles={{ body: { padding: '16px 24px' } }}
             >
-                <Typography variant="h6" sx={{ fontSize: '18px', fontWeight: 500 }}>
+                <Typography.Title level={5} style={{ fontSize: 18, margin: 0 }}>
                     Настройки
-                </Typography>
-            </Paper>
+                </Typography.Title>
+            </Card>
 
             {/* Tabs */}
-            <Box sx={{ mb: 2 }}>
+            <div style={{ marginBottom: 16 }}>
                 <Tabs
-                    value={activeTab}
-                    onChange={(_: React.SyntheticEvent, v: TabValue) => setActiveTab(v)}
-                    sx={{
-                        backgroundColor: '#f1f3f4',
-                        borderRadius: '12px',
-                        '& .MuiTab-root': {
-                            textTransform: 'none',
-                            fontWeight: 500,
-                            fontSize: '13px',
-                            minHeight: '44px',
-                            borderRadius: '10px',
-                            color: '#5f6368',
-                            '&.Mui-selected': {
-                                backgroundColor: '#fff',
-                                color: '#1a73e8',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                            },
-                        },
-                        '& .MuiTabs-indicator': { display: 'none' },
-                    }}
-                >
-                    <Tab value="calculations" label="Расчёты" />
-                    <Tab value="import" label="Импорт / экспорт" />
-                </Tabs>
-            </Box>
+                    activeKey={activeTab}
+                    onChange={(key) => setActiveTab(key as TabValue)}
+                    items={[
+                        { key: 'calculations', label: 'Расчёты' },
+                        { key: 'import', label: 'Импорт / экспорт' },
+                    ]}
+                />
+            </div>
 
             {/* Tab: Расчёты */}
             {activeTab === 'calculations' && (
-                <Paper elevation={0} sx={{ borderRadius: '12px', border: '1px solid #e8eaed', overflow: 'hidden' }}>
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, borderBottom: '1px solid #e8eaed' }}>
-                        <Typography sx={{ fontSize: '14px', fontWeight: 600 }}>
+                <Card
+                    style={{
+                        borderRadius: 12,
+                        border: '1px solid #e8eaed',
+                        overflow: 'hidden',
+                        boxShadow: 'none',
+                    }}
+                    styles={{ body: { padding: 0 } }}
+                >
+                    <Flex justify="space-between" align="center" style={{ padding: 16, borderBottom: '1px solid #e8eaed' }}>
+                        <Typography.Text strong style={{ fontSize: 14 }}>
                             Сохранённые расчёты
-                        </Typography>
-                        <Button size="small" onClick={loadCalculations} sx={{ textTransform: 'none', fontSize: '12px' }}>
+                        </Typography.Text>
+                        <Button size="small" type="text" onClick={loadCalculations} style={{ fontSize: 12 }}>
                             Обновить
                         </Button>
-                    </Box>
+                    </Flex>
                     {loading ? (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-                            <CircularProgress size={28} />
-                        </Box>
+                        <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
+                            <Spin size="large" />
+                        </div>
                     ) : calculations.length === 0 ? (
-                        <Typography sx={{ p: 3, fontSize: '13px', color: '#9aa0a6' }}>
+                        <Typography.Text style={{ display: 'block', padding: 24, fontSize: 13, color: '#9aa0a6' }}>
                             Нет сохранённых расчётов. Сохраните расчёт на странице калькулятора.
-                        </Typography>
+                        </Typography.Text>
                     ) : (
-                        <TableContainer>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow sx={{ backgroundColor: '#f8f9fa' }}>
-                                        <TableCell sx={{ fontSize: '12px', fontWeight: 600 }}>Название</TableCell>
-                                        <TableCell sx={{ fontSize: '12px', fontWeight: 600 }}>Клиент</TableCell>
-                                        <TableCell sx={{ fontSize: '12px', fontWeight: 600 }}>Менеджер</TableCell>
-                                        <TableCell sx={{ fontSize: '12px', fontWeight: 600 }}>Статус</TableCell>
-                                        <TableCell sx={{ fontSize: '12px', fontWeight: 600 }}>Создан</TableCell>
-                                        <TableCell align="right" sx={{ fontSize: '12px', fontWeight: 600 }} />
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {calculations.map((c) => (
-                                        <TableRow key={c.id} hover>
-                                            <TableCell sx={{ fontSize: '13px' }}>{c.name}</TableCell>
-                                            <TableCell sx={{ fontSize: '13px' }}>{c.clientName}</TableCell>
-                                            <TableCell sx={{ fontSize: '13px' }}>{c.managerName}</TableCell>
-                                            <TableCell>
-                                                <Chip
-                                                    label={STATUS_LABELS[c.status] || c.status}
-                                                    color={STATUS_COLORS[c.status] || 'default'}
-                                                    size="small"
-                                                    sx={{ fontSize: '11px', height: '22px' }}
-                                                />
-                                            </TableCell>
-                                            <TableCell sx={{ fontSize: '12px', color: '#5f6368' }}>
-                                                {new Date(c.createdAt).toLocaleString('ru-RU')}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <Button
-                                                    size="small"
-                                                    color="error"
-                                                    onClick={() => handleDeleteCalculation(c.id)}
-                                                    sx={{ textTransform: 'none', fontSize: '11px' }}
-                                                >
-                                                    Удалить
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                        <Table
+                            rowKey="id"
+                            size="small"
+                            pagination={false}
+                            dataSource={calculations}
+                            columns={[
+                                {
+                                    title: 'Название',
+                                    dataIndex: 'name',
+                                    key: 'name',
+                                    render: (name: string) => <span style={{ fontSize: 13 }}>{name}</span>,
+                                },
+                                {
+                                    title: 'Клиент',
+                                    dataIndex: 'clientName',
+                                    key: 'clientName',
+                                    render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
+                                },
+                                {
+                                    title: 'Менеджер',
+                                    dataIndex: 'managerName',
+                                    key: 'managerName',
+                                    render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
+                                },
+                                {
+                                    title: 'Статус',
+                                    dataIndex: 'status',
+                                    key: 'status',
+                                    render: (_: unknown, c: SavedCalculation) => (
+                                        <Tag
+                                            color={STATUS_COLORS[c.status] || 'default'}
+                                            style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
+                                        >
+                                            {STATUS_LABELS[c.status] || c.status}
+                                        </Tag>
+                                    ),
+                                },
+                                {
+                                    title: 'Создан',
+                                    dataIndex: 'createdAt',
+                                    key: 'createdAt',
+                                    render: (v: string) => (
+                                        <span style={{ fontSize: 12, color: '#5f6368' }}>
+                                            {new Date(v).toLocaleString('ru-RU')}
+                                        </span>
+                                    ),
+                                },
+                                {
+                                    title: '',
+                                    key: 'actions',
+                                    align: 'right',
+                                    render: (_: unknown, c: SavedCalculation) => (
+                                        <Button
+                                            size="small"
+                                            type="text"
+                                            danger
+                                            onClick={() => handleDeleteCalculation(c.id)}
+                                            style={{ fontSize: 11 }}
+                                        >
+                                            Удалить
+                                        </Button>
+                                    ),
+                                },
+                            ]}
+                        />
                     )}
-                </Paper>
+                </Card>
             )}
 
             {/* Tab: Импорт / экспорт */}
             {activeTab === 'import' && (
-                <Paper elevation={0} sx={{ p: 3, borderRadius: '12px', border: '1px solid #e8eaed' }}>
-                    <Typography sx={{ fontSize: '14px', fontWeight: 600, mb: 2 }}>
-                        Импорт справочников (JSON)
-                    </Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 3, maxWidth: 480 }}>
-                        {/* Конструкции */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                            <input
-                                ref={constructsInputRef}
-                                type="file"
-                                accept=".json,application/json"
-                                style={{ display: 'none' }}
-                                onChange={(e) => handleImportFile(e.target.files?.[0], 'import-constructs', 'Конструкции')}
-                            />
-                            <Chip
-                                label="Конструкции"
-                                onClick={() => constructsInputRef.current?.click()}
-                                sx={{
-                                    fontSize: '12px',
-                                    height: '32px',
-                                    border: '1px solid #e37400',
-                                    color: '#e37400',
-                                    backgroundColor: '#fff8e1',
-                                    cursor: 'pointer',
-                                    '&:hover': { backgroundColor: '#ffecb3' },
-                                }}
-                            />
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={handleExportConstructs}
-                                sx={{
-                                    fontSize: '12px',
-                                    textTransform: 'none',
-                                    borderColor: '#137333',
-                                    color: '#137333',
-                                    borderRadius: '20px',
-                                    '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
-                                }}
-                            >
-                                Экспорт
-                            </Button>
-                        </Box>
-                        {/* Прайс коробок */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                            <input
-                                ref={priceInputRef}
-                                type="file"
-                                accept=".json,application/json"
-                                style={{ display: 'none' }}
-                                onChange={(e) => handleImportFile(e.target.files?.[0], 'import-price-lists', 'Прайс коробок')}
-                            />
-                            <Chip
-                                label="Прайс коробок"
-                                onClick={() => priceInputRef.current?.click()}
-                                sx={{
-                                    fontSize: '12px',
-                                    height: '32px',
-                                    border: '1px solid #e37400',
-                                    color: '#e37400',
-                                    backgroundColor: '#fff8e1',
-                                    cursor: 'pointer',
-                                    '&:hover': { backgroundColor: '#ffecb3' },
-                                }}
-                            />
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={handleExportPriceLists}
-                                sx={{
-                                    fontSize: '12px',
-                                    textTransform: 'none',
-                                    borderColor: '#137333',
-                                    color: '#137333',
-                                    borderRadius: '20px',
-                                    '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
-                                }}
-                            >
-                                Экспорт
-                            </Button>
-                        </Box>
-                        {/* Прайс печати */}
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                            <input
-                                ref={printInputRef}
-                                type="file"
-                                accept=".json,application/json"
-                                style={{ display: 'none' }}
-                                onChange={(e) => handleImportFile(e.target.files?.[0], 'import-print-tables', 'Прайс печати')}
-                            />
-                            <Chip
-                                label="Прайс печати"
-                                onClick={() => printInputRef.current?.click()}
-                                sx={{
-                                    fontSize: '12px',
-                                    height: '32px',
-                                    border: '1px solid #e37400',
-                                    color: '#e37400',
-                                    backgroundColor: '#fff8e1',
-                                    cursor: 'pointer',
-                                    '&:hover': { backgroundColor: '#ffecb3' },
-                                }}
-                            />
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                onClick={handleExportPrintTables}
-                                sx={{
-                                    fontSize: '12px',
-                                    textTransform: 'none',
-                                    borderColor: '#137333',
-                                    color: '#137333',
-                                    borderRadius: '20px',
-                                    '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
-                                }}
-                            >
-                                Экспорт
-                            </Button>
-                        </Box>
-                    </Box>
-
-                    <Typography sx={{ fontSize: '14px', fontWeight: 600, mb: 2 }}>
-                        Экспорт расчётов (JSON)
-                    </Typography>
-                    <Button
-                        variant="outlined"
-                        onClick={handleExportCalculations}
-                        sx={{
-                            fontSize: '12px',
-                            textTransform: 'none',
-                            borderColor: '#137333',
-                            color: '#137333',
-                            borderRadius: '8px',
-                            '&:hover': { backgroundColor: '#e8f5e9', borderColor: '#137333' },
-                        }}
+                <Flex vertical>
+                    {/* Конструкции */}
+                    <Card
+                        size="small"
+                        style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                        styles={{ body: { padding: '12px 16px' } }}
                     >
-                        Экспортировать все расчёты
-                    </Button>
-                </Paper>
+                        <Flex justify="space-between" align="center">
+                            <Typography.Text strong>Конструкции</Typography.Text>
+                            <Flex gap={8}>
+                                <Upload
+                                    accept=".json,application/json"
+                                    showUploadList={false}
+                                    beforeUpload={(file) => {
+                                        handleImportFile(file, 'import-constructs', 'Конструкции');
+                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                    }}
+                                >
+                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
+                                </Upload>
+                                <Button
+                                    type="primary"
+                                    icon={<DownloadOutlined />}
+                                    onClick={handleExportConstructs}
+                                >
+                                    Сохранить
+                                </Button>
+                            </Flex>
+                        </Flex>
+                    </Card>
+                    {/* Прайс коробок */}
+                    <Card
+                        size="small"
+                        style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                        styles={{ body: { padding: '12px 16px' } }}
+                    >
+                        <Flex justify="space-between" align="center">
+                            <Typography.Text strong>Прайс коробок</Typography.Text>
+                            <Flex gap={8}>
+                                <Upload
+                                    accept=".json,application/json"
+                                    showUploadList={false}
+                                    beforeUpload={(file) => {
+                                        handleImportFile(file, 'import-price-lists', 'Прайс коробок');
+                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                    }}
+                                >
+                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
+                                </Upload>
+                                <Button
+                                    type="primary"
+                                    icon={<DownloadOutlined />}
+                                    onClick={handleExportPriceLists}
+                                >
+                                    Сохранить
+                                </Button>
+                            </Flex>
+                        </Flex>
+                    </Card>
+                    {/* Прайс печати */}
+                    <Card
+                        size="small"
+                        style={{ borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                        styles={{ body: { padding: '12px 16px' } }}
+                    >
+                        <Flex justify="space-between" align="center">
+                            <Typography.Text strong>Прайс печати</Typography.Text>
+                            <Flex gap={8}>
+                                <Upload
+                                    accept=".json,application/json"
+                                    showUploadList={false}
+                                    beforeUpload={(file) => {
+                                        handleImportFile(file, 'import-print-tables', 'Прайс печати');
+                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                    }}
+                                >
+                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
+                                </Upload>
+                                <Button
+                                    type="primary"
+                                    icon={<DownloadOutlined />}
+                                    onClick={handleExportPrintTables}
+                                >
+                                    Сохранить
+                                </Button>
+                            </Flex>
+                        </Flex>
+                    </Card>
+
+                    {/* Все расчёты */}
+                    <Card
+                        size="small"
+                        style={{ borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                        styles={{ body: { padding: '12px 16px' } }}
+                    >
+                        <Flex justify="space-between" align="center">
+                            <Typography.Text strong>Все расчёты</Typography.Text>
+                            <Button
+                                type="primary"
+                                icon={<DownloadOutlined />}
+                                onClick={handleExportCalculations}
+                            >
+                                Сохранить
+                            </Button>
+                        </Flex>
+                    </Card>
+                </Flex>
             )}
-        </Box>
+        </div>
     );
 };
