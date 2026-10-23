@@ -5,10 +5,12 @@ React 18 + TypeScript + Vite + Ant Design v6.
 ## Запуск
 
 ```bash
-npm install
+npm ci           # установка зависимостей строго по package-lock.json
 npm run dev      # dev-сервер на http://localhost:5173
-npm run build    # production-сборка
-npm run lint     # ESLint
+npm run build    # production-сборка (tsc -b && vite build)
+npm run lint     # ESLint (flat config, typescript-eslint)
+npm run test     # unit-тесты (vitest run)
+npm run preview  # локальный просмотр production-сборки
 ```
 
 > Vite proxy: `/api` → `http://localhost:8080` (backend должен быть запущен).
@@ -16,39 +18,43 @@ npm run lint     # ESLint
 ## Структура `src/`
 
 - `main.tsx` — точка входа
-- `App.tsx` — главный экран калькулятора
-- `api/calculatorApi.ts` — HTTP-клиент (axios): calculate, constructs, print-tables, price-lists
+- `App.tsx` — хост приложения: рендер активной страницы по `navigation.ts`, `AppShell`, модалка сохранения расчёта, уведомления через Ant Design `App`-контекст
+- `api/calculatorApi.ts` — HTTP-клиент (axios): `calculate`, `calculateKnife`, constructs / price-lists / print-tables / operations (get/save/update/delete), сохранённые расчёты и ножи, импорт справочников
 - `hooks/useCalculator.ts` — состояние калькулятора + вызовы API
-- `types/index.ts` — TypeScript-типы
-- `components/Calculator/` — `ConstructionSelector`, `LayoutTable`, `ExtrasBlock`, `PriceTable`
-- `components/Layout/` — `AppShell` (боковая навигация, шапка, контент)
+- `types/index.ts` — TypeScript-типы (`Detail`, `Extra`, `PrintSettings`, `CalculationRequest`/`CalculationResponse`, `PriceRow`, `PrintTable`, `PriceListData`, `Construct`, `ConstructPart`, `Operation`, `SavedCalculation`, `SavedKnife`, …)
+- `utils/calculationRequest.ts` — `createDetailUiKey()`, `toApiDetails()` (маппинг UI-деталей в запрос API); тест рядом — `calculationRequest.spec.ts`
+- `navigation.ts` — `PageType`, `PAGE_PATHS`, `NAV_ITEMS`, `pageFromPath()` (URL ↔ страница, back/forward)
+- `antdTheme.ts` — тема Ant Design v6 (`antdTheme`)
+- `designTokens.ts` — дизайн-токены (`fontFamily`, `tokens`)
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Компоненты (`src/components/`)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `components/Calculator/CalculatorPage.tsx` — экран «Расчет коробки»
+- `components/Calculator/SaveCalculationModal.tsx` — модалка сохранения расчёта
+- `components/Layout/AppShell.tsx` — Ant Design shell: боковая навигация, шапка, контент
+- `components/References/ReferencesPage.tsx` — «Справочники» с вкладками:
+  `ConstructionsTab.tsx`, `PriceListTab.tsx`, `PrintTablesTab.tsx`
+- `components/Settings/SettingsPage.tsx` — «Настройки»
+- `components/DevStub.tsx` — заглушка для ещё не реализованных страниц (клише, конгрев, шелкография)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Feature-модули (`src/features/`)
 
-```
+- `features/knife/ui/KnifePage.tsx` — «Расчет ножа» (dropzone → `/api/knife/calculate`, тип `KnifeResult`)
+- `features/layout/` — «Раскладка»:
+  - `ui/LayoutPage.tsx` — параметры листа + деталь/список деталей, превью раскладки
+  - `ui/LayoutSvg.tsx`, `ui/LayoutSvgSingle.tsx` — отрисовка результата (multi / single режим)
+  - `engine/` — расчётный движок: `packParts.ts`, `gridLayout.ts`, `validate.ts`, `index.ts` (публичный фасад)
+  - `hooks/useLayout.ts` — состояние страницы раскладки
+  - `model/` — `types.ts`, `constants.ts`, `rng.ts`, `enc-probe.ts`
+  - `tests/` — `packParts.spec.ts`, `fixtures.ts`
+
+Статика: `assets/` (`hero.png`), глобальные стили — `index.css`.
+
+## Линтинг
+
+`eslint.config.js` — flat config для ESLint 8 + `typescript-eslint`
+(`js.configs.recommended`, `tseslint.configs.recommended`, плагины `react-hooks`
+и `react-refresh`). Правило `@typescript-eslint/no-explicit-any` пока в режиме
+`warn` — это baseline миграции на Ant Design, поэтому `npm run lint` проходит
+с предупреждениями, но без ошибок.
+
