@@ -8,28 +8,20 @@
  * for a PackOk (multi mode), an empty hint while the list has no parts, or a red
  * block with the localised engine error. A successful multi packing adds the
  * metrics block under the drawing: big placed count, work-zone bar and three
- * summary cards. Single mode also prints a compact count in the panel.
+ * summary cards. Single mode prints the grid count above the drawing.
  *
  * The left panel ends with "Передать в расчёт": it sends the placed counts of
  * the current result to the calculator through an App-owned callback.
  */
 import { useEffect, useMemo, useState } from 'react';
-import type { SyntheticEvent } from 'react';
 import {
-  Box,
-  Button,
-  Checkbox,
-  CircularProgress,
-  FormControlLabel,
-  IconButton,
-  Paper,
-  Stack,
-  Tab,
-  Tabs,
-  TextField,
-  Typography,
-} from '@mui/material';
-import CloseIcon from '@mui/icons-material/Close';
+  BarChartOutlined,
+  CloseOutlined,
+  ExclamationCircleOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+} from '@ant-design/icons';
+import { Button, Card, Checkbox, Flex, Input, Spin, Tabs, Typography } from 'antd';
 import { paletteFor } from '../model/constants.ts';
 import { packParts } from '../engine/packParts.ts';
 import { useLayout } from '../hooks/useLayout.ts';
@@ -61,29 +53,6 @@ const SHEET_PRESETS = [
 
 /** Columns of one parts-table row: colour, name, L, W, qty, delete. */
 const PART_ROW_COLUMNS = '10px minmax(0, 1fr) 58px 58px 46px 26px';
-
-/** Shared look of the three summary cards under the packing drawing. */
-const METRIC_CARD_SX = {
-  backgroundColor: '#f8f9fa',
-  border: '1px solid #ececec',
-  borderRadius: '9px',
-  px: '12px',
-  py: '10px',
-} as const;
-
-const METRIC_LABEL_SX = {
-  fontSize: 10,
-  color: '#999',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-} as const;
-
-const METRIC_VALUE_SX = {
-  mt: '2px',
-  fontSize: 18,
-  fontWeight: 700,
-  color: '#333',
-} as const;
 
 /** One row handed to the calculator: a detail name and how many fit per sheet. */
 export interface LayoutTransferItem {
@@ -173,23 +142,20 @@ const NumberField = ({
   };
 
   return (
-    <TextField
-      fullWidth
-      size="small"
-      type="text"
-      label={label}
-      value={draft}
-      onFocus={() => setFocused(true)}
-      onChange={(event) => handleChange(event.target.value)}
-      onBlur={handleBlur}
-      inputProps={{ inputMode: 'decimal', 'aria-label': ariaLabel }}
-      sx={{
-        '& .MuiOutlinedInput-root': {
-          borderRadius: '8px',
-          backgroundColor: '#fff',
-        },
-      }}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {label ? (
+        <Typography.Text style={{ fontSize: 12, color: '#5f6368' }}>{label}</Typography.Text>
+      ) : null}
+      <Input
+        value={draft}
+        onFocus={() => setFocused(true)}
+        onChange={(event) => handleChange(event.target.value)}
+        onBlur={handleBlur}
+        inputMode="decimal"
+        aria-label={ariaLabel ?? label}
+        style={{ borderRadius: 8, backgroundColor: '#fff' }}
+      />
+    </div>
   );
 };
 
@@ -297,103 +263,156 @@ const MultiMetrics = ({ result, sheet }: { result: PackOk; sheet: SheetSpec }) =
 
   return (
     <>
-      <Box
-        sx={{
-          mt: 2,
-          mb: 2,
-          p: 2.5,
+      <div
+        style={{
+          marginTop: 16,
+          marginBottom: 16,
+          padding: 20,
           borderLeft: '4px solid #1a73e8',
-          borderRadius: '10px',
+          borderRadius: 10,
           backgroundColor: '#f8f9fa',
         }}
       >
-        <Box sx={{ fontSize: 42, fontWeight: 700, lineHeight: 1, color: '#1a73e8' }}>
+        <div style={{ fontSize: 42, fontWeight: 700, lineHeight: 1, color: '#1a73e8' }}>
           {result.placedCount}
-        </Box>
-        <Typography sx={{ fontSize: 14, color: '#666', mt: 0.5 }}>
+        </div>
+        <Typography.Text style={{ display: 'block', fontSize: 14, color: '#666', marginTop: 4 }}>
           деталей размещается на листе
           {result.requestedCount > 0 ? ` (из ${result.requestedCount} заказанных)` : ''}
-        </Typography>
-      </Box>
+        </Typography.Text>
+      </div>
 
-      <Box
-        sx={{
-          mt: 1.5,
-          mb: 0.5,
+      <div
+        style={{
+          marginTop: 12,
+          marginBottom: 4,
           height: 10,
-          borderRadius: '6px',
+          borderRadius: 6,
           backgroundColor: '#eceff1',
           overflow: 'hidden',
         }}
       >
-        <Box
-          sx={{
+        <div
+          style={{
             width: `${barWidth}%`,
             height: '100%',
-            borderRadius: '6px',
+            borderRadius: 6,
             backgroundColor: utilColor,
             transition: 'width 0.3s',
           }}
         />
-      </Box>
+      </div>
 
-      <Box
-        sx={{
-          mt: '14px',
-          mb: '4px',
+      <div
+        style={{
+          marginTop: 14,
+          marginBottom: 4,
           display: 'grid',
           gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: '10px',
+          gap: 10,
         }}
       >
-        <Box sx={METRIC_CARD_SX}>
-          <Typography sx={METRIC_LABEL_SX}>Загрузка рабочей зоны</Typography>
-          <Box sx={{ ...METRIC_VALUE_SX, color: utilColor }}>{utilWork.toFixed(1)}%</Box>
-        </Box>
+        <div
+          style={{
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #ececec',
+            borderRadius: 9,
+            padding: '10px 12px',
+          }}
+        >
+          <Typography.Text
+            style={{
+              display: 'block',
+              fontSize: 10,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            Загрузка рабочей зоны
+          </Typography.Text>
+          <div style={{ marginTop: 2, fontSize: 18, fontWeight: 700, color: utilColor }}>
+            {utilWork.toFixed(1)}%
+          </div>
+        </div>
 
-        <Box sx={METRIC_CARD_SX}>
-          <Typography sx={METRIC_LABEL_SX}>Загрузка листа</Typography>
-          <Box sx={{ ...METRIC_VALUE_SX, color: '#0d7c3f' }}>
+        <div
+          style={{
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #ececec',
+            borderRadius: 9,
+            padding: '10px 12px',
+          }}
+        >
+          <Typography.Text
+            style={{
+              display: 'block',
+              fontSize: 10,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            Загрузка листа
+          </Typography.Text>
+          <div style={{ marginTop: 2, fontSize: 18, fontWeight: 700, color: '#0d7c3f' }}>
             {result.utilizationSheet.toFixed(1)}%
-          </Box>
-        </Box>
+          </div>
+        </div>
 
-        <Box sx={METRIC_CARD_SX}>
-          <Typography sx={METRIC_LABEL_SX}>Листов на заказ</Typography>
-          <Box sx={METRIC_VALUE_SX}>{result.sheetsForOrder || 1}</Box>
-        </Box>
-      </Box>
+        <div
+          style={{
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #ececec',
+            borderRadius: 9,
+            padding: '10px 12px',
+          }}
+        >
+          <Typography.Text
+            style={{
+              display: 'block',
+              fontSize: 10,
+              color: '#999',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+            }}
+          >
+            Листов на заказ
+          </Typography.Text>
+          <div style={{ marginTop: 2, fontSize: 18, fontWeight: 700, color: '#333' }}>
+            {result.sheetsForOrder || 1}
+          </div>
+        </div>
+      </div>
 
-      <Box sx={{ mt: '14px' }}>
+      <div style={{ marginTop: 14 }}>
         {result.byType.map((type, index) => {
           const alone = aloneCounts[index];
           return (
-            <Box
+            <Flex
               key={`${type.partId ?? type.name}-${type.typeIndex}`}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                px: '10px',
-                py: '7px',
-                mb: '6px',
-                borderRadius: '8px',
+              gap={10}
+              align="center"
+              style={{
+                padding: '7px 10px',
+                marginBottom: 6,
+                borderRadius: 8,
                 backgroundColor: '#f8f9fa',
                 fontSize: 13,
               }}
             >
-              <Box
-                sx={{
+              <div
+                style={{
                   flex: '0 0 auto',
                   width: 10,
                   height: 10,
-                  borderRadius: '3px',
+                  borderRadius: 3,
                   backgroundColor: type.color.fill,
                   border: `1px solid ${type.color.stroke}`,
                 }}
               />
-              <Box
-                sx={{
+              <div
+                style={{
                   flex: 1,
                   minWidth: 0,
                   overflow: 'hidden',
@@ -404,64 +423,58 @@ const MultiMetrics = ({ result, sheet }: { result: PackOk; sheet: SheetSpec }) =
                 }}
               >
                 {type.name}
-              </Box>
-              <Box sx={{ color: '#666', fontVariantNumeric: 'tabular-nums' }}>
+              </div>
+              <div style={{ color: '#666', fontVariantNumeric: 'tabular-nums' }}>
                 {type.L}×{type.W} мм
-              </Box>
-              <Box
-                sx={{
+              </div>
+              <div
+                style={{
                   color: type.missing === 0 ? '#0d7c3f' : '#d32f2f',
                   fontWeight: 700,
                   fontVariantNumeric: 'tabular-nums',
                 }}
               >
                 {type.placed} / {type.requested} шт
-              </Box>
+              </div>
               {alone !== type.placed && (
-                <Box
-                  component="span"
-                  title="Столько влезает, если резать только эту деталь"
-                  sx={{ fontSize: 11, color: '#999' }}
-                >
+                <span title="Столько влезает, если резать только эту деталь" style={{ fontSize: 11, color: '#999' }}>
                   отдельно {alone} шт
-                </Box>
+                </span>
               )}
               {type.sheets ? (
-                <Box component="span" sx={{ fontSize: 11, color: '#999' }}>
-                  {type.sheets} л.
-                </Box>
+                <span style={{ fontSize: 11, color: '#999' }}>{type.sheets} л.</span>
               ) : null}
-            </Box>
+            </Flex>
           );
         })}
-      </Box>
+      </div>
 
       {result.notPlaced.length > 0 && (
-        <Box
-          sx={{
-            mt: 1.5,
-            px: '14px',
-            py: '12px',
-            borderRadius: '8px',
+        <div
+          style={{
+            marginTop: 12,
+            padding: '12px 14px',
+            borderRadius: 8,
             backgroundColor: '#fff8e1',
             borderLeft: '4px solid #f9ab00',
             fontSize: 13,
           }}
         >
-          <Typography
-            component="h3"
-            sx={{ fontSize: 13, fontWeight: 600, color: '#b06000', mb: '6px' }}
+          <Typography.Title
+            level={5}
+            style={{ fontSize: 13, fontWeight: 600, color: '#b06000', marginBottom: 6, marginTop: 0 }}
           >
-            ⚠️ Не разместилось на листе
-          </Typography>
-          <Box component="ul" sx={{ m: 0, pl: '18px', color: '#795548' }}>
+            <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+            Не разместилось на листе
+          </Typography.Title>
+          <ul style={{ margin: 0, paddingLeft: 18, color: '#795548' }}>
             {result.notPlaced.map((item, index) => (
               <li key={`${item.partId ?? item.name}-${item.reason}-${index}`}>
                 {item.name} — {notPlacedText(item, result.byType)}
               </li>
             ))}
-          </Box>
-        </Box>
+          </ul>
+        </div>
       )}
     </>
   );
@@ -544,147 +557,115 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
   };
 
   return (
-    <Box>
-      <Typography variant="h5" sx={{ fontWeight: 600, color: '#202124', mb: 0.5 }}>
+    <div>
+      <Typography.Title level={4} style={{ fontWeight: 600, color: '#202124', marginBottom: 4 }}>
         Раскладка деталей
-      </Typography>
-      <Typography sx={{ fontSize: 13, color: '#5f6368', mb: 2 }}>
+      </Typography.Title>
+      <Typography.Text
+        style={{ display: 'block', fontSize: 13, color: '#5f6368', marginBottom: 16 }}
+      >
         Настройте лист и добавьте детали — раскладка пересчитается автоматически.
-      </Typography>
+      </Typography.Text>
 
-      <Box
-        sx={{
+      <div
+        style={{
           display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
+          flexDirection: 'row',
           alignItems: 'flex-start',
-          gap: 2,
+          gap: 16,
+          flexWrap: 'wrap',
         }}
       >
         {/* Controls */}
-        <Paper
-          elevation={0}
-          sx={{
-            width: { xs: '100%', md: 420 },
+        <Card
+          style={{
+            width: '100%',
+            maxWidth: 420,
             flexShrink: 0,
-            p: 2,
-            borderRadius: '12px',
+            borderRadius: 12,
             boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
           }}
+          variant="borderless"
+          styles={{ body: { padding: 16 } }}
         >
           <Tabs
-            value={mode}
-            onChange={(_event: SyntheticEvent, value: LayoutMode) => setMode(value)}
-            variant="fullWidth"
+            activeKey={mode}
+            onChange={(key) => setMode(key as LayoutMode)}
             aria-label="Режим раскладки"
-            sx={{
-              minHeight: 36,
-              mb: 2,
-              p: '4px',
-              backgroundColor: '#f1f3f4',
-              borderRadius: '10px',
-              '& .MuiTabs-flexContainer': { gap: '8px' },
-              '& .MuiTabs-indicator': { display: 'none' },
-              '& .MuiTab-root': {
-                minHeight: 32,
-                minWidth: 0,
-                px: '6px',
-                py: '7px',
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#5f6368',
-                textTransform: 'none',
-                borderRadius: '7px',
-                transition: 'all 0.15s',
-              },
-              '& .MuiTab-root:hover': { backgroundColor: '#e8f0fe' },
-              '& .MuiTab-root.Mui-selected': {
-                backgroundColor: '#fff',
-                color: '#1a73e8',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-              },
-            }}
-          >
-            <Tab value="single" label="Одна деталь" disableRipple />
-            <Tab value="multi" label="Несколько деталей" disableRipple />
-          </Tabs>
+            items={[
+              { key: 'single', label: 'Одна деталь' },
+              { key: 'multi', label: 'Несколько деталей' },
+            ]}
+            style={{ marginBottom: 16 }}
+          />
 
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1.5 }}>
+          <Typography.Text strong style={{ display: 'block', fontSize: 16, marginBottom: 12 }}>
             Параметры листа
-          </Typography>
+          </Typography.Text>
 
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.75 }}>
+          <Typography.Text strong style={{ display: 'block', fontSize: 14, marginBottom: 6 }}>
             Быстрый выбор формата
-          </Typography>
+          </Typography.Text>
 
-          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1.5 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
             {SHEET_PRESETS.map((preset) => {
               const active = sheet.sheetL === preset.sheetL && sheet.sheetW === preset.sheetW;
               return (
                 <Button
                   key={preset.label}
-                  variant="outlined"
                   size="small"
                   aria-pressed={active}
                   onClick={() =>
                     setSheet((prev) => ({ ...prev, sheetL: preset.sheetL, sheetW: preset.sheetW }))
                   }
-                  sx={{
-                    py: 0.75,
-                    borderRadius: '8px',
+                  style={{
+                    padding: '6px 0',
+                    height: 'auto',
+                    borderRadius: 8,
                     fontSize: 12,
                     fontWeight: 600,
-                    textTransform: 'none',
                     borderColor: active ? '#1a73e8' : '#dadce0',
                     backgroundColor: active ? '#e8f0fe' : '#fff',
                     color: active ? '#1a73e8' : '#3c4043',
-                    '&:hover': {
-                      borderColor: '#1a73e8',
-                      backgroundColor: active ? '#e8f0fe' : '#f8f9fa',
-                    },
                   }}
                 >
                   {preset.label}
                 </Button>
               );
             })}
-          </Box>
+          </div>
 
-          <Stack spacing={1.5}>
-            <NumberField
-              label="Длина листа, мм"
-              value={sheet.sheetL}
-              onChange={(sheetL) => setSheet((prev) => ({ ...prev, sheetL }))}
-            />
-            <NumberField
-              label="Ширина листа, мм"
-              value={sheet.sheetW}
-              onChange={(sheetW) => setSheet((prev) => ({ ...prev, sheetW }))}
-            />
+          <Flex vertical gap={12}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <NumberField
+                label="Длина листа, мм"
+                value={sheet.sheetL}
+                onChange={(sheetL) => setSheet((prev) => ({ ...prev, sheetL }))}
+              />
+              <NumberField
+                label="Ширина листа, мм"
+                value={sheet.sheetW}
+                onChange={(sheetW) => setSheet((prev) => ({ ...prev, sheetW }))}
+              />
+            </div>
 
             {mode === 'single' && (
               <>
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 1 }}>
+                <Typography.Text strong style={{ display: 'block', fontSize: 14, marginTop: 8 }}>
                   Деталь
-                </Typography>
+                </Typography.Text>
 
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Название детали"
+                <Input
                   value={singlePart.name}
                   onChange={(event) =>
                     setSinglePart((prev) => ({ ...prev, name: event.target.value }))
                   }
-                  inputProps={{ maxLength: 30 }}
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: '8px',
-                      backgroundColor: '#fff',
-                    },
-                  }}
+                  maxLength={30}
+                  placeholder="Название детали"
+                  style={{ borderRadius: 8, backgroundColor: '#fff' }}
                 />
 
-                <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <NumberField
                     label="Длина, мм"
                     value={singlePart.L}
@@ -697,25 +678,7 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
                     min={1}
                     onChange={(W) => setSinglePart((prev) => ({ ...prev, W }))}
                   />
-                </Box>
-
-                {grid && (
-                  <Box
-                    sx={{
-                      px: 1.25,
-                      py: 1,
-                      borderRadius: '8px',
-                      backgroundColor: '#e8f0fe',
-                      color: '#0d47a1',
-                      fontSize: 13,
-                    }}
-                  >
-                    Максимум на листе: <strong>{grid.best.total} шт.</strong>
-                    {` · ${grid.best.cols}×${grid.best.rows}${
-                      grid.best.isRotated ? ' · поворот 90°' : ' · без поворота'
-                    }`}
-                  </Box>
-                )}
+                </div>
               </>
             )}
 
@@ -734,55 +697,38 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
               value={sheet.gap}
               onChange={(gap) => setSheet((prev) => ({ ...prev, gap }))}
             />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={sheet.allowRotate}
-                  onChange={(event) =>
-                    setSheet((prev) => ({ ...prev, allowRotate: event.target.checked }))
-                  }
-                />
+            <Checkbox
+              checked={sheet.allowRotate}
+              onChange={(event) =>
+                setSheet((prev) => ({ ...prev, allowRotate: event.target.checked }))
               }
-              label="Разрешить поворот"
-              sx={{ m: 0 }}
-            />
+            >
+              Разрешить поворот
+            </Checkbox>
 
             {mode === 'multi' && (
               <>
-                <Button variant="contained" onClick={handleAddPart} sx={{ textTransform: 'none' }}>
+                <Button type="primary" onClick={handleAddPart}>
                   Добавить деталь
                 </Button>
 
-                <Typography variant="subtitle2" sx={{ fontWeight: 600, mt: 1 }}>
+                <Typography.Text strong style={{ display: 'block', fontSize: 14, marginTop: 8 }}>
                   Детали: {parts.length}
-                </Typography>
+                </Typography.Text>
 
                 {parts.length === 0 ? (
-                  <Typography sx={{ fontSize: 13, color: '#5f6368' }}>
+                  <Typography.Text style={{ display: 'block', fontSize: 13, color: '#5f6368' }}>
                     Детали пока не добавлены
-                  </Typography>
+                  </Typography.Text>
                 ) : (
-                  <Box
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: '6px',
-                        backgroundColor: '#fff',
-                        fontSize: 12,
-                      },
-                      '& .MuiOutlinedInput-input': {
-                        height: 20,
-                        px: '6px',
-                        py: '4px',
-                      },
-                    }}
-                  >
-                    <Box
-                      sx={{
+                  <>
+                    <div
+                      style={{
                         display: 'grid',
                         gridTemplateColumns: PART_ROW_COLUMNS,
-                        gap: '4px',
+                        gap: 4,
                         alignItems: 'center',
-                        mb: 0.5,
+                        marginBottom: 4,
                         fontSize: 10,
                         fontWeight: 600,
                         color: '#5f6368',
@@ -794,33 +740,34 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
                       <span>Ширина</span>
                       <span>Кол-во</span>
                       <span />
-                    </Box>
+                    </div>
 
-                    <Stack spacing={0.5} sx={{ maxHeight: 240, overflowY: 'auto' }}>
+                    <Flex vertical gap={4} style={{ maxHeight: 240, overflowY: 'auto' }}>
                       {parts.map((part, index) => (
-                        <Box
+                        <div
                           key={part.id ?? index}
-                          sx={{
+                          style={{
                             display: 'grid',
                             gridTemplateColumns: PART_ROW_COLUMNS,
-                            gap: '4px',
+                            gap: 4,
                             alignItems: 'center',
                           }}
                         >
-                          <Box
-                            sx={{
+                          <div
+                            style={{
                               width: 10,
                               height: 10,
-                              borderRadius: '3px',
+                              borderRadius: 3,
                               backgroundColor: paletteFor(index).stroke,
                             }}
                           />
 
-                          <TextField
-                            size="small"
+                          <Input
                             value={part.name}
                             onChange={(event) => updatePart(index, { name: event.target.value })}
-                            inputProps={{ maxLength: 30, 'aria-label': 'Название детали' }}
+                            maxLength={30}
+                            aria-label="Название детали"
+                            style={{ borderRadius: 6, backgroundColor: '#fff', fontSize: 12, height: 28 }}
                           />
 
                           <NumberField
@@ -843,107 +790,127 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
                             onChange={(qty) => updatePart(index, { qty })}
                           />
 
-                          <IconButton
+                          <Button
                             size="small"
+                            type="text"
+                            danger
                             aria-label={`Удалить деталь ${index + 1}`}
                             onClick={() => handleRemovePart(index)}
-                            sx={{ p: 0.25, width: 24, height: 24, color: '#5f6368' }}
-                          >
-                            <CloseIcon sx={{ fontSize: 15 }} />
-                          </IconButton>
-                        </Box>
+                            style={{ width: 24, height: 24, padding: 0 }}
+                            icon={<CloseOutlined style={{ fontSize: 15 }} />}
+                          />
+                        </div>
                       ))}
-                    </Stack>
-                  </Box>
+                    </Flex>
+                  </>
                 )}
               </>
             )}
-          </Stack>
+          </Flex>
 
-          <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid #e8eaed' }}>
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e8eaed' }}>
             <Button
-              fullWidth
-              variant="contained"
+              type="primary"
+              block
               disabled={!canTransfer}
               onClick={handleTransfer}
-              sx={{
-                py: 1,
-                borderRadius: '8px',
+              style={{
+                padding: '8px 0',
+                borderRadius: 8,
                 backgroundColor: '#0d7c3f',
-                color: '#fff',
                 fontSize: 14,
                 fontWeight: 600,
-                textTransform: 'none',
-                boxShadow: 'none',
-                '&:hover': { backgroundColor: '#0b6a36', boxShadow: 'none' },
-                '&.Mui-disabled': { backgroundColor: '#f1f3f4', color: '#9aa0a6' },
+                color: '#fff',
               }}
             >
               ➡ Передать в расчёт
             </Button>
-            <Typography
-              sx={{
-                mt: 0.75,
+            <Typography.Text
+              style={{
+                display: 'block',
+                marginTop: 6,
                 fontSize: 11.5,
                 lineHeight: 1.45,
                 color: transferStatus ? '#0d7c3f' : '#5f6368',
               }}
             >
               {transferStatus ? `✅ ${transferStatus}` : transferHint}
-            </Typography>
-          </Box>
-        </Paper>
+            </Typography.Text>
+          </div>
+        </Card>
 
         {/* Results */}
-        <Paper
-          elevation={0}
-          sx={{
-            width: { xs: '100%', md: 'auto' },
-            flex: 1,
+        <Card
+          style={{
+            width: '100%',
+            flex: '1 1 320px',
             minWidth: 0,
             minHeight: 400,
-            p: 3,
-            borderRadius: '12px',
+            borderRadius: 12,
             boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
           }}
+          variant="borderless"
+          styles={{ body: { padding: 24 } }}
         >
-          <Typography component="h2" sx={{ fontSize: 18, fontWeight: 500, color: '#333', mb: 2 }}>
-            📊 Результат
-          </Typography>
+          <Typography.Title
+            level={4}
+            style={{ fontSize: 18, fontWeight: 500, color: '#333', marginBottom: 16, marginTop: 0 }}
+          >
+            <BarChartOutlined style={{ marginRight: 8 }} />
+            Результат
+          </Typography.Title>
 
           {isMultiEmpty ? (
-            <Box sx={{ py: '60px', px: 2.5, textAlign: 'center', color: '#999' }}>
-              <Box sx={{ fontSize: 48, lineHeight: 1, mb: 1.5 }}>➕</Box>
-              <Typography sx={{ fontSize: 14, color: '#999' }}>
+            <div style={{ padding: '60px 20px', textAlign: 'center', color: '#999' }}>
+              <div style={{ lineHeight: 1, marginBottom: 12 }}>
+                <PlusOutlined style={{ fontSize: 48, color: '#999' }} />
+              </div>
+              <Typography.Text style={{ display: 'block', fontSize: 14, color: '#999' }}>
                 Добавьте хотя бы одну деталь в таблицу
-              </Typography>
-            </Box>
+              </Typography.Text>
+            </div>
           ) : error ? (
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: '8px',
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 8,
                 backgroundColor: '#ffebee',
                 color: '#d32f2f',
                 fontSize: 14,
                 fontWeight: 500,
               }}
             >
-              ⚠️ {errorText(error)}
-            </Box>
+              <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+              {errorText(error)}
+            </div>
           ) : (
-            <Box
-              sx={{
-                mt: 2.5,
-                p: 2,
+            <div
+              style={{
+                marginTop: 20,
+                padding: 16,
                 backgroundColor: '#fafafa',
                 border: '1px solid #e8e8e8',
-                borderRadius: '8px',
+                borderRadius: 8,
                 overflow: 'auto',
                 textAlign: 'center',
               }}
             >
-              <Box sx={{ position: 'relative', maxWidth: 720, mx: 'auto' }}>
+              {grid && (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    marginBottom: 16,
+                    fontSize: 18,
+                    fontWeight: 600,
+                    color: '#1a73e8',
+                  }}
+                >
+                  Максимум на листе: {grid.best.total} шт. ({grid.best.cols}×{grid.best.rows},{' '}
+                  {grid.best.isRotated ? 'поворот 90°' : 'без поворота'})
+                </div>
+              )}
+
+              <div style={{ position: 'relative', maxWidth: 720, margin: '0 auto' }}>
                 {mode === 'single' ? (
                   <LayoutSvgSingle result={grid} sheet={sheet} />
                 ) : (
@@ -951,8 +918,8 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
                 )}
 
                 {isCalculating && (
-                  <Box
-                    sx={{
+                  <div
+                    style={{
                       position: 'absolute',
                       inset: 0,
                       display: 'flex',
@@ -961,43 +928,38 @@ export const LayoutPage = ({ onTransferToCalculator }: LayoutPageProps) => {
                       backgroundColor: 'rgba(255,255,255,0.7)',
                     }}
                   >
-                    <Stack alignItems="center" spacing={1}>
-                      <CircularProgress size={36} />
-                      <Typography variant="body2" color="text.secondary">
-                        Расчёт…
-                      </Typography>
-                    </Stack>
-                  </Box>
+                    <Flex vertical align="center" gap={8}>
+                      <Spin size="large" />
+                      <Typography.Text type="secondary">Расчёт…</Typography.Text>
+                    </Flex>
+                  </div>
                 )}
-              </Box>
+              </div>
 
               <Button
-                variant="contained"
+                type="primary"
                 aria-label="Печать раскладки"
                 onClick={() => window.print()}
-                sx={{
-                  mt: 1.5,
-                  px: 2.5,
-                  py: 1,
-                  borderRadius: '6px',
+                style={{
+                  marginTop: 12,
+                  padding: '6px 20px',
+                  borderRadius: 6,
                   backgroundColor: '#5f6368',
-                  color: '#fff',
                   fontSize: 14,
                   fontWeight: 500,
-                  textTransform: 'none',
-                  boxShadow: 'none',
-                  '&:hover': { backgroundColor: '#414549', boxShadow: 'none' },
+                  color: '#fff',
                 }}
               >
-                🖨 Печать
+                <PrinterOutlined style={{ marginRight: 8 }} />
+                Печать
               </Button>
-            </Box>
+            </div>
           )}
 
           {packResult && <MultiMetrics result={packResult} sheet={sheet} />}
-        </Paper>
-      </Box>
-    </Box>
+        </Card>
+      </div>
+    </div>
   );
 };
 

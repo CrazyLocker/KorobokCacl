@@ -1,6 +1,6 @@
 # Frontend — Калькулятор себестоимости коробки
 
-React 18 + TypeScript + Vite + Material-UI v6.
+React 18 + TypeScript + Vite + Ant Design v6.
 
 ## Запуск
 
@@ -21,8 +21,7 @@ npm run lint     # ESLint
 - `hooks/useCalculator.ts` — состояние калькулятора + вызовы API
 - `types/index.ts` — TypeScript-типы
 - `components/Calculator/` — `ConstructionSelector`, `LayoutTable`, `ExtrasBlock`, `PriceTable`
-- `components/Layout/` — `Header`, `Layout`
-- `components/BoxCalculator/` — legacy-компоненты (не используются)
+- `components/Layout/` — `AppShell` (боковая навигация, шапка, контент)
 
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 

@@ -49,10 +49,10 @@ export interface UseLayoutReturn {
   isCalculating: boolean;
 }
 
-/** Sheet defaults taken from the verified engine fixtures. */
+/** Sheet defaults of the prototype: the 1000×700 quick format. */
 const DEFAULT_SHEET: SheetSpec = {
-  sheetL: 350,
-  sheetW: 333,
+  sheetL: 1000,
+  sheetW: 700,
   margin: 8,
   flap: 10,
   gap: 15,
@@ -60,11 +60,10 @@ const DEFAULT_SHEET: SheetSpec = {
 };
 
 /**
- * The page starts in multi mode: the single-part preview has no renderer yet,
- * so starting in single mode would show an empty canvas. Switch this default to
- * 'single' once the grid preview exists, to match the prototype.
+ * The page opens in single mode, matching the prototype: LayoutSvgSingle renders
+ * the grid layout of the single part, so the canvas is never empty.
  */
-const DEFAULT_MODE: LayoutMode = 'multi';
+const DEFAULT_MODE: LayoutMode = 'single';
 
 /** Single-part defaults from the prototype single-mode fields. */
 const DEFAULT_SINGLE_PART: SinglePart = { name: 'Дно', L: 100, W: 180 };

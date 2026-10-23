@@ -1,13 +1,6 @@
 // frontend/src/components/References/ReferencesPage.tsx
 import { useState } from 'react';
-import {
-    Box,
-    Paper,
-    Typography,
-    Tabs,
-    Tab,
-    Badge,
-} from '@mui/material';
+import { Badge, Card, Tabs, Typography } from 'antd';
 import { ConstructionsTab } from './ConstructionsTab';
 import { PriceListTab } from './PriceListTab';
 import { PrintTablesTab } from './PrintTablesTab';
@@ -21,80 +14,56 @@ type TabValue = 'constructions' | 'prices' | 'print';
 export const ReferencesPage = ({ onNotify }: Props) => {
     const [activeTab, setActiveTab] = useState<TabValue>('constructions');
 
-    const handleTabChange = (_: React.SyntheticEvent, newValue: TabValue) => {
-        setActiveTab(newValue);
-    };
+    const tabsItems = [
+        {
+            key: 'constructions',
+            label: 'Базовые коробки',
+            children: <ConstructionsTab onNotify={onNotify} />,
+        },
+        {
+            key: 'prices',
+            label: 'Прайс коробок',
+            children: <PriceListTab onNotify={onNotify} />,
+        },
+        {
+            key: 'print',
+            label: 'Таблица печати',
+            children: <PrintTablesTab onNotify={onNotify} />,
+        },
+    ];
 
     return (
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-            {/* Top bar */}
-            <Paper
-                elevation={0}
-                sx={{
-                    p: '16px 24px',
-                    mb: 2,
-                    borderRadius: '16px',
+        <Card style={{ flex: 1, minWidth: 0 }}>
+            <Card
+                style={{
+                    marginBottom: 16,
+                    borderRadius: 16,
                     border: '1px solid #e8eaed',
                     backgroundColor: '#fff',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
                 }}
+                styles={{ body: { padding: '16px 24px' } }}
             >
-                <Typography variant="h6" sx={{ fontSize: '18px', fontWeight: 500 }}>
-                    Справочники
-                </Typography>
-                <Badge
-                    badgeContent="Сохранено"
-                    color="success"
-                    sx={{
-                        '& .MuiBadge-badge': {
-                            fontSize: '12px',
-                            height: '24px',
-                            padding: '0 12px',
-                        },
-                    }}
-                />
-            </Paper>
-
-            {/* Tabs */}
-            <Box sx={{ mb: 2 }}>
-                <Tabs
-                    value={activeTab}
-                    onChange={handleTabChange}
-                    sx={{
-                        backgroundColor: '#f1f3f4',
-                        borderRadius: '12px',
-                        '& .MuiTab-root': {
-                            textTransform: 'none',
-                            fontWeight: 500,
-                            fontSize: '13px',
-                            minHeight: '44px',
-                            borderRadius: '10px',
-                            color: '#5f6368',
-                            '&.Mui-selected': {
-                                backgroundColor: '#fff',
-                                color: '#1a73e8',
-                                boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                            },
-                        },
-                        '& .MuiTabs-indicator': {
-                            display: 'none',
-                        },
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: 12,
                     }}
                 >
-                    <Tab value="constructions" label="Базовые коробки" />
-                    <Tab value="prices" label="Прайс коробок" />
-                    <Tab value="print" label="Таблица печати" />
-                </Tabs>
-            </Box>
+                    <Typography.Title level={5} style={{ margin: 0 }}>
+                        Справочники
+                    </Typography.Title>
+                    <Badge status="success" text="Сохранено" />
+                </div>
+            </Card>
 
-            {/* Tab content */}
-            <Box>
-                {activeTab === 'constructions' && <ConstructionsTab onNotify={onNotify} />}
-                {activeTab === 'prices' && <PriceListTab onNotify={onNotify} />}
-                {activeTab === 'print' && <PrintTablesTab onNotify={onNotify} />}
-            </Box>
-        </Box>
+            <Tabs
+                activeKey={activeTab}
+                onChange={(key) => setActiveTab(key as TabValue)}
+                items={tabsItems}
+                style={{ marginBottom: 16 }}
+            />
+        </Card>
     );
 };

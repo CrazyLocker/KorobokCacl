@@ -1,5 +1,5 @@
 // frontend/src/components/DevStub.tsx
-import { Box, Paper, Typography } from '@mui/material';
+import { Card, Flex, Typography } from 'antd';
 
 interface Props {
     title: string;
@@ -7,23 +7,35 @@ interface Props {
 
 export const DevStub = ({ title }: Props) => {
     return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-            <Paper
-                elevation={0}
-                sx={{
-                    p: 6,
-                    borderRadius: 3,
+        <Flex
+            vertical
+            align="center"
+            justify="center"
+            style={{ minHeight: '60vh', padding: 32 }}
+        >
+            <Card
+                variant="outlined"
+                style={{
                     border: '2px dashed #e8eaed',
-                    textAlign: 'center',
+                    borderRadius: 12,
+                }}
+                styles={{
+                    body: {
+                        padding: 48,
+                        textAlign: 'center',
+                    },
                 }}
             >
-                <Typography variant="h5" sx={{ fontWeight: 500, mb: 1, color: '#202124' }}>
+                <Typography.Title
+                    level={5}
+                    style={{ fontWeight: 500, marginTop: 0, marginBottom: 8, color: '#202124' }}
+                >
                     {title}
-                </Typography>
-                <Typography variant="body2" sx={{ color: '#9aa0a6' }}>
+                </Typography.Title>
+                <Typography.Text style={{ color: '#9aa0a6' }}>
                     Раздел в разработке
-                </Typography>
-            </Paper>
-        </Box>
+                </Typography.Text>
+            </Card>
+        </Flex>
     );
 };
