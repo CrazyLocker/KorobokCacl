@@ -1,6 +1,9 @@
 // frontend/src/types/index.ts
 
 export interface Detail {
+    // Client-only stable row id for React keys and edits.
+    // It is stripped by toApiDetails before any API request.
+    uiKey: string;
     name: string;
     countOnSheet: number;
     sheetPrice: number;
@@ -28,9 +31,12 @@ export interface PrintSettings {
     quantity: number;
 }
 
+/** Detail as it is sent to backend: no client-only fields. */
+export type ApiDetail = Omit<Detail, 'uiKey'>;
+
 export interface CalculationRequest {
     construction: string;
-    details: Detail[];
+    details: ApiDetail[];
     extras: Extra[]; // All operations (standard + custom) in a single list
     printSettings: PrintSettings;
     workPrice: number;

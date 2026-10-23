@@ -1,13 +1,12 @@
-// frontend/src/components/NewAppAntd.tsx
-// Пилотная версия страницы «Расчёт коробки» на Ant Design.
-// Функционал повторяет NewApp, но UI собран из компонентов antd.
+// frontend/src/components/Calculator/CalculatorPage.tsx
+// Единственная страница «Расчёт коробки» на Ant Design.
+import { DeleteOutlined } from '@ant-design/icons';
 import {
     Alert,
     Button,
     Card,
     Checkbox,
     Col,
-    ConfigProvider,
     Divider,
     Flex,
     Form,
@@ -19,22 +18,17 @@ import {
     Statistic,
     Table,
     Tag,
+    Tooltip,
     Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import ruRU from 'antd/locale/ru_RU';
-import { Header } from './Layout/Header';
-import { ViewToggle } from './Layout/ViewToggle';
-import type { AppView } from './Layout/ViewToggle';
-import { useCalculator } from '../hooks/useCalculator';
-import type { Detail, Extra, PriceRow } from '../types';
-import { tokens } from '../theme';
+import type { CalculatorModel } from '../../hooks/useCalculator';
+import type { Detail, Extra, PriceRow } from '../../types';
 
 const { Text, Title } = Typography;
 
-interface NewAppAntdProps {
-    view: AppView;
-    onViewChange: (event: React.MouseEvent<HTMLElement>, value: AppView | null) => void;
+interface CalculatorPageProps {
+    calc: CalculatorModel;
 }
 
 const OPERATION_LABELS: Record<string, string> = {
@@ -69,11 +63,10 @@ const calculateDetailCost = (
 };
 
 /**
- * Пилот Ant Design для страницы «Расчёт коробки».
- * Русская локаль подключается через ConfigProvider, тема — нативные токены antd.
+ * Страница «Расчёт коробки». Состояние живёт в App, чтобы страница раскладки
+ * могла передавать в калькулятор количества деталей.
  */
-export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
-    const calc = useCalculator();
+export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
 
     const activeDetails = calc.details.filter((detail) => detail.enabled && detail.countOnSheet > 0);
     const currentPrintTable = calc.printTables.find((table) => table.formatId === calc.printSettings.format);
@@ -114,13 +107,39 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
 
     const layoutColumns: TableColumnsType<Detail> = [
         {
+            title: 'Вкл',
+            dataIndex: 'enabled',
+            width: 58,
+            align: 'center',
+            render: (_value, record) => (
+                <Checkbox
+                    checked={record.enabled}
+                    onChange={(event) => calc.updateDetail(record.uiKey, 'enabled', event.target.checked)}
+                    aria-label={`Включить деталь ${record.name}`}
+                />
+            ),
+        },
+        {
             title: 'Деталь',
             dataIndex: 'name',
+            width: 210,
             render: (name: string, record) => (
-                <Space size={6}>
-                    <Text strong={record.isCustom}>{name}</Text>
+                <Flex align="center" gap={6}>
+                    {record.isCustom ? (
+                        <Input
+                            size="small"
+                            value={record.name}
+                            disabled={!record.enabled}
+                            placeholder="Название"
+                            onChange={(event) => calc.updateDetail(record.uiKey, 'name', event.target.value)}
+                            style={{ width: 150 }}
+                            data-testid={`detail-name-${record.uiKey}`}
+                        />
+                    ) : (
+                        <Text strong={record.isCustom}>{name}</Text>
+                    )}
                     {record.isCustom && <Tag color="gold" style={{ marginInlineEnd: 0 }}>своя</Tag>}
-                </Space>
+                </Flex>
             ),
         },
         {
@@ -128,14 +147,16 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
             dataIndex: 'countOnSheet',
             width: 110,
             align: 'right',
-            render: (_value, record, index) => (
+            render: (_value, record) => (
                 <InputNumber
                     min={0}
                     precision={0}
                     controls={false}
+                    disabled={!record.enabled}
                     value={record.countOnSheet}
-                    onChange={(value) => calc.updateDetail(index, 'countOnSheet', Number(value) || 0)}
+                    onChange={(value) => calc.updateDetail(record.uiKey, 'countOnSheet', Number(value) || 0)}
                     style={{ width: 80 }}
+                    aria-label={`Шт на лист: ${record.name}`}
                 />
             ),
         },
@@ -144,35 +165,91 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
             dataIndex: 'sheetPrice',
             width: 120,
             align: 'right',
-            render: (_value, record, index) => (
+            render: (_value, record) => (
                 <InputNumber
                     min={0}
                     precision={2}
                     step={1}
                     controls={false}
+                    disabled={!record.enabled}
                     value={record.sheetPrice}
-                    onChange={(value) => calc.updateDetail(index, 'sheetPrice', Number(value) || 0)}
+                    onChange={(value) => calc.updateDetail(record.uiKey, 'sheetPrice', Number(value) || 0)}
                     style={{ width: 90 }}
+                    aria-label={`Рублей на лист: ${record.name}`}
+                />
+            ),
+        },
+        {
+            title: 'Дет./лист (печать)',
+            dataIndex: 'partsPerSheetOnPrint',
+            width: 130,
+            align: 'right',
+            render: (_value, record) => (
+                <InputNumber
+                    min={1}
+                    precision={0}
+                    controls={false}
+                    disabled={!record.enabled || !record.isPrinted}
+                    value={record.partsPerSheetOnPrint ?? 1}
+                    onChange={(value) => calc.updateDetail(
+                        record.uiKey,
+                        'partsPerSheetOnPrint',
+                        Math.max(1, Number(value) || 1),
+                    )}
+                    style={{ width: 80 }}
+                    aria-label={`Деталей на лист печати: ${record.name}`}
                 />
             ),
         },
         {
             title: 'Дополнительные операции',
             key: 'operations',
-            render: (_value, record, index) => (
+            render: (_value, record) => (
                 <Space size={[12, 4]} wrap>
+                    <Checkbox
+                        checked={Boolean(record.isPrinted)}
+                        disabled={!record.enabled}
+                        onChange={(event) => calc.updateDetail(record.uiKey, 'isPrinted', event.target.checked)}
+                    >
+                        <span style={{ fontSize: 12 }}>Печать</span>
+                    </Checkbox>
                     {calc.extras.map((extra) => (
-                        <Checkbox
-                            key={extra.name}
-                            checked={Boolean(record.operations?.[extra.name])}
-                            onChange={(event) => calc.updateDetailOperation(index, extra.name, event.target.checked)}
-                        >
-                            <span style={{ fontSize: 12 }}>
-                                {OPERATION_LABELS[extra.name] || extra.name.charAt(0)}
-                            </span>
-                        </Checkbox>
+                        <Tooltip key={extra.name} title={extra.name}>
+                            <Checkbox
+                                checked={Boolean(record.operations?.[extra.name])}
+                                disabled={!record.enabled}
+                                onChange={(event) => calc.updateDetailOperation(
+                                    record.uiKey,
+                                    extra.name,
+                                    event.target.checked,
+                                )}
+                            >
+                                <span style={{ fontSize: 12 }}>
+                                    {OPERATION_LABELS[extra.name] || extra.name.charAt(0)}
+                                </span>
+                            </Checkbox>
+                        </Tooltip>
                     ))}
                 </Space>
+            ),
+        },
+        {
+            title: '',
+            key: 'actions',
+            width: 56,
+            align: 'center',
+            render: (_value, record) => (
+                record.isCustom ? (
+                    <Tooltip title="Удалить деталь">
+                        <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            aria-label={`Удалить деталь ${record.name}`}
+                            onClick={() => calc.removeCustomDetail(record.uiKey)}
+                        />
+                    </Tooltip>
+                ) : null
             ),
         },
     ];
@@ -234,23 +311,9 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
     ];
 
     return (
-        <ConfigProvider
-            locale={ruRU}
-            theme={{
-                token: {
-                    colorPrimary: '#1677ff',
-                    borderRadius: 8,
-                    fontFamily: tokens.typography.fontFamily,
-                },
-            }}
-        >
-            <Header actions={<ViewToggle view={view} onChange={onViewChange} />} />
-
+        <div data-testid="calculator-page">
             <div
                 style={{
-                    maxWidth: 1600,
-                    margin: '0 auto',
-                    padding: '16px 24px 32px',
                     width: '100%',
                     boxSizing: 'border-box',
                 }}
@@ -258,11 +321,10 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                 <Flex justify="space-between" align="flex-start" gap={16} wrap style={{ marginBottom: 16 }}>
                     <div>
                         <Title level={3} style={{ margin: 0 }}>Расчёт коробки</Title>
-                        <Text type="secondary">Пилотный интерфейс на Ant Design · русская локаль ru_RU</Text>
+                        <Text type="secondary">Конструкция, раскладка, операции и цены в одном экране</Text>
                     </div>
                     <Space wrap>
                         <Tag color="blue" style={{ marginInlineEnd: 0 }}>Ant Design 6</Tag>
-                        <Tag style={{ marginInlineEnd: 0 }}>Precision Instrument → antd</Tag>
                     </Space>
                 </Flex>
 
@@ -270,7 +332,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                     <Alert
                         type="error"
                         showIcon
-                        message={calc.error}
+                        title={calc.error}
                         style={{ marginBottom: 16 }}
                     />
                 )}
@@ -320,13 +382,16 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                     <Table<Detail>
                         columns={layoutColumns}
                         dataSource={calc.details}
-                        rowKey={(record, index) => `${record.name}-${index ?? 0}`}
+                        rowKey="uiKey"
                         size="small"
                         pagination={false}
-                        scroll={{ x: 760 }}
+                        scroll={{ x: 980 }}
                         locale={{ emptyText: calc.loading ? 'Загрузка…' : 'Нет деталей' }}
                         onRow={(record) => ({
-                            style: record.isCustom ? { background: '#fafafa' } : undefined,
+                            style: {
+                                background: record.isCustom ? '#fafafa' : undefined,
+                                opacity: record.enabled ? 1 : 0.5,
+                            },
                         })}
                     />
                 </Card>
@@ -368,7 +433,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
 
                                     return (
                                         <div
-                                            key={`${detail.name}-${index}`}
+                                            key={detail.uiKey}
                                             style={{
                                                 paddingBottom: 10,
                                                 borderBottom: index < activeDetails.length - 1
@@ -424,7 +489,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                                         precision={2}
                                         value={calc.workPrice}
                                         onChange={(value) => calc.setWorkPrice(Number(value) || 0)}
-                                        addonAfter="₽"
+                                        suffix="₽"
                                         style={{ width: 140 }}
                                     />
                                 </Form.Item>
@@ -448,11 +513,13 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                                     value={totalBoxCost}
                                     precision={2}
                                     suffix="₽"
-                                    valueStyle={{
-                                        color: '#1677ff',
-                                        fontSize: 22,
-                                        fontWeight: 600,
-                                        fontVariantNumeric: 'tabular-nums',
+                                    styles={{
+                                        content: {
+                                            color: '#1677ff',
+                                            fontSize: 22,
+                                            fontWeight: 600,
+                                            fontVariantNumeric: 'tabular-nums',
+                                        },
                                     }}
                                 />
                             </Flex>
@@ -584,19 +651,32 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                                                         'cost',
                                                         Number(value) || 0,
                                                     )}
-                                                    addonAfter="₽"
+                                                    suffix="₽"
                                                     style={{ width: 120 }}
                                                 />
                                             </Space>
-                                            <Tag
-                                                color="blue"
-                                                style={{
-                                                    marginInlineEnd: 0,
-                                                    fontVariantNumeric: 'tabular-nums',
-                                                }}
-                                            >
-                                                {money(extra.cost)}
-                                            </Tag>
+                                            <Space size={6}>
+                                                <Tag
+                                                    color="blue"
+                                                    style={{
+                                                        marginInlineEnd: 0,
+                                                        fontVariantNumeric: 'tabular-nums',
+                                                    }}
+                                                >
+                                                    {money(extra.cost)}
+                                                </Tag>
+                                                {extra.isCustom && (
+                                                    <Tooltip title="Удалить операцию">
+                                                        <Button
+                                                            type="text"
+                                                            danger
+                                                            icon={<DeleteOutlined />}
+                                                            aria-label={`Удалить операцию ${extra.name}`}
+                                                            onClick={() => calc.removeCustomExtra(index)}
+                                                        />
+                                                    </Tooltip>
+                                                )}
+                                            </Space>
                                         </Flex>
                                     ))}
                                 </Flex>
@@ -614,7 +694,7 @@ export const NewAppAntd = ({ view, onViewChange }: NewAppAntdProps) => {
                     </Col>
                 </Row>
             </div>
-        </ConfigProvider>
+        </div>
     );
 };
 
