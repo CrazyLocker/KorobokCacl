@@ -48,7 +48,7 @@ npm run preview  # локальный просмотр production-сборки
   - `model/` — `types.ts`, `constants.ts`, `rng.ts`, `enc-probe.ts`
   - `tests/` — `packParts.spec.ts`, `fixtures.ts`
 
-Статика: `assets/` (`hero.png`), глобальные стили — `index.css`.
+Статика: `public/` (`favicon.svg`, `icons.svg`), глобальные стили — `index.css`.
 
 ## Линтинг
 
