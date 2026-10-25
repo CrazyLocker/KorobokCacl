@@ -187,6 +187,14 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         });
     };
 
+    // Ширина колонки «Деталь»: самое длинное имя детали + 5 символов запаса.
+    // Math.max() без элементов даёт -Infinity, поэтому пустой список отдаём как fallback '20ch'.
+    const partNames = selectedConstructData?.parts?.parts ?? [];
+    const detailWidth =
+        partNames.length > 0
+            ? `${Math.max(...partNames.map((p) => p.name.length), 0) + 5}ch`
+            : '20ch';
+
     return (
         <div>
             {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} />}
@@ -312,12 +320,15 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         rowKey="name"
                         size="small"
                         pagination={false}
+                        style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={selectedConstructData.parts.parts}
                         columns={[
                             {
                                 title: 'Деталь',
                                 dataIndex: 'name',
                                 key: 'name',
+                                width: detailWidth,
+                                ellipsis: true,
                                 render: (name: string) => (
                                     <Typography.Text strong style={{ fontSize: 13 }}>
                                         {name}
@@ -335,16 +346,18 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                         value={part.perSheet}
                                         onChange={(value) => handlePartChange(part.name, 'perSheet', value ?? 0)}
                                         min={0}
-                                        step={0.001}
+                                        precision={0}
+                                        step={1}
+                                        controls={false}
                                         size="small"
-                                        style={{ width: 50, backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff' }}
+                                        style={{ width: 56, backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff' }}
                                     />
                                 ),
                             },
                             {
                                 title: '',
                                 key: 'actions',
-                                width: 40,
+                                width: 96,
                                 align: 'center',
                                 render: (_: unknown, part: { name: string; perSheet: number }) => (
                                     <Button

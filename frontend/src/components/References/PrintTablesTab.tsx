@@ -266,6 +266,7 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                         rowKey="uiKey"
                         size="small"
                         pagination={false}
+                        style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={selectedTable.steps}
                         columns={[
                             {
@@ -279,9 +280,11 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                                         value={step.minQty}
                                         onChange={(value) => handleStepChange(step.uiKey, 'minQty', value ?? 0)}
                                         min={0}
+                                        precision={0}
                                         step={1}
+                                        controls={false}
                                         size="small"
-                                        style={{ width: 50 }}
+                                        style={{ width: 64 }}
                                     />
                                 ),
                             },
@@ -296,16 +299,18 @@ export const PrintTablesTab = ({ onNotify }: Props) => {
                                         value={step.price}
                                         onChange={(value) => handleStepChange(step.uiKey, 'price', value ?? 0)}
                                         min={0}
-                                        step={1}
+                                        precision={2}
+                                        step={0.01}
+                                        controls={false}
                                         size="small"
-                                        style={{ width: 50 }}
+                                        style={{ width: 88 }}
                                     />
                                 ),
                             },
                             {
                                 title: '',
                                 key: 'actions',
-                                width: 40,
+                                width: 96,
                                 align: 'center',
                                 render: (_: unknown, step: StepWithKey) => (
                                     <Button

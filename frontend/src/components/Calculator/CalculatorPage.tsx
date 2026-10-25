@@ -151,6 +151,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={0}
                     precision={0}
+                    step={1}
                     controls={false}
                     disabled={!record.enabled}
                     value={record.countOnSheet}
@@ -169,7 +170,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={0}
                     precision={2}
-                    step={1}
+                    step={0.01}
                     controls={false}
                     disabled={!record.enabled}
                     value={record.sheetPrice}
@@ -188,6 +189,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={1}
                     precision={0}
+                    step={1}
                     controls={false}
                     disabled={!record.enabled || !record.isPrinted}
                     value={record.partsPerSheetOnPrint ?? 1}
@@ -282,7 +284,8 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
             render: (value: number, record) => (
                 <InputNumber
                     min={0}
-                    precision={0}
+                    precision={2}
+                    step={0.01}
                     controls={false}
                     value={value || undefined}
                     placeholder="—"
@@ -496,8 +499,9 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 <Form.Item label="Работа/деталь" style={{ marginBottom: 0 }}>
                                     <InputNumber
                                         min={0}
-                                        step={0.5}
+                                        step={0.01}
                                         precision={2}
+                                        controls={false}
                                         value={calc.workPrice}
                                         onChange={(value) => calc.setWorkPrice(Number(value) || 0)}
                                         suffix="₽"
@@ -654,8 +658,9 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                                 <InputNumber
                                                     size="small"
                                                     min={0}
-                                                    step={1}
+                                                    step={0.01}
                                                     precision={2}
+                                                    controls={false}
                                                     value={extra.cost}
                                                     onChange={(value) => calc.updateExtra(
                                                         index,
