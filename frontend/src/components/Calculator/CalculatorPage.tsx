@@ -73,6 +73,21 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
     const qtyOptions = currentPrintTable?.steps?.map((step) => step.minQty)
         || [100, 300, 500, 1000, 1500, 2000, 3000];
 
+    // «Индивидуальная» не приходит из API — это пустая конструкция, детали в неё
+    // добавляются вручную. До перехода на Ant Design её подмешивал
+    // ConstructionSelector через проп additionalConstruct; сейчас список
+    // конструкций собирается здесь: сначала «Индивидуальная», затем данные API.
+    const constructionOptions = [
+        {
+            value: calc.individualConstruction.name,
+            label: calc.individualConstruction.name,
+        },
+        ...calc.constructs.map((construct) => ({
+            value: construct.name,
+            label: construct.name,
+        })),
+    ];
+
     // Локальный расчёт стоимости печати на единицу — как в OperationsBlock.
     let localPrintPerUnit = 0;
     if (calc.printSettings.enabled && currentPrintTable && calc.printSettings.quantity > 0) {
@@ -355,10 +370,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 placeholder="Выберите конструкцию"
                                 loading={calc.constructs.length === 0}
                                 onChange={(value: string) => calc.loadConstruction(value)}
-                                options={calc.constructs.map((construct) => ({
-                                    value: construct.name,
-                                    label: construct.name,
-                                }))}
+                                options={constructionOptions}
                                 style={{ width: '100%' }}
                             />
                         </Form.Item>
