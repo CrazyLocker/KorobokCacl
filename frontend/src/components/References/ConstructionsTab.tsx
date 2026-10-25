@@ -4,7 +4,7 @@ import {
     Alert, App as AntdApp, Button, Card, Flex, Input, InputNumber,
     Select, Spin, Table, Tag, Typography,
 } from 'antd';
-import type { Construct } from '../../types';
+import type { Construct, Part } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 
 interface Props {
@@ -98,29 +98,38 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     };
 
     // Добавить деталь
+    // TODO: materialId — добавить выбор материала в форме детали.
+    // Пока новая деталь наследует материал первой детали конструкции.
     const handleAddPart = () => {
         if (!selectedConstructData) {
             onNotify('Сначала выберите конструкцию', 'error');
             return;
         }
+
+        const defaultMaterial = selectedConstructData.parts[0]?.material;
+        if (!defaultMaterial) {
+            onNotify('Сначала назначьте материал хотя бы одной детали', 'error');
+            return;
+        }
+
         const partName = prompt('Введите название новой детали:');
         if (!partName || !partName.trim()) return;
 
         const name = partName.trim();
-        if (selectedConstructData.parts.parts.some((p) => p.name === name)) {
+        if (selectedConstructData.parts.some((p) => p.name === name)) {
             onNotify('Деталь с таким названием уже существует', 'error');
             return;
         }
 
-        const updated = {
+        const newPart: Part = {
+            id: crypto.randomUUID(),
+            name,
+            perSheet: 0,
+            material: defaultMaterial,
+        };
+        const updated: Construct = {
             ...selectedConstructData,
-            parts: {
-                ...selectedConstructData.parts,
-                parts: [
-                    ...selectedConstructData.parts.parts,
-                    { name, perSheet: 0 },
-                ],
-            },
+            parts: [...selectedConstructData.parts, newPart],
         };
 
         setConstructs((prev) =>
@@ -134,12 +143,9 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     const handleRemovePart = (partName: string) => {
         if (!selectedConstructData) return;
 
-        const updated = {
+        const updated: Construct = {
             ...selectedConstructData,
-            parts: {
-                ...selectedConstructData.parts,
-                parts: selectedConstructData.parts.parts.filter((p) => p.name !== partName),
-            },
+            parts: selectedConstructData.parts.filter((p) => p.name !== partName),
         };
 
         setConstructs((prev) =>
@@ -153,14 +159,11 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     const handlePartChange = (partName: string, field: 'perSheet', value: number) => {
         if (!selectedConstructData) return;
 
-        const updated = {
+        const updated: Construct = {
             ...selectedConstructData,
-            parts: {
-                ...selectedConstructData.parts,
-                parts: selectedConstructData.parts.parts.map((p) =>
-                    p.name === partName ? { ...p, [field]: value } : p
-                ),
-            },
+            parts: selectedConstructData.parts.map((p) =>
+                p.name === partName ? { ...p, [field]: value } : p
+            ),
         };
 
         setConstructs((prev) =>
@@ -295,7 +298,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                             borderRadius: 16,
                         }}
                     >
-                        {selectedConstructData?.parts.parts.length || 0} деталей
+                        {selectedConstructData?.parts.length || 0} деталей
                     </Typography.Text>
                 </Flex>
 
@@ -317,7 +320,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         // расширил бы колонку под max-content длинного имени.
                         tableLayout="fixed"
                         style={{ width: 'fit-content', maxWidth: '100%' }}
-                        dataSource={selectedConstructData.parts.parts}
+                        dataSource={selectedConstructData.parts}
                         columns={[
                             {
                                 title: 'Деталь',
@@ -346,7 +349,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                 key: 'perSheet',
                                 align: 'center',
                                 width: 80,
-                                render: (_: number, part: { name: string; perSheet: number }) => (
+                                render: (_: number, part: Part) => (
                                     <InputNumber
                                         value={part.perSheet}
                                         onChange={(value) => handlePartChange(part.name, 'perSheet', value ?? 0)}
@@ -364,7 +367,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                 key: 'actions',
                                 width: 96,
                                 align: 'center',
-                                render: (_: unknown, part: { name: string; perSheet: number }) => (
+                                render: (_: unknown, part: Part) => (
                                     <Button
                                         size="small"
                                         type="text"

@@ -70,8 +70,12 @@ public class Material {
         updatedAt = LocalDateTime.now();
     }
 
-    /** Supported material categories. */
+    /**
+     * Supported material categories.
+     * <p>Список расширяется по мере подключения новых материалов:
+     * в перспективе — ГК и МГК.</p>
+     */
     public enum MaterialType {
-        coated, designer
+        coated, designer, pvc
     }
 }

@@ -7,7 +7,7 @@ const detail = (name: string): Detail => ({
     uiKey: createDetailUiKey(),
     name,
     countOnSheet: 2,
-    sheetPrice: 35,
+    sheetPrice: 42,
     isPrinted: false,
     partsPerSheetOnPrint: 1,
     isCustom: false,
