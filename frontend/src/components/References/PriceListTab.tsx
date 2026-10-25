@@ -230,14 +230,29 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         rowKey="range"
                         size="small"
                         pagination={false}
+                        // fixed + width в px: диапазоны короткие, но при длинном
+                        // тексте он переносится, а не растягивает таблицу.
+                        tableLayout="fixed"
+                        style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={PRICE_RANGES.map((range) => ({ range, price: priceData[range] || 0 }))}
                         columns={[
                             {
                                 title: 'Диапазон',
                                 dataIndex: 'range',
                                 key: 'range',
+                                width: 88,
+                                // ellipsis обрезал бы текст; вместо него — перенос
                                 render: (range: string) => (
-                                    <Typography.Text strong style={{ fontSize: 13 }}>{range}</Typography.Text>
+                                    <Typography.Text
+                                        strong
+                                        style={{
+                                            fontSize: 13,
+                                            whiteSpace: 'normal',
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
+                                        {range}
+                                    </Typography.Text>
                                 ),
                             },
                             {
@@ -251,20 +266,16 @@ export const PriceListTab = ({ onNotify }: Props) => {
                                         value={price}
                                         onChange={(value) => handlePriceChange(row.range, value ?? 0)}
                                         min={0}
-                                        step={1}
+                                        precision={2}
+                                        step={0.01}
+                                        controls={false}
                                         size="small"
                                         style={{
-                                            width: 50,
+                                            width: 80,
                                             backgroundColor: price === 0 ? '#f8f9fa' : '#fff',
                                         }}
                                     />
                                 ),
-                            },
-                            {
-                                title: '',
-                                key: 'actions',
-                                width: 40,
-                                align: 'center',
                             },
                         ]}
                     />

@@ -312,14 +312,30 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         rowKey="name"
                         size="small"
                         pagination={false}
+                        // tableLayout="fixed" — обязателен: только с ним width: '30ch'
+                        // является жёсткой шириной колонки. В auto-layout браузер
+                        // расширил бы колонку под max-content длинного имени.
+                        tableLayout="fixed"
+                        style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={selectedConstructData.parts.parts}
                         columns={[
                             {
                                 title: 'Деталь',
                                 dataIndex: 'name',
                                 key: 'name',
+                                width: '30ch',
+                                // ellipsis намеренно не используется: он обрезает текст
+                                // (nowrap + text-overflow), а нужно переносить его
+                                // внутри фиксированной ширины.
                                 render: (name: string) => (
-                                    <Typography.Text strong style={{ fontSize: 13 }}>
+                                    <Typography.Text
+                                        strong
+                                        style={{
+                                            fontSize: 13,
+                                            whiteSpace: 'normal',
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
                                         {name}
                                     </Typography.Text>
                                 ),
@@ -335,16 +351,18 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                         value={part.perSheet}
                                         onChange={(value) => handlePartChange(part.name, 'perSheet', value ?? 0)}
                                         min={0}
-                                        step={0.001}
+                                        precision={0}
+                                        step={1}
+                                        controls={false}
                                         size="small"
-                                        style={{ width: 50, backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff' }}
+                                        style={{ width: 56, backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff' }}
                                     />
                                 ),
                             },
                             {
                                 title: '',
                                 key: 'actions',
-                                width: 40,
+                                width: 96,
                                 align: 'center',
                                 render: (_: unknown, part: { name: string; perSheet: number }) => (
                                     <Button

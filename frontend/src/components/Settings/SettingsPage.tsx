@@ -234,13 +234,27 @@ export const SettingsPage = ({ onNotify }: Props) => {
                             rowKey="id"
                             size="small"
                             pagination={false}
+                            // fixed layout: «Название» держит ровно 30ch, остальное
+                            // свободное место забирает колонка «Клиент» (без width).
+                            tableLayout="fixed"
                             dataSource={calculations}
                             columns={[
                                 {
                                     title: 'Название',
                                     dataIndex: 'name',
                                     key: 'name',
-                                    render: (name: string) => <span style={{ fontSize: 13 }}>{name}</span>,
+                                    width: '30ch',
+                                    render: (name: string) => (
+                                        <span
+                                            style={{
+                                                fontSize: 13,
+                                                whiteSpace: 'normal',
+                                                wordBreak: 'break-word',
+                                            }}
+                                        >
+                                            {name}
+                                        </span>
+                                    ),
                                 },
                                 {
                                     title: 'Клиент',
@@ -252,12 +266,14 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                     title: 'Менеджер',
                                     dataIndex: 'managerName',
                                     key: 'managerName',
+                                    width: 160,
                                     render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
                                 },
                                 {
                                     title: 'Статус',
                                     dataIndex: 'status',
                                     key: 'status',
+                                    width: 110,
                                     render: (_: unknown, c: SavedCalculation) => (
                                         <Tag
                                             color={STATUS_COLORS[c.status] || 'default'}
@@ -271,6 +287,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                     title: 'Создан',
                                     dataIndex: 'createdAt',
                                     key: 'createdAt',
+                                    width: 170,
                                     render: (v: string) => (
                                         <span style={{ fontSize: 12, color: '#5f6368' }}>
                                             {new Date(v).toLocaleString('ru-RU')}
@@ -280,6 +297,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                 {
                                     title: '',
                                     key: 'actions',
+                                    width: 96,
                                     align: 'right',
                                     render: (_: unknown, c: SavedCalculation) => (
                                         <Button

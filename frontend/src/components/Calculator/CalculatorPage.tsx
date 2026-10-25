@@ -73,6 +73,21 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
     const qtyOptions = currentPrintTable?.steps?.map((step) => step.minQty)
         || [100, 300, 500, 1000, 1500, 2000, 3000];
 
+    // «Индивидуальная» не приходит из API — это пустая конструкция, детали в неё
+    // добавляются вручную. До перехода на Ant Design её подмешивал
+    // ConstructionSelector через проп additionalConstruct; сейчас список
+    // конструкций собирается здесь: сначала «Индивидуальная», затем данные API.
+    const constructionOptions = [
+        {
+            value: calc.individualConstruction.name,
+            label: calc.individualConstruction.name,
+        },
+        ...calc.constructs.map((construct) => ({
+            value: construct.name,
+            label: construct.name,
+        })),
+    ];
+
     // Локальный расчёт стоимости печати на единицу — как в OperationsBlock.
     let localPrintPerUnit = 0;
     if (calc.printSettings.enabled && currentPrintTable && calc.printSettings.quantity > 0) {
@@ -151,6 +166,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={0}
                     precision={0}
+                    step={1}
                     controls={false}
                     disabled={!record.enabled}
                     value={record.countOnSheet}
@@ -169,7 +185,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={0}
                     precision={2}
-                    step={1}
+                    step={0.01}
                     controls={false}
                     disabled={!record.enabled}
                     value={record.sheetPrice}
@@ -188,6 +204,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 <InputNumber
                     min={1}
                     precision={0}
+                    step={1}
                     controls={false}
                     disabled={!record.enabled || !record.isPrinted}
                     value={record.partsPerSheetOnPrint ?? 1}
@@ -282,7 +299,8 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
             render: (value: number, record) => (
                 <InputNumber
                     min={0}
-                    precision={0}
+                    precision={2}
+                    step={0.01}
                     controls={false}
                     value={value || undefined}
                     placeholder="—"
@@ -352,10 +370,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 placeholder="Выберите конструкцию"
                                 loading={calc.constructs.length === 0}
                                 onChange={(value: string) => calc.loadConstruction(value)}
-                                options={calc.constructs.map((construct) => ({
-                                    value: construct.name,
-                                    label: construct.name,
-                                }))}
+                                options={constructionOptions}
                                 style={{ width: '100%' }}
                             />
                         </Form.Item>
@@ -496,8 +511,9 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 <Form.Item label="Работа/деталь" style={{ marginBottom: 0 }}>
                                     <InputNumber
                                         min={0}
-                                        step={0.5}
+                                        step={0.01}
                                         precision={2}
+                                        controls={false}
                                         value={calc.workPrice}
                                         onChange={(value) => calc.setWorkPrice(Number(value) || 0)}
                                         suffix="₽"
@@ -654,8 +670,9 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                                 <InputNumber
                                                     size="small"
                                                     min={0}
-                                                    step={1}
+                                                    step={0.01}
                                                     precision={2}
+                                                    controls={false}
                                                     value={extra.cost}
                                                     onChange={(value) => calc.updateExtra(
                                                         index,
