@@ -47,16 +47,6 @@ const toExtras = (operations: Operation[]): Extra[] =>
         .filter((op) => op.isActive !== false)
         .map((op) => ({ name: op.name, cost: op.basePrice ?? 0, enabled: false }));
 
-// "Индивидуальная" — пустой состав: детали добавляются вручную в калькуляторе
-const CUSTOM_CONSTRUCTION: Construct = {
-    id: 'individual',
-    name: 'Индивидуальная',
-    description: 'Своя конфигурация',
-    type: 'CUSTOM',
-    parts: [],
-    isActive: true,
-};
-
 export function useCalculator() {
     // --- Data from API ---
     const [constructs, setConstructs] = useState<Construct[]>([]);
@@ -109,10 +99,7 @@ export function useCalculator() {
     const loadConstruction = useCallback(
         (name: string, constructsList?: Construct[]) => {
             const list = constructsList || constructs;
-            // "Индивидуальная" — кастомная конструкция, нет в API
-            const constr = name === CUSTOM_CONSTRUCTION.name
-                ? CUSTOM_CONSTRUCTION
-                : list.find((c) => c.name === name);
+            const constr = list.find((c) => c.name === name);
             if (!constr) return;
 
             setCurrentConstruction(name);
@@ -139,21 +126,18 @@ export function useCalculator() {
             // construction: an empty parts list means an empty calculator.
             setDetails(constructionDetails);
 
-            // Load price list for this construction (skip for "Индивидуальная")
-            if (constr.id === CUSTOM_CONSTRUCTION.id) {
-                setPriceList({});
-            } else {
-                calculatorApi
-                    .getPriceList(constr.id)
-                    .then((pl) => {
-                        if (pl && pl.priceData) {
-                            setPriceList(pl.priceData);
-                        } else {
-                            setPriceList({});
-                        }
-                    })
-                    .catch(() => setPriceList({}));
-            }
+            // Load the price list of this construction. A construction without a
+            // price list is normal: the table stays empty until prices are filled in.
+            calculatorApi
+                .getPriceList(constr.id)
+                .then((pl) => {
+                    if (pl && pl.priceData) {
+                        setPriceList(pl.priceData);
+                    } else {
+                        setPriceList({});
+                    }
+                })
+                .catch(() => setPriceList({}));
         },
         [constructs],
     );
@@ -172,9 +156,7 @@ export function useCalculator() {
             setConstructs(list);
             if (isUnchanged) return;
 
-            const current = currentConstruction === CUSTOM_CONSTRUCTION.name
-                ? CUSTOM_CONSTRUCTION
-                : list.find((c) => c.name === currentConstruction);
+            const current = list.find((c) => c.name === currentConstruction);
             if (current) {
                 loadConstruction(current.name, list);
             } else if (list.length > 0) {
@@ -391,7 +373,6 @@ export function useCalculator() {
         loading,
         error,
         tierLabels: TIER_LABELS,
-        individualConstruction: CUSTOM_CONSTRUCTION,
         // actions
         loadConstruction,
         reloadConstructs,

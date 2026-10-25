@@ -13,5 +13,9 @@ public enum ConstructType {
     NEREIDA,
     ETNE,
     ATLAS,
-    CUSTOM
+    CUSTOM,
+    /** «Индивидуальная» — своя конфигурация, состав задан в справочнике. */
+    INDIVIDUAL,
+    /** «Кашированная» — каркас из картона с кашированным покрытием. */
+    LAMINATED
 }
