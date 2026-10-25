@@ -230,6 +230,9 @@ export const PriceListTab = ({ onNotify }: Props) => {
                         rowKey="range"
                         size="small"
                         pagination={false}
+                        // fixed + width в px: диапазоны короткие, но при длинном
+                        // тексте он переносится, а не растягивает таблицу.
+                        tableLayout="fixed"
                         style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={PRICE_RANGES.map((range) => ({ range, price: priceData[range] || 0 }))}
                         columns={[
@@ -238,9 +241,18 @@ export const PriceListTab = ({ onNotify }: Props) => {
                                 dataIndex: 'range',
                                 key: 'range',
                                 width: 88,
-                                ellipsis: true,
+                                // ellipsis обрезал бы текст; вместо него — перенос
                                 render: (range: string) => (
-                                    <Typography.Text strong style={{ fontSize: 13 }}>{range}</Typography.Text>
+                                    <Typography.Text
+                                        strong
+                                        style={{
+                                            fontSize: 13,
+                                            whiteSpace: 'normal',
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
+                                        {range}
+                                    </Typography.Text>
                                 ),
                             },
                             {

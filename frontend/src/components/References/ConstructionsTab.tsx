@@ -187,14 +187,6 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         });
     };
 
-    // Ширина колонки «Деталь»: самое длинное имя детали + 5 символов запаса.
-    // Math.max() без элементов даёт -Infinity, поэтому пустой список отдаём как fallback '20ch'.
-    const partNames = selectedConstructData?.parts?.parts ?? [];
-    const detailWidth =
-        partNames.length > 0
-            ? `${Math.max(...partNames.map((p) => p.name.length), 0) + 5}ch`
-            : '20ch';
-
     return (
         <div>
             {error && <Alert type="error" title={error} style={{ marginBottom: 16 }} />}
@@ -320,6 +312,10 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                         rowKey="name"
                         size="small"
                         pagination={false}
+                        // tableLayout="fixed" — обязателен: только с ним width: '30ch'
+                        // является жёсткой шириной колонки. В auto-layout браузер
+                        // расширил бы колонку под max-content длинного имени.
+                        tableLayout="fixed"
                         style={{ width: 'fit-content', maxWidth: '100%' }}
                         dataSource={selectedConstructData.parts.parts}
                         columns={[
@@ -327,10 +323,19 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                 title: 'Деталь',
                                 dataIndex: 'name',
                                 key: 'name',
-                                width: detailWidth,
-                                ellipsis: true,
+                                width: '30ch',
+                                // ellipsis намеренно не используется: он обрезает текст
+                                // (nowrap + text-overflow), а нужно переносить его
+                                // внутри фиксированной ширины.
                                 render: (name: string) => (
-                                    <Typography.Text strong style={{ fontSize: 13 }}>
+                                    <Typography.Text
+                                        strong
+                                        style={{
+                                            fontSize: 13,
+                                            whiteSpace: 'normal',
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
                                         {name}
                                     </Typography.Text>
                                 ),
