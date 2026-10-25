@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { calculatorApi } from '../api/calculatorApi';
 import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
+import { sortConstructs } from '../utils/sortConstructs';
 import type {
     Detail,
     Extra,
@@ -80,10 +81,12 @@ export function useCalculator() {
     useEffect(() => {
         Promise.all([calculatorApi.getConstructs(), calculatorApi.getPrintTables()])
             .then(([c, pt]) => {
-                setConstructs(c);
+                // Порядок из API произвольный: в UI конструкции идут по классу и размеру.
+                const sortedConstructs = sortConstructs(c);
+                setConstructs(sortedConstructs);
                 setPrintTables(pt);
-                if (c.length > 0) {
-                    loadConstruction(c[0].name, c);
+                if (sortedConstructs.length > 0) {
+                    loadConstruction(sortedConstructs[0].name, sortedConstructs);
                 }
             })
             .catch((err) => setError('Ошибка загрузки данных: ' + err.message));
@@ -161,7 +164,8 @@ export function useCalculator() {
     // transfer and any in-session edits.
     const reloadConstructs = useCallback(async () => {
         try {
-            const list = await calculatorApi.getConstructs();
+            // Список в state всегда отсортирован — сравнение с ним остаётся корректным.
+            const list = sortConstructs(await calculatorApi.getConstructs());
             const isUnchanged = JSON.stringify(list) === JSON.stringify(constructs);
             setConstructs(list);
             if (isUnchanged) return;

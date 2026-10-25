@@ -6,6 +6,7 @@ import {
 } from 'antd';
 import type { Construct, Part } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { sortConstructs } from '../../utils/sortConstructs';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -27,9 +28,11 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         setError(null);
         calculatorApi.getConstructs()
             .then((data) => {
-                setConstructs(data);
-                if (data.length > 0 && !selectedConstruct) {
-                    setSelectedConstruct(data[0].id);
+                // Список в state держим в UI-порядке: класс → размер.
+                const sorted = sortConstructs(data);
+                setConstructs(sorted);
+                if (sorted.length > 0 && !selectedConstruct) {
+                    setSelectedConstruct(sorted[0].id);
                 }
             })
             .catch((err) => {
@@ -60,8 +63,9 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                 ? await calculatorApi.updateConstruct(selectedConstructData.id, selectedConstructData)
                 : await calculatorApi.saveConstruct(selectedConstructData);
 
-            // Приводим локальный список к ответу сервера, чтобы он не разошёлся с БД
-            setConstructs((prev) => (prev.some((c) => c.id === saved.id)
+            // Приводим локальный список к ответу сервера, чтобы он не разошёлся с БД.
+            // Пересортировываем: переименование могло сменить класс или размер.
+            setConstructs((prev) => sortConstructs(prev.some((c) => c.id === saved.id)
                 ? prev.map((c) => (c.id === saved.id ? saved : c))
                 : [...prev, saved]));
             setDirty(false);

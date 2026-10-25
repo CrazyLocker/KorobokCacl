@@ -6,6 +6,7 @@ import {
 } from 'antd';
 import type { Construct, PriceListData } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { sortConstructs } from '../../utils/sortConstructs';
 
 const PRICE_RANGES = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
@@ -28,9 +29,11 @@ export const PriceListTab = ({ onNotify }: Props) => {
         setLoading(true);
         calculatorApi.getConstructs()
             .then((data) => {
-                setConstructs(data);
-                if (data.length > 0) {
-                    setSelectedConstruct(data[0].id);
+                // Список в state держим в UI-порядке: класс → размер.
+                const sorted = sortConstructs(data);
+                setConstructs(sorted);
+                if (sorted.length > 0) {
+                    setSelectedConstruct(sorted[0].id);
                 }
             })
             .catch((err) => {
