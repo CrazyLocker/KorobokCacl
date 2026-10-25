@@ -83,6 +83,30 @@ describe('sortConstructs', () => {
         const sorted = sortConstructs([construct('Гималия'), construct('Гималия 4')]);
         expect(sorted.map((item) => item.name)).toEqual(['Гималия 4', 'Гималия']);
     });
+
+    it('maps type INDIVIDUAL to the «Индивидуальная» class (first, ahead of «Элара»)', () => {
+        // Класс берётся из type, а не из имени: «На заказ 1» встаёт перед «Эларой».
+        const sorted = sortConstructs([construct('Элара 4'), construct('На заказ 1', 'INDIVIDUAL')]);
+        expect(sorted.map((item) => item.name)).toEqual(['На заказ 1', 'Элара 4']);
+    });
+
+    it('maps type LAMINATED to the «Кашированная» class (after «Индивидуальная», before «Элара»)', () => {
+        const sorted = sortConstructs([
+            construct('Элара 4'),
+            construct('Плёнка 9', 'LAMINATED'),
+            construct('На заказ 1', 'INDIVIDUAL'),
+        ]);
+        expect(sorted.map((item) => item.name)).toEqual(['На заказ 1', 'Плёнка 9', 'Элара 4']);
+    });
+
+    it('puts «Индивидуальная» and «Кашированная» before «Элара 4», so the default is «Индивидуальная»', () => {
+        const sorted = sortConstructs([
+            construct('Элара 4'),
+            construct('Кашированная'),
+            construct('Индивидуальная'),
+        ]);
+        expect(sorted.map((item) => item.name)).toEqual(['Индивидуальная', 'Кашированная', 'Элара 4']);
+    });
 });
 
 describe('compareConstructs', () => {
