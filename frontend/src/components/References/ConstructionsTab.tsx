@@ -2,7 +2,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
     Alert, App as AntdApp, Button, Card, Flex, Input, InputNumber,
-    Select, Spin, Table, Typography,
+    Select, Spin, Table, Tag, Typography,
 } from 'antd';
 import type { Construct } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
@@ -17,6 +17,8 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     const [selectedConstruct, setSelectedConstruct] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    // Есть ли в текущей конструкции правки, ещё не отправленные на сервер
+    const [dirty, setDirty] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     // Загрузка конструкций
@@ -52,7 +54,17 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         }
         setSaving(true);
         try {
-            await calculatorApi.saveConstruct(selectedConstructData);
+            // Существующая конструкция обновляется через PUT: сервис на сервере
+            // загружает managed-сущность и проставляет в неё name/description/parts/isActive.
+            const saved = selectedConstructData.id
+                ? await calculatorApi.updateConstruct(selectedConstructData.id, selectedConstructData)
+                : await calculatorApi.saveConstruct(selectedConstructData);
+
+            // Приводим локальный список к ответу сервера, чтобы он не разошёлся с БД
+            setConstructs((prev) => (prev.some((c) => c.id === saved.id)
+                ? prev.map((c) => (c.id === saved.id ? saved : c))
+                : [...prev, saved]));
+            setDirty(false);
             onNotify('Конструкция сохранена', 'success');
         } catch (err: any) {
             onNotify('Ошибка сохранения: ' + (err.response?.data?.message || err.message), 'error');
@@ -76,6 +88,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                     const remaining = constructs.filter((c) => c.id !== selectedConstruct);
                     setConstructs(remaining);
                     setSelectedConstruct(remaining.length > 0 ? remaining[0].id : '');
+                    setDirty(false);
                     onNotify('Конструкция удалена', 'success');
                 } catch (err: any) {
                     onNotify('Ошибка удаления: ' + (err.response?.data?.message || err.message), 'error');
@@ -113,6 +126,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         setConstructs((prev) =>
             prev.map((c) => (c.id === updated.id ? updated : c))
         );
+        setDirty(true);
         onNotify('Деталь добавлена', 'success');
     };
 
@@ -131,7 +145,8 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         setConstructs((prev) =>
             prev.map((c) => (c.id === updated.id ? updated : c))
         );
-        onNotify('Деталь удалена (не забудьте сохранить)', 'info');
+        setDirty(true);
+        onNotify('Деталь удалена', 'info');
     };
 
     // Обновить часть конструкции
@@ -151,6 +166,25 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         setConstructs((prev) =>
             prev.map((c) => (c.id === updated.id ? updated : c))
         );
+        setDirty(true);
+    };
+
+    // Переключение конструкции: несохранённые правки при этом теряются, поэтому спрашиваем
+    const handleSelectChange = (value: string) => {
+        if (!dirty) {
+            setSelectedConstruct(value);
+            return;
+        }
+        modal.confirm({
+            title: 'Есть несохранённые изменения',
+            content: 'Переключиться на другую конструкцию без сохранения?',
+            okText: 'Переключиться',
+            cancelText: 'Отмена',
+            onOk: () => {
+                setDirty(false);
+                setSelectedConstruct(value);
+            },
+        });
     };
 
     return (
@@ -183,7 +217,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                 <Flex gap={16} wrap="wrap" align="center">
                     <Select
                         value={selectedConstruct || undefined}
-                        onChange={(value) => setSelectedConstruct(value)}
+                        onChange={handleSelectChange}
                         options={constructs.map((c) => ({ value: c.id, label: c.name }))}
                         placeholder="Выберите конструкцию"
                         style={{ minWidth: 200 }}
@@ -194,6 +228,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                             if (!selectedConstructData) return;
                             const updated = { ...selectedConstructData, name: e.target.value };
                             setConstructs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+                            setDirty(true);
                         }}
                         placeholder="Название"
                         style={{ minWidth: 200, maxWidth: 260 }}
@@ -211,6 +246,9 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                     >
                         Сохранить
                     </Button>
+                    {dirty && (
+                        <Tag color="orange" style={{ marginInlineEnd: 0 }}>Не сохранено</Tag>
+                    )}
                     <Button
                         size="small"
                         danger

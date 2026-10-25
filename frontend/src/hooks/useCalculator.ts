@@ -12,17 +12,6 @@ import type {
     Operation,
 } from '../types';
 
-const DEFAULT_PART_NAMES = [
-    'Дно',
-    'Дно+Разделитель',
-    'Крышка',
-    'Крышка с окном',
-    'Разделитель',
-    'Дно-лайнер',
-    'Крышка-лайнер',
-    'Шубер',
-];
-
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
 // Standard operations fallback — used when /api/operations is unavailable
@@ -56,7 +45,7 @@ const toExtras = (operations: Operation[]): Extra[] =>
         .filter((op) => op.isActive !== false)
         .map((op) => ({ name: op.name, cost: op.basePrice ?? 0, enabled: false }));
 
-// "Индивидуальная" — все стандартные детали, но все enabled: false
+// "Индивидуальная" — пустой состав: детали добавляются вручную в калькуляторе
 const CUSTOM_CONSTRUCTION: Construct = {
     id: 'individual',
     name: 'Индивидуальная',
@@ -123,27 +112,25 @@ export function useCalculator() {
 
             setCurrentConstruction(name);
 
-            // Build details from construction parts
+            // Details are built from the construction itself: the reference book is
+            // the single source of truth. A part deleted there disappears here after
+            // reload, and a part with perSheet = 0 stays visible but disabled.
             const partsData = constr.parts?.parts || [];
-            const baseDetails: Detail[] = DEFAULT_PART_NAMES.map((partName) => {
-                const part = partsData.find((p) => p.name === partName);
-                const countOnSheet = part ? part.perSheet : 0;
-                return {
-                    uiKey: createDetailUiKey(),
-                    name: partName,
-                    countOnSheet,
-                    sheetPrice: 35,
-                    isPrinted: false,
-                    partsPerSheetOnPrint: 1,
-                    isCustom: false,
-                    enabled: countOnSheet > 0,
-                    operations: {},
-                };
-            });
+            const constructionDetails: Detail[] = partsData.map((part) => ({
+                uiKey: createDetailUiKey(),
+                name: part.name,
+                countOnSheet: part.perSheet,
+                sheetPrice: 35,
+                isPrinted: false,
+                partsPerSheetOnPrint: 1,
+                isCustom: false,
+                enabled: part.perSheet > 0,
+                operations: {},
+            }));
 
-            // Preserve existing custom details (with their operations)
-            const existingCustom = details.filter((d) => d.isCustom);
-            setDetails([...baseDetails, ...existingCustom]);
+            // No fallback list and no carry-over of rows from the previous
+            // construction: an empty parts list means an empty calculator.
+            setDetails(constructionDetails);
 
             // Load price list for this construction (skip for "Индивидуальная")
             if (constr.id === CUSTOM_CONSTRUCTION.id) {
@@ -161,11 +148,48 @@ export function useCalculator() {
                     .catch(() => setPriceList({}));
             }
         },
-        [constructs, details],
+        [constructs],
     );
+
+    // --- Reload constructs (edited on another page) ---
+    // The reference book is the source of truth, so when the calculator page is
+    // opened again the constructions must be re-read instead of waiting for F5.
+    // When nothing changed, the calculator state is kept as is: reloading the
+    // current construction rebuilds its details and would throw away the layout
+    // transfer and any in-session edits.
+    const reloadConstructs = useCallback(async () => {
+        try {
+            const list = await calculatorApi.getConstructs();
+            const isUnchanged = JSON.stringify(list) === JSON.stringify(constructs);
+            setConstructs(list);
+            if (isUnchanged) return;
+
+            const current = currentConstruction === CUSTOM_CONSTRUCTION.name
+                ? CUSTOM_CONSTRUCTION
+                : list.find((c) => c.name === currentConstruction);
+            if (current) {
+                loadConstruction(current.name, list);
+            } else if (list.length > 0) {
+                loadConstruction(list[0].name, list);
+            } else {
+                setDetails([]);
+            }
+        } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+            setError('Ошибка загрузки данных: ' + reason);
+        }
+    }, [constructs, currentConstruction, loadConstruction]);
 
     // --- Calculate ---
     const calculate = useCallback(async () => {
+        // Backend rejects an empty detail list (@NotEmpty on CalculationRequest.details).
+        // An empty construction is a normal state: the page shows a hint instead of
+        // a red "Ошибка расчёта", so skip the request and drop stale prices.
+        if (details.length === 0) {
+            setResult(null);
+            setError(null);
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -358,6 +382,7 @@ export function useCalculator() {
         individualConstruction: CUSTOM_CONSTRUCTION,
         // actions
         loadConstruction,
+        reloadConstructs,
         calculate: calculateRef,
         updateDetail,
         updateDetailOperation,

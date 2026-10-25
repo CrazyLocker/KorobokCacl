@@ -379,21 +379,32 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     )}
                     style={{ marginBottom: 16 }}
                 >
-                    <Table<Detail>
-                        columns={layoutColumns}
-                        dataSource={calc.details}
-                        rowKey="uiKey"
-                        size="small"
-                        pagination={false}
-                        scroll={{ x: 980 }}
-                        locale={{ emptyText: calc.loading ? 'Загрузка…' : 'Нет деталей' }}
-                        onRow={(record) => ({
-                            style: {
-                                background: record.isCustom ? '#fafafa' : undefined,
-                                opacity: record.enabled ? 1 : 0.5,
-                            },
-                        })}
-                    />
+                    {calc.details.length === 0 ? (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            title="Добавьте хотя бы одну деталь"
+                            description="В выбранной конструкции нет деталей. Перейдите в Справочники → Базовые коробки и добавьте детали."
+                        />
+                    ) : (
+                        <Table<Detail>
+                            columns={layoutColumns}
+                            dataSource={calc.details}
+                            rowKey="uiKey"
+                            size="small"
+                            pagination={false}
+                            scroll={{ x: 980 }}
+                            onRow={(record) => ({
+                                style: {
+                                    background: record.isCustom ? '#fafafa' : undefined,
+                                    // A part with perSheet = 0 is still part of the
+                                    // construction but is not used in the price,
+                                    // so it stays visible and dimmed.
+                                    opacity: record.enabled ? 1 : 0.5,
+                                },
+                            })}
+                        />
+                    )}
                 </Card>
 
                 <Row gutter={[16, 16]}>
