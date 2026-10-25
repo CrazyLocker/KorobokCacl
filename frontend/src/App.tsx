@@ -1,5 +1,5 @@
 // frontend/src/App.tsx
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { App as AntdApp } from 'antd';
 import { AppShell } from './components/Layout/AppShell';
 import { CalculatorPage } from './components/Calculator/CalculatorPage';
@@ -25,6 +25,27 @@ function App() {
         window.addEventListener('popstate', handlePopState);
         return () => window.removeEventListener('popstate', handlePopState);
     }, []);
+
+    // Re-read the reference book whenever the calculator page is opened again,
+    // so constructions edited in Справочники are visible without F5.
+    // The latest callback lives in a ref and the effect depends on activePage only:
+    // reloadConstructs changes identity with every constructs update, so a direct
+    // dependency would re-fire the effect and reload in a loop.
+    const reloadConstructsRef = useRef(calc.reloadConstructs);
+    useEffect(() => {
+        reloadConstructsRef.current = calc.reloadConstructs;
+    });
+
+    // useCalculator already fetches the constructs on mount, so only a real
+    // transition into the page reloads them (previous === null means first run).
+    const previousPage = useRef<PageType | null>(null);
+    useEffect(() => {
+        const previous = previousPage.current;
+        previousPage.current = activePage;
+        if (activePage === 'calculator' && previous !== null && previous !== 'calculator') {
+            reloadConstructsRef.current();
+        }
+    }, [activePage]);
 
     const navigateToPage = useCallback((page: PageType) => {
         setActivePage(page);

@@ -151,6 +151,35 @@ export function useCalculator() {
         [constructs],
     );
 
+    // --- Reload constructs (edited on another page) ---
+    // The reference book is the source of truth, so when the calculator page is
+    // opened again the constructions must be re-read instead of waiting for F5.
+    // When nothing changed, the calculator state is kept as is: reloading the
+    // current construction rebuilds its details and would throw away the layout
+    // transfer and any in-session edits.
+    const reloadConstructs = useCallback(async () => {
+        try {
+            const list = await calculatorApi.getConstructs();
+            const isUnchanged = JSON.stringify(list) === JSON.stringify(constructs);
+            setConstructs(list);
+            if (isUnchanged) return;
+
+            const current = currentConstruction === CUSTOM_CONSTRUCTION.name
+                ? CUSTOM_CONSTRUCTION
+                : list.find((c) => c.name === currentConstruction);
+            if (current) {
+                loadConstruction(current.name, list);
+            } else if (list.length > 0) {
+                loadConstruction(list[0].name, list);
+            } else {
+                setDetails([]);
+            }
+        } catch (err) {
+            const reason = err instanceof Error ? err.message : String(err);
+            setError('Ошибка загрузки данных: ' + reason);
+        }
+    }, [constructs, currentConstruction, loadConstruction]);
+
     // --- Calculate ---
     const calculate = useCallback(async () => {
         // Backend rejects an empty detail list (@NotEmpty on CalculationRequest.details).
@@ -353,6 +382,7 @@ export function useCalculator() {
         individualConstruction: CUSTOM_CONSTRUCTION,
         // actions
         loadConstruction,
+        reloadConstructs,
         calculate: calculateRef,
         updateDetail,
         updateDetailOperation,
