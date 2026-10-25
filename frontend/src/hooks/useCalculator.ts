@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { calculatorApi } from '../api/calculatorApi';
 import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
 import { sortConstructs } from '../utils/sortConstructs';
+import { sortParts } from '../utils/sortParts';
 import type {
     Detail,
     Extra,
@@ -120,7 +121,8 @@ export function useCalculator() {
             // the single source of truth. A part deleted there disappears here after
             // reload, and a part with perSheet = 0 stays visible but disabled.
             // The sheet price always comes from the part's material.
-            const partsData = constr.parts || [];
+            // Порядок деталей — единый для всего UI (sortParts), а не порядок из API.
+            const partsData = sortParts(constr.parts || []);
             const constructionDetails: Detail[] = partsData.map((part) => ({
                 uiKey: createDetailUiKey(),
                 name: part.name,
@@ -253,7 +255,7 @@ export function useCalculator() {
     }, []);
 
     const addCustomDetail = useCallback(() => {
-        setDetails((prev) => [
+        setDetails((prev) => sortParts([
             ...prev,
             {
                 uiKey: createDetailUiKey(),
@@ -268,7 +270,7 @@ export function useCalculator() {
                 enabled: true,
                 operations: {},
             },
-        ]);
+        ]));
     }, []);
 
     const removeCustomDetail = useCallback((uiKey: string) => {
@@ -323,7 +325,8 @@ export function useCalculator() {
                 });
             });
 
-            setDetails(next);
+            // Детали из раскладки добавляются в конец — возвращаем единый порядок.
+            setDetails(sortParts(next));
             return { updated, added };
         },
         [details],
