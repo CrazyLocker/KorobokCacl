@@ -6,6 +6,7 @@ import {
 } from 'antd';
 import type { SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { sortParts } from '../../utils/sortParts';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -85,7 +86,8 @@ export const SettingsPage = ({ onNotify }: Props) => {
             for (const c of constructs) {
                 exportData[c.name] = {
                     description: c.description || '',
-                    parts: (c.parts || []).map((p) => ({
+                    // Детали в едином UI-порядке, а не в порядке из API.
+                    parts: sortParts(c.parts || []).map((p) => ({
                         name: p.name,
                         perSheet: p.perSheet,
                         materialName: p.material?.name || '',

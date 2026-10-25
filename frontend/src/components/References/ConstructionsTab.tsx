@@ -7,10 +7,21 @@ import {
 import type { Construct, Part } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { sortConstructs } from '../../utils/sortConstructs';
+import { sortParts } from '../../utils/sortParts';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
+
+/**
+ * Детали конструкции в едином UI-порядке:
+ * Дно → Дно+Разделитель → Крышка → Разделитель → Окно → Шубер,
+ * неизвестные — в конец по алфавиту. API отдаёт их в произвольном порядке.
+ */
+const withSortedParts = (construct: Construct): Construct => ({
+    ...construct,
+    parts: sortParts(construct.parts ?? []),
+});
 
 export const ConstructionsTab = ({ onNotify }: Props) => {
     const { modal } = AntdApp.useApp();
@@ -29,7 +40,8 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         calculatorApi.getConstructs()
             .then((data) => {
                 // Список в state держим в UI-порядке: класс → размер.
-                const sorted = sortConstructs(data);
+                // Детали внутри конструкции — тоже в UI-порядке (sortParts).
+                const sorted = sortConstructs(data).map(withSortedParts);
                 setConstructs(sorted);
                 if (sorted.length > 0 && !selectedConstruct) {
                     setSelectedConstruct(sorted[0].id);
@@ -64,10 +76,12 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                 : await calculatorApi.saveConstruct(selectedConstructData);
 
             // Приводим локальный список к ответу сервера, чтобы он не разошёлся с БД.
-            // Пересортировываем: переименование могло сменить класс или размер.
-            setConstructs((prev) => sortConstructs(prev.some((c) => c.id === saved.id)
-                ? prev.map((c) => (c.id === saved.id ? saved : c))
-                : [...prev, saved]));
+            // Пересортировываем: переименование могло сменить класс или размер,
+            // а сервер может вернуть детали в порядке, отличном от UI.
+            const savedWithSortedParts = withSortedParts(saved);
+            setConstructs((prev) => sortConstructs(prev.some((c) => c.id === savedWithSortedParts.id)
+                ? prev.map((c) => (c.id === savedWithSortedParts.id ? savedWithSortedParts : c))
+                : [...prev, savedWithSortedParts]));
             setDirty(false);
             onNotify('Конструкция сохранена', 'success');
         } catch (err: any) {
@@ -133,7 +147,8 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
         };
         const updated: Construct = {
             ...selectedConstructData,
-            parts: [...selectedConstructData.parts, newPart],
+            // Новая деталь сразу встаёт на своё место в едином порядке.
+            parts: sortParts([...selectedConstructData.parts, newPart]),
         };
 
         setConstructs((prev) =>
