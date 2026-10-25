@@ -3,17 +3,19 @@ package com.korobki.persistence.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
+import lombok.ToString;
 
 import java.time.LocalDateTime;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
  * JPA entity for a box construction (set of parts and their layout
- * parameters). Parts are stored as a JSON document.
+ * parameters). Parts are stored in the {@code parts} table and reference
+ * their sheet material.
  */
 @Entity
 @Table(name = "constructs")
@@ -35,10 +37,17 @@ public class Construct {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    /** Parts layout document, e.g. {"parts": [{"name": "Дно", "perSheet": 6}, ...]}. */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "JSONB", nullable = false)
-    private Map<String, Object> parts; // Хранит список деталей в формате JSON
+    /** Construction type used to group models and pick default materials. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type")
+    private ConstructType type;
+
+    /** Parts of the construction with their material references. */
+    @OneToMany(mappedBy = "construct", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.EAGER)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<Part> parts = new ArrayList<>();
 
     /** Soft-delete flag; inactive constructions are hidden from selection. */
     @Column(name = "is_active")

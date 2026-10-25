@@ -1,19 +1,23 @@
 package com.korobki.api.controller;
 
+import com.korobki.calculator.service.ConstructService;
 import com.korobki.persistence.entity.Construct;
+import com.korobki.persistence.entity.ConstructType;
+import com.korobki.persistence.entity.Material;
+import com.korobki.persistence.entity.Part;
 import com.korobki.persistence.entity.PriceList;
 import com.korobki.persistence.entity.PrintTable;
 import com.korobki.persistence.repository.ConstructRepository;
+import com.korobki.persistence.repository.MaterialRepository;
 import com.korobki.persistence.repository.PriceListRepository;
 import com.korobki.persistence.repository.PrintTableRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * REST controller for importing reference data via JSON.
@@ -26,63 +30,81 @@ import java.util.stream.Collectors;
 public class ReferencesController {
 
     private final ConstructRepository constructRepository;
+    private final ConstructService constructService;
+    private final MaterialRepository materialRepository;
     private final PriceListRepository priceListRepository;
     private final PrintTableRepository printTableRepository;
+
+    /** Material used by the legacy import format when no material name is given. */
+    private static final String DEFAULT_MATERIAL_NAME = "Мелованный картон";
 
     /**
      * Import constructions from JSON.
      *
-     * Expected format (from HTML prototype):
+     * <p>New format:
+     * <pre>
      * {
      *   "Конструкция1": {
-     *     "parts": {"Дно": 6, "Крышка": 4, ...},
-     *     "sheetPrices": {"Дно": 35, "Крышка": 35, ...}
-     *   },
-     *   ...
+     *     "description": "Описание",
+     *     "type": "CUSTOM",
+     *     "parts": [
+     *       {"name": "Дно", "perSheet": 6, "materialName": "Мелованный картон"}
+     *     ]
+     *   }
      * }
+     * </pre>
+     *
+     * <p>Legacy format is also supported, where {@code parts} is an object
+     * {@code {"Дно": 6, ...}}. In that case the material defaults to
+     * "Мелованный картон". The legacy {@code sheetPrices} block is ignored:
+     * the price is always taken from the referenced material.
      *
      * @param json import payload keyed by construction name
      * @return counts of imported and updated constructions
      */
     @PostMapping("/import-constructs")
+    @Transactional
     public ResponseEntity<Map<String, Object>> importConstructs(@RequestBody Map<String, Object> json) {
         int imported = 0;
         int updated = 0;
 
         for (Map.Entry<String, Object> entry : json.entrySet()) {
-            String name = entry.getKey();
-            Map<String, Object> data = (Map<String, Object>) entry.getValue();
-
+            if (!(entry.getValue() instanceof Map<?, ?> rawData)) {
+                continue;
+            }
             @SuppressWarnings("unchecked")
-            Map<String, Object> parts = (Map<String, Object>) data.getOrDefault("parts", Collections.emptyMap());
-
-            // Convert parts map to the format expected by Construct entity
-            List<Map<String, Object>> partsList = parts.entrySet().stream()
-                    .map(e -> {
-                        Map<String, Object> part = new HashMap<>();
-                        part.put("name", e.getKey());
-                        part.put("perSheet", e.getValue());
-                        return part;
-                    })
-                    .collect(Collectors.toList());
+            Map<String, Object> data = (Map<String, Object>) rawData;
+            String name = entry.getKey();
+            List<Part> parts = parseParts(data);
 
             Construct existing = constructRepository.findAll().stream()
                     .filter(c -> c.getName().equals(name))
                     .findFirst()
                     .orElse(null);
 
+            ConstructType type = parseType(data.get("type"));
+
             if (existing != null) {
-                existing.setParts(Map.of("parts", partsList));
-                existing.setUpdatedAt(LocalDateTime.now());
-                constructRepository.save(existing);
+                if (data.containsKey("description")) {
+                    existing.setDescription(asString(data.get("description")));
+                }
+                if (type != null) {
+                    existing.setType(type);
+                }
+                if (data.containsKey("parts")) {
+                    constructService.replaceParts(existing, parts);
+                } else {
+                    constructRepository.save(existing);
+                }
                 updated++;
             } else {
                 Construct construct = new Construct();
                 construct.setName(name);
-                construct.setDescription((String) data.getOrDefault("description", ""));
-                construct.setParts(Map.of("parts", partsList));
+                construct.setDescription(asString(data.get("description")));
+                construct.setType(type != null ? type : ConstructType.CUSTOM);
                 construct.setIsActive(true);
-                constructRepository.save(construct);
+                construct.setParts(parts);
+                constructService.saveConstruct(construct);
                 imported++;
             }
         }
@@ -92,6 +114,112 @@ public class ReferencesController {
         result.put("updated", updated);
         result.put("total", json.size());
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Parses the {@code parts} block in both supported formats and resolves
+     * each part's material by name.
+     *
+     * @param data construction payload
+     * @return parts ready to be persisted
+     */
+    private List<Part> parseParts(Map<String, Object> data) {
+        Object raw = data.get("parts");
+        List<Part> parts = new ArrayList<>();
+
+        if (raw instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> map)) {
+                    continue;
+                }
+                String name = asString(map.get("name"));
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                parts.add(buildPart(
+                        name.trim(),
+                        asInt(map.get("perSheet")),
+                        asString(map.get("materialName"))));
+            }
+        } else if (raw instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String name = asString(entry.getKey());
+                if (name == null || name.isBlank()) {
+                    continue;
+                }
+                parts.add(buildPart(name.trim(), asInt(entry.getValue()), null));
+            }
+        }
+        return parts;
+    }
+
+    /**
+     * Builds a part and resolves its material by name.
+     *
+     * @param name         detail name
+     * @param perSheet     details per sheet
+     * @param materialName material name; defaults to coated cardboard
+     * @return part with a material reference
+     */
+    private Part buildPart(String name, int perSheet, String materialName) {
+        String resolvedName = materialName == null || materialName.isBlank()
+                ? DEFAULT_MATERIAL_NAME
+                : materialName.trim();
+        Material material = materialRepository.findFirstByNameIgnoreCase(resolvedName)
+                .orElseThrow(() -> new IllegalArgumentException("Material not found: " + resolvedName));
+
+        Part part = new Part();
+        part.setName(name);
+        part.setPerSheet(Math.max(perSheet, 0));
+        part.setMaterial(material);
+        return part;
+    }
+
+    /**
+     * Parses an optional construction type.
+     *
+     * @param value raw JSON value
+     * @return parsed type or {@code null} if absent/unknown
+     */
+    private ConstructType parseType(Object value) {
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return ConstructType.valueOf(text.trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException ignored) {
+                // Unknown type — keep the default value.
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Converts a raw JSON value to a string.
+     *
+     * @param value raw value
+     * @return string value or {@code null}
+     */
+    private String asString(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    /**
+     * Converts a raw JSON value to an integer.
+     *
+     * @param value raw value
+     * @return integer value, or {@code 0} if it cannot be parsed
+     */
+    private int asInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                // Fall through to the default value.
+            }
+        }
+        return 0;
     }
 
     /**

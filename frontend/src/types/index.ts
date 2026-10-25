@@ -77,10 +77,19 @@ export interface PriceListData {
     priceData: Record<string, number>;
 }
 
-// Конструкция из БД
-export interface ConstructPart {
+// Материал листа и деталь конструкции
+export interface Material {
+    id: string;
+    name: string;
+    type: 'coated' | 'designer' | 'pvc';
+    pricePerSheet: number;
+}
+
+export interface Part {
+    id: string;
     name: string;
     perSheet: number;
+    material: Material;
 }
 
 // Операция из БД (справочник дополнительных операций)
@@ -134,10 +143,12 @@ export interface KnifeSaveRequest {
     managerName: string;
 }
 
+// Конструкция из БД
 export interface Construct {
     id: string;
     name: string;
-    description: string;
-    parts: { parts: ConstructPart[] };
+    description?: string;
+    type?: string;
+    parts: Part[];
     isActive: boolean;
 }

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -20,6 +21,14 @@ public interface MaterialRepository extends JpaRepository<Material, UUID> {
      * @return list of active materials
      */
     List<Material> findAllByIsActiveTrue();
+
+    /**
+     * Finds a material by its name (case-insensitive).
+     *
+     * @param name material name
+     * @return the first matching material, if any
+     */
+    Optional<Material> findFirstByNameIgnoreCase(String name);
 
     /**
      * Finds active materials of the given type whose purchase price

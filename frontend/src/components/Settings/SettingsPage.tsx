@@ -77,7 +77,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
         URL.revokeObjectURL(url);
     };
 
-    // Экспорт конструкций (формат совместим с импортом: {название: {parts: {...}}})
+    // Экспорт конструкций: {название: {description, parts: [{name, perSheet, materialName}]}}
     const handleExportConstructs = async () => {
         try {
             const constructs = await calculatorApi.getConstructs();
@@ -85,10 +85,11 @@ export const SettingsPage = ({ onNotify }: Props) => {
             for (const c of constructs) {
                 exportData[c.name] = {
                     description: c.description || '',
-                    parts: c.parts?.parts?.reduce((acc: Record<string, number>, p) => {
-                        acc[p.name] = p.perSheet;
-                        return acc;
-                    }, {}) || {},
+                    parts: (c.parts || []).map((p) => ({
+                        name: p.name,
+                        perSheet: p.perSheet,
+                        materialName: p.material?.name || '',
+                    })),
                 };
             }
             downloadJson(exportData, `constructs-${new Date().toISOString().slice(0, 10)}.json`);

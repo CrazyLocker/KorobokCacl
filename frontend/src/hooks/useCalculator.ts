@@ -50,7 +50,8 @@ const CUSTOM_CONSTRUCTION: Construct = {
     id: 'individual',
     name: 'Индивидуальная',
     description: 'Своя конфигурация',
-    parts: { parts: [] },
+    type: 'CUSTOM',
+    parts: [],
     isActive: true,
 };
 
@@ -115,12 +116,13 @@ export function useCalculator() {
             // Details are built from the construction itself: the reference book is
             // the single source of truth. A part deleted there disappears here after
             // reload, and a part with perSheet = 0 stays visible but disabled.
-            const partsData = constr.parts?.parts || [];
+            // The sheet price always comes from the part's material.
+            const partsData = constr.parts || [];
             const constructionDetails: Detail[] = partsData.map((part) => ({
                 uiKey: createDetailUiKey(),
                 name: part.name,
                 countOnSheet: part.perSheet,
-                sheetPrice: 35,
+                sheetPrice: part.material?.pricePerSheet ?? 0,
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
                 isCustom: false,
@@ -253,7 +255,9 @@ export function useCalculator() {
                 uiKey: createDetailUiKey(),
                 name: 'Деталь ' + (prev.length + 1),
                 countOnSheet: 1,
-                sheetPrice: 35,
+                // TODO: для пользовательских деталей нужен выбор материала;
+                // до появления UI цена листа остаётся нулевой.
+                sheetPrice: 0,
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
                 isCustom: true,
@@ -305,7 +309,8 @@ export function useCalculator() {
                     uiKey: createDetailUiKey(),
                     name,
                     countOnSheet: item.placed,
-                    sheetPrice: 35,
+                    // TODO: материал для деталей из раскладки ещё не выбран в UI.
+                    sheetPrice: 0,
                     isPrinted: false,
                     partsPerSheetOnPrint: 1,
                     isCustom: true,
