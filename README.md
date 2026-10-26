@@ -19,7 +19,6 @@
 |----------|-------|----------|
 | `/api/constructs` | GET | Список активных конструкций |
 | `/api/constructs/{id}` | GET | Конструкция по ID |
-| `/api/materials` | GET | Справочник материалов |
 | `/api/operations` | GET | Справочник операций |
 | `/api/calculator/calculate` | POST | Полный расчёт себестоимости и цен |
 | `/api/price-lists/by-construct/{constructId}` | GET | Прайс-лист по конструкции |

@@ -107,14 +107,15 @@ export function useCalculator() {
             // Details are built from the construction itself: the reference book is
             // the single source of truth. A part deleted there disappears here after
             // reload, and a part with perSheet = 0 stays visible but disabled.
-            // The sheet price always comes from the part's material.
+            // The sheet price always comes from the part itself: the cardboard
+            // kind is not part of the model, the calculator knows only the price.
             // Порядок деталей — единый для всего UI (sortParts), а не порядок из API.
             const partsData = sortParts(constr.parts || []);
             const constructionDetails: Detail[] = partsData.map((part) => ({
                 uiKey: createDetailUiKey(),
                 name: part.name,
                 countOnSheet: part.perSheet,
-                sheetPrice: part.material?.pricePerSheet ?? 0,
+                sheetPrice: part.pricePerSheet ?? 0,
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
                 isCustom: false,

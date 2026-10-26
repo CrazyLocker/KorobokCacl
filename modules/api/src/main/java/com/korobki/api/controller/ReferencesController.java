@@ -3,12 +3,10 @@ package com.korobki.api.controller;
 import com.korobki.calculator.service.ConstructService;
 import com.korobki.persistence.entity.Construct;
 import com.korobki.persistence.entity.ConstructType;
-import com.korobki.persistence.entity.Material;
 import com.korobki.persistence.entity.Part;
 import com.korobki.persistence.entity.PriceList;
 import com.korobki.persistence.entity.PrintTable;
 import com.korobki.persistence.repository.ConstructRepository;
-import com.korobki.persistence.repository.MaterialRepository;
 import com.korobki.persistence.repository.PriceListRepository;
 import com.korobki.persistence.repository.PrintTableRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,12 +29,8 @@ public class ReferencesController {
 
     private final ConstructRepository constructRepository;
     private final ConstructService constructService;
-    private final MaterialRepository materialRepository;
     private final PriceListRepository priceListRepository;
     private final PrintTableRepository printTableRepository;
-
-    /** Material used by the legacy import format when no material name is given. */
-    private static final String DEFAULT_MATERIAL_NAME = "Мелованный картон";
 
     /**
      * Import constructions from JSON.
@@ -48,16 +42,18 @@ public class ReferencesController {
      *     "description": "Описание",
      *     "type": "CUSTOM",
      *     "parts": [
-     *       {"name": "Дно", "perSheet": 6, "materialName": "Мелованный картон"}
+     *       {"name": "Дно", "perSheet": 6, "pricePerSheet": 35}
      *     ]
      *   }
      * }
      * </pre>
      *
-     * <p>Legacy format is also supported, where {@code parts} is an object
-     * {@code {"Дно": 6, ...}}. In that case the material defaults to
-     * "Мелованный картон". The legacy {@code sheetPrices} block is ignored:
-     * the price is always taken from the referenced material.
+     * <p>The cardboard kind is no longer part of the model: the price of a
+     * sheet ({@code pricePerSheet}) is the only material characteristic a
+     * part carries. An optional {@code materialName} is ignored, and the
+     * legacy format — where {@code parts} is an object
+     * {@code {"Дно": 6, ...}} — imports those parts with a zero price,
+     * because it has no price information at all.
      *
      * @param json import payload keyed by construction name
      * @return counts of imported and updated constructions
@@ -117,8 +113,8 @@ public class ReferencesController {
     }
 
     /**
-     * Parses the {@code parts} block in both supported formats and resolves
-     * each part's material by name.
+     * Parses the {@code parts} block in both supported formats and reads
+     * each part's sheet price.
      *
      * @param data construction payload
      * @return parts ready to be persisted
@@ -139,7 +135,7 @@ public class ReferencesController {
                 parts.add(buildPart(
                         name.trim(),
                         asInt(map.get("perSheet")),
-                        asString(map.get("materialName"))));
+                        asDecimal(map.get("pricePerSheet"))));
             }
         } else if (raw instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -154,24 +150,20 @@ public class ReferencesController {
     }
 
     /**
-     * Builds a part and resolves its material by name.
+     * Builds a part with its sheet price. The cardboard kind is not part of
+     * the model, therefore an optional {@code materialName} from older
+     * exports is ignored.
      *
-     * @param name         detail name
-     * @param perSheet     details per sheet
-     * @param materialName material name; defaults to coated cardboard
-     * @return part with a material reference
+     * @param name          detail name
+     * @param perSheet      details per sheet
+     * @param pricePerSheet sheet price; {@code null} becomes {@code 0}
+     * @return part ready to be persisted
      */
-    private Part buildPart(String name, int perSheet, String materialName) {
-        String resolvedName = materialName == null || materialName.isBlank()
-                ? DEFAULT_MATERIAL_NAME
-                : materialName.trim();
-        Material material = materialRepository.findFirstByNameIgnoreCase(resolvedName)
-                .orElseThrow(() -> new IllegalArgumentException("Material not found: " + resolvedName));
-
+    private Part buildPart(String name, int perSheet, BigDecimal pricePerSheet) {
         Part part = new Part();
         part.setName(name);
         part.setPerSheet(Math.max(perSheet, 0));
-        part.setMaterial(material);
+        part.setPricePerSheet(pricePerSheet != null ? pricePerSheet : BigDecimal.ZERO);
         return part;
     }
 
@@ -220,6 +212,26 @@ public class ReferencesController {
             }
         }
         return 0;
+    }
+
+    /**
+     * Converts a raw JSON value to a decimal.
+     *
+     * @param value raw value
+     * @return decimal value, or {@code null} if it cannot be parsed
+     */
+    private BigDecimal asDecimal(Object value) {
+        if (value instanceof Number number) {
+            return new BigDecimal(number.toString());
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return new BigDecimal(text.trim());
+            } catch (NumberFormatException ignored) {
+                // Fall through to the default value.
+            }
+        }
+        return null;
     }
 
     /**

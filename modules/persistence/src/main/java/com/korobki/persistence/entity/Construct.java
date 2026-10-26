@@ -14,8 +14,8 @@ import java.util.UUID;
 
 /**
  * JPA entity for a box construction (set of parts and their layout
- * parameters). Parts are stored in the {@code parts} table and reference
- * their sheet material.
+ * parameters). Parts are stored in the {@code parts} table together with
+ * their sheet price.
  */
 @Entity
 @Table(name = "constructs")
@@ -37,12 +37,12 @@ public class Construct {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    /** Construction type used to group models and pick default materials. */
+    /** Construction type used to group models in the reference book. */
     @Enumerated(EnumType.STRING)
     @Column(name = "type")
     private ConstructType type;
 
-    /** Parts of the construction with their material references. */
+    /** Parts of the construction with their sheet prices. */
     @OneToMany(mappedBy = "construct", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.EAGER)
     @ToString.Exclude

@@ -1,15 +1,14 @@
 package com.korobki.calculator.service;
 
 import com.korobki.persistence.entity.Construct;
-import com.korobki.persistence.entity.Material;
 import com.korobki.persistence.entity.Part;
 import com.korobki.persistence.repository.ConstructRepository;
-import com.korobki.persistence.repository.MaterialRepository;
 import com.korobki.persistence.repository.PriceListRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -23,7 +22,6 @@ public class ConstructService {
 
     private final ConstructRepository constructRepository;
     private final PriceListRepository priceListRepository;
-    private final MaterialRepository materialRepository;
 
     /**
      * Returns all active (not soft-deleted) constructions.
@@ -61,7 +59,7 @@ public class ConstructService {
         for (Part part : construct.getParts()) {
             part.setId(null);
             part.setConstruct(construct);
-            part.setMaterial(resolveMaterial(part.getMaterial()));
+            part.setPricePerSheet(resolvePrice(part.getPricePerSheet()));
         }
         return constructRepository.save(construct);
     }
@@ -107,7 +105,7 @@ public class ConstructService {
             Part part = new Part();
             part.setName(source.getName());
             part.setPerSheet(source.getPerSheet());
-            part.setMaterial(resolveMaterial(source.getMaterial()));
+            part.setPricePerSheet(resolvePrice(source.getPricePerSheet()));
             part.setConstruct(construct);
             construct.getParts().add(part);
         }
@@ -129,16 +127,14 @@ public class ConstructService {
     }
 
     /**
-     * Resolves a material reference sent by the client. Only the identifier
-     * is trusted; name/price always come from the materials table.
+     * Returns the sheet price sent by the client, defaulting to zero when
+     * it is absent. The cardboard kind is no longer part of the model, so
+     * the price is the only material characteristic a part carries.
      *
-     * @param material material reference from the request
-     * @return managed material reference
+     * @param price sheet price from the request
+     * @return non-null sheet price
      */
-    private Material resolveMaterial(Material material) {
-        if (material == null || material.getId() == null) {
-            throw new IllegalArgumentException("Material is required for every part");
-        }
-        return materialRepository.getReferenceById(material.getId());
+    private BigDecimal resolvePrice(BigDecimal price) {
+        return price != null ? price : BigDecimal.ZERO;
     }
 }

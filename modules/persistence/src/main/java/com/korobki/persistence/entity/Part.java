@@ -8,13 +8,14 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
  * JPA entity for a construction detail (part).
- * <p>The sheet price is not stored on the part: it is resolved from
- * {@link #material} so that the materials reference book remains the
- * single source of truth for prices.</p>
+ * <p>The price of a sheet is stored on the part itself ({@link #pricePerSheet}):
+ * the calculator only needs the price, while the cardboard kind is
+ * deliberately kept out of the model.</p>
  */
 @Entity
 @Table(name = "parts")
@@ -44,8 +45,7 @@ public class Part {
     @Column(name = "per_sheet", nullable = false)
     private int perSheet;
 
-    /** Sheet material that determines the price of this detail. */
-    @ManyToOne(fetch = FetchType.EAGER, optional = false)
-    @JoinColumn(name = "material_id", nullable = false)
-    private Material material;
+    /** Price of one sheet (rubles) used to cost this detail. */
+    @Column(name = "price_per_sheet", nullable = false)
+    private BigDecimal pricePerSheet;
 }
