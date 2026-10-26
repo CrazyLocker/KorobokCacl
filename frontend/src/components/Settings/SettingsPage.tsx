@@ -78,7 +78,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
         URL.revokeObjectURL(url);
     };
 
-    // Экспорт конструкций: {название: {description, parts: [{name, perSheet, materialName}]}}
+    // Экспорт конструкций: {название: {description, parts: [{name, perSheet, pricePerSheet}]}}
     const handleExportConstructs = async () => {
         try {
             const constructs = await calculatorApi.getConstructs();
@@ -90,7 +90,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                     parts: sortParts(c.parts || []).map((p) => ({
                         name: p.name,
                         perSheet: p.perSheet,
-                        materialName: p.material?.name || '',
+                        pricePerSheet: p.pricePerSheet ?? 0,
                     })),
                 };
             }

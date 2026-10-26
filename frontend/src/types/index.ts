@@ -77,19 +77,13 @@ export interface PriceListData {
     priceData: Record<string, number>;
 }
 
-// Материал листа и деталь конструкции
-export interface Material {
-    id: string;
-    name: string;
-    type: 'coated' | 'designer' | 'pvc';
-    pricePerSheet: number;
-}
-
+// Деталь конструкции. Цена листа хранится в самой детали: «какой картон» —
+// вне модели, калькулятор знает только цену.
 export interface Part {
     id: string;
     name: string;
     perSheet: number;
-    material: Material;
+    pricePerSheet: number;
 }
 
 // Операция из БД (справочник дополнительных операций)

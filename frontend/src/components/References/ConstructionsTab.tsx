@@ -119,17 +119,11 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     };
 
     // Добавить деталь
-    // TODO: materialId — добавить выбор материала в форме детали.
-    // Пока новая деталь наследует материал первой детали конструкции.
+    // Картон вне модели: у детали есть только цена листа, и новая деталь
+    // наследует цену первой детали конструкции.
     const handleAddPart = () => {
         if (!selectedConstructData) {
             onNotify('Сначала выберите конструкцию', 'error');
-            return;
-        }
-
-        const defaultMaterial = selectedConstructData.parts[0]?.material;
-        if (!defaultMaterial) {
-            onNotify('Сначала назначьте материал хотя бы одной детали', 'error');
             return;
         }
 
@@ -146,7 +140,7 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
             id: crypto.randomUUID(),
             name,
             perSheet: 0,
-            material: defaultMaterial,
+            pricePerSheet: selectedConstructData.parts[0]?.pricePerSheet ?? 0,
         };
         const updated: Construct = {
             ...selectedConstructData,
@@ -178,7 +172,11 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
     };
 
     // Обновить часть конструкции
-    const handlePartChange = (partName: string, field: 'perSheet', value: number) => {
+    const handlePartChange = (
+        partName: string,
+        field: 'perSheet' | 'pricePerSheet',
+        value: number
+    ) => {
         if (!selectedConstructData) return;
 
         const updated: Construct = {
@@ -381,6 +379,28 @@ export const ConstructionsTab = ({ onNotify }: Props) => {
                                         controls={false}
                                         size="small"
                                         style={{ width: 56, backgroundColor: part.perSheet === 0 ? '#f8f9fa' : '#fff' }}
+                                    />
+                                ),
+                            },
+                            {
+                                // Цена листа — единственная характеристика «материала»
+                                // в модели: картон как таковой в справочнике не хранится.
+                                title: 'Руб/лист',
+                                dataIndex: 'pricePerSheet',
+                                key: 'pricePerSheet',
+                                align: 'center',
+                                width: 120,
+                                render: (_: number, part: Part) => (
+                                    <InputNumber
+                                        value={part.pricePerSheet}
+                                        onChange={(value) => handlePartChange(part.name, 'pricePerSheet', value ?? 0)}
+                                        min={0}
+                                        precision={2}
+                                        step={0.01}
+                                        controls={false}
+                                        size="small"
+                                        style={{ width: 88 }}
+                                        aria-label={`Цена листа: ${part.name}`}
                                     />
                                 ),
                             },

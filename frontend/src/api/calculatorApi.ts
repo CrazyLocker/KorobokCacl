@@ -5,7 +5,6 @@ import type {
     CalculationResponse,
     PrintTable,
     Construct,
-    Material,
     PriceListData,
     SavedCalculation,
     CalculationSaveRequest,
@@ -33,10 +32,6 @@ export const calculatorApi = {
 
     deleteConstruct: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/constructs/${id}`).then(() => {}),
-
-    // === Материалы ===
-    getMaterials: (): Promise<Material[]> =>
-        axios.get(`${API_BASE}/materials`).then((res) => res.data),
 
     // === Прайс-листы ===
     getPriceList: (constructId: string): Promise<PriceListData | null> =>
