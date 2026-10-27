@@ -371,4 +371,63 @@ class CostCalculatorTest {
 
         assertBD("0", total);
     }
+
+    // --- «Сборка на печатный лист» ---
+
+    /** Detail with no material and no work: only the print part is measured. */
+    private CostCalculator.DetailInfo bareDetail(String name, boolean inAssembly) {
+        CostCalculator.DetailInfo detail = new CostCalculator.DetailInfo();
+        detail.setName(name);
+        detail.setCountOnSheet(new BigDecimal("1"));
+        detail.setSheetPrice(BigDecimal.ZERO);
+        detail.setEnabled(true);
+        detail.setInAssembly(inAssembly);
+        return detail;
+    }
+
+    @Test
+    void assemblyCostPerPart_addedOnlyToDetailsInAssembly() {
+        // 25 ₽ / 3 детали = 8.333… — стоимость печати одной детали сборки
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(bareDetail("Дно", true), bareDetail("Крышка", false)),
+                Collections.emptyList(),
+                false, null, null,
+                BigDecimal.ZERO,
+                new BigDecimal("8.3333333333")
+        );
+
+        assertBD("8.3333333333", total);
+    }
+
+    @Test
+    void assemblyCostPerPart_winsOverSingleDetailPrintFlag() {
+        CostCalculator.DetailInfo detail = bareDetail("Дно", true);
+        detail.setIsPrinted(true);
+        detail.setPartsPerSheetOnPrint(1);
+
+        // В режиме сборки printEnabled = false, у детали считается только сборка.
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(detail),
+                Collections.emptyList(),
+                false, 1, 200,
+                BigDecimal.ZERO,
+                new BigDecimal("10")
+        );
+
+        assertBD("10", total);
+    }
+
+    @Test
+    void noAssemblyCost_keepsSingleDetailPrint() {
+        CostCalculator.DetailInfo detail = bareDetail("Дно", false);
+        detail.setIsPrinted(true);
+        detail.setPartsPerSheetOnPrint(1);
+        when(printCostCalculator.calcPrintPerUnitNoVat(1, 200, 1)).thenReturn(new BigDecimal("7"));
+
+        // 6-аргументная перегрузка: режим сборки выключен
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(detail), Collections.emptyList(), true, 1, 200, BigDecimal.ZERO);
+
+        assertBD("7", total);
+    }
 }

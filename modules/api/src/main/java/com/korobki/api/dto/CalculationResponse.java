@@ -25,6 +25,30 @@ public class CalculationResponse {
     /** Print cost per unit without VAT (rubles). */
     private BigDecimal printCostPerUnit; // стоимость печати на единицу без НДС
 
+    /**
+     * Assembly mode: print cost of one detail without VAT (rubles).
+     * Null when the mode is off.
+     */
+    private BigDecimal assemblyCostPerPart;
+
+    /**
+     * Assembly mode: cost of one assembly sheet without VAT (rubles).
+     * Null when the mode is off.
+     */
+    private BigDecimal assemblySheetCost;
+
+    /**
+     * Assembly mode: number of sheets needed for the box run.
+     * Null when the mode is off.
+     */
+    private Integer assemblySheets;
+
+    /**
+     * Assembly mode: total number of details on one assembly sheet.
+     * Null when the mode is off.
+     */
+    private Integer assemblyPartsOnSheet;
+
     /** Client prices for all 7 quantity tiers. */
     private List<PriceRowDto> prices;
 }

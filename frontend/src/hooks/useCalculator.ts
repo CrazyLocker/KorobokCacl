@@ -8,6 +8,7 @@ import type {
     Detail,
     Extra,
     PrintSettings,
+    AssemblySettings,
     CalculationResponse,
     Construct,
     PrintTable,
@@ -60,6 +61,13 @@ export function useCalculator() {
         enabled: true,
         format: 1,
         quantity: 100,
+    });
+    // «Сборка на печатный лист». boxQuantity = 0 — тираж ещё не задан:
+    // при включении режима подставляется тираж печати (printSettings.quantity).
+    const [assemblySettings, setAssemblySettings] = useState<AssemblySettings>({
+        enabled: false,
+        format: 1,
+        boxQuantity: 0,
     });
     const [workPrice, setWorkPrice] = useState<number>(5);
     const [marginValue, setMarginValue] = useState<number>(30);
@@ -118,6 +126,9 @@ export function useCalculator() {
                 sheetPrice: part.pricePerSheet ?? 0,
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
+                // Сборка на печатный лист по умолчанию выключена.
+                inAssembly: false,
+                partsPerSheetInAssembly: 1,
                 isCustom: false,
                 enabled: part.perSheet > 0,
                 operations: {},
@@ -188,7 +199,12 @@ export function useCalculator() {
                 construction: currentConstruction,
                 details: toApiDetails(details),
                 extras,
-                printSettings,
+                // В режиме сборки печать одной детали выключена: режимы
+                // взаимоисключающие (то же правило проверяет бэкенд).
+                printSettings: assemblySettings.enabled
+                    ? { ...printSettings, enabled: false }
+                    : printSettings,
+                assemblySettings,
                 workPrice,
                 marginValue,
                 priceList,
@@ -200,7 +216,7 @@ export function useCalculator() {
         } finally {
             setLoading(false);
         }
-    }, [currentConstruction, details, extras, printSettings, workPrice, marginValue, priceList]);
+    }, [currentConstruction, details, extras, printSettings, assemblySettings, workPrice, marginValue, priceList]);
 
     // --- Auto-recalculate on parameter changes (debounced 500ms) ---
     // Mirrors the HTML prototype's instant reactive behavior
@@ -249,6 +265,8 @@ export function useCalculator() {
                 sheetPrice: 0,
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
+                inAssembly: false,
+                partsPerSheetInAssembly: 1,
                 isCustom: true,
                 enabled: true,
                 operations: {},
@@ -302,6 +320,8 @@ export function useCalculator() {
                     sheetPrice: 0,
                     isPrinted: false,
                     partsPerSheetOnPrint: 1,
+                    inAssembly: false,
+                    partsPerSheetInAssembly: 1,
                     isCustom: true,
                     enabled: true,
                     operations: {},
@@ -359,6 +379,30 @@ export function useCalculator() {
         setPrintSettings((prev) => ({ ...prev, [field]: value }));
     }, []);
 
+    // --- «Сборка на печатный лист» ---
+    const updateAssemblySettings = useCallback(
+        <K extends keyof AssemblySettings>(field: K, value: AssemblySettings[K]) => {
+            setAssemblySettings((prev) => ({ ...prev, [field]: value }));
+        },
+        [],
+    );
+
+    // Деталь уходит в сборку или возвращается в обычный режим. Количество на
+    // листе сохраняется, поэтому повторное включение возвращает прежнее значение.
+    const toggleDetailInAssembly = useCallback((uiKey: string, value: boolean) => {
+        setDetails((prev) => prev.map((detail) => (
+            detail.uiKey === uiKey
+                ? {
+                    ...detail,
+                    inAssembly: value,
+                    partsPerSheetInAssembly: (detail.partsPerSheetInAssembly ?? 0) > 0
+                        ? detail.partsPerSheetInAssembly
+                        : 1,
+                }
+                : detail
+        )));
+    }, []);
+
     return {
         // data
         constructs,
@@ -367,6 +411,7 @@ export function useCalculator() {
         details,
         extras,
         printSettings,
+        assemblySettings,
         workPrice,
         marginValue,
         priceList,
@@ -388,6 +433,8 @@ export function useCalculator() {
         removeCustomExtra,
         updatePriceList,
         updatePrintSettings,
+        updateAssemblySettings,
+        toggleDetailInAssembly,
         setWorkPrice,
         setMarginValue,
     };

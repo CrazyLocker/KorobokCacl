@@ -35,6 +35,18 @@ public class DetailDto {
      */
     private Integer partsPerSheetOnPrint;
 
+    /**
+     * Whether the detail is placed on the assembly sheet
+     * ("Сборка на печатный лист"). Null/false = the detail is not printed.
+     */
+    private Boolean inAssembly;
+
+    /**
+     * How many copies of this detail fit on the assembly sheet;
+     * null or 0 is treated as 1.
+     */
+    private Integer partsPerSheetInAssembly;
+
     /** Whether the detail was added by the user (not from the construction). */
     private Boolean isCustom;
 

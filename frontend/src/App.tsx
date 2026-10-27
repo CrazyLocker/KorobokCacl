@@ -119,6 +119,7 @@ function App() {
                     details: calc.details,
                     extras: calc.extras,
                     printSettings: calc.printSettings,
+                    assemblySettings: calc.assemblySettings,
                     workPrice: calc.workPrice,
                     marginValue: calc.marginValue,
                     priceList: calc.priceList,

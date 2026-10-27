@@ -32,6 +32,12 @@ public class CalculationRequest {
     /** Print settings; null or disabled = no print. */
     private PrintSettingsDto printSettings;
 
+    /**
+     * «Сборка на печатный лист»; null or disabled = the mode is off.
+     * Mutually exclusive with single-detail print ({@code printSettings.enabled}).
+     */
+    private AssemblySettingsDto assemblySettings;
+
     /** Work price per detail (rubles). */
     @NotNull(message = "Work price is required")
     @DecimalMin(value = "0.0", message = "Work price must be >= 0")
