@@ -22,7 +22,7 @@ import {
     Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { CalculatorModel } from '../../hooks/useCalculator';
 import type { Detail, Extra, PriceRow } from '../../types';
 import { calcAssemblyRun } from '../../utils/assemblyCost';
@@ -44,6 +44,13 @@ const OPERATION_LABELS: Record<string, string> = {
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
 const money = (value: number): string => `${value.toFixed(2)} ₽`;
+
+/**
+ * Карточки «Сборка на печатный лист» и «Дополнительные операции» стоят рядом,
+ * поэтому отступы тела карточек и кегль контролов у них одинаковые.
+ */
+const CARD_BODY_STYLE: CSSProperties = { padding: 16 };
+const CONTROL_STYLE: CSSProperties = { fontSize: 16 };
 
 /**
  * Себестоимость детали: (Руб/Лист / Шт/Лист) + работа + печать + доп. операции.
@@ -103,7 +110,13 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
         (table) => table.formatId === calc.assemblySettings.format,
     );
     const assemblyDetails = activeDetails.filter((detail) => detail.inAssembly);
-    // Детали с включённым флажком «Печать» — второй (взаимоисключающий) режим.
+    // На листе сборки нет ни одной детали с количеством > 0: либо ничего не
+    // отмечено, либо у всех отмеченных «0 на лист» — тогда цена не считается.
+    const assemblyHasNoParts = assemblyDetails.every(
+        (detail) => (detail.partsPerSheetInAssembly ?? 0) < 1,
+    );
+    // Детали с включённым флажком «Печать»: режимы взаимоисключающие, поэтому
+    // при включённой сборке в её шапке показываем компактный Tag (не Alert).
     const printedDetails = activeDetails.filter((detail) => detail.isPrinted);
     // Всего деталей на листе сборки: сумма «кол-во на лист» по отмеченным деталям.
     const assemblyPartsOnSheet = assemblyDetails.reduce(
@@ -439,14 +452,6 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
         },
     ];
 
-    // Включение сборки: тираж коробок по умолчанию равен тиражу печати.
-    const handleAssemblyToggle = (checked: boolean) => {
-        calc.updateAssemblySettings('enabled', checked);
-        if (checked && calc.assemblySettings.boxQuantity < 1) {
-            calc.updateAssemblySettings('boxQuantity', calc.printSettings.quantity);
-        }
-    };
-
     // «Печать» и «сборка» взаимоисключающие: снимаем флажки у всех деталей.
     const clearPrintedDetails = () => {
         activeDetails.forEach((detail) => {
@@ -454,6 +459,28 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                 calc.updateDetail(detail.uiKey, 'isPrinted', false);
             }
         });
+    };
+
+    // Включение сборки: все активные детали сразу идут в сборку по 1 шт. на
+    // лист (если количество ещё не задано), тираж коробок берётся из печати,
+    // а флажки «Печать» снимаются — режимы взаимоисключающие.
+    const handleAssemblyToggle = (checked: boolean) => {
+        calc.updateAssemblySettings('enabled', checked);
+        if (!checked) {
+            return;
+        }
+        if (calc.assemblySettings.boxQuantity < 1) {
+            calc.updateAssemblySettings('boxQuantity', calc.printSettings.quantity);
+        }
+        activeDetails.forEach((detail) => {
+            if (!detail.inAssembly) {
+                calc.updateDetail(detail.uiKey, 'inAssembly', true);
+            }
+            if ((detail.partsPerSheetInAssembly ?? 0) < 1) {
+                calc.updateDetail(detail.uiKey, 'partsPerSheetInAssembly', 1);
+            }
+        });
+        clearPrintedDetails();
     };
 
     return (
@@ -490,8 +517,9 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     style={{ marginBottom: 16 }}
                 >
                     <Form layout="inline" style={{ rowGap: 12 }}>
-                        <Form.Item label="Конструкция" style={{ flex: '1 1 360px', marginBottom: 0 }}>
+                        <Form.Item label="Конструкция" style={{ marginBottom: 0 }}>
                             <Select
+                                size="middle"
                                 showSearch
                                 optionFilterProp="label"
                                 value={calc.currentConstruction || undefined}
@@ -499,7 +527,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 loading={calc.constructs.length === 0}
                                 onChange={(value: string) => calc.loadConstruction(value)}
                                 options={constructionOptions}
-                                style={{ width: '100%' }}
+                                style={{ ...CONTROL_STYLE, width: '20ch' }}
                             />
                         </Form.Item>
                         <Form.Item label="Лист" style={{ marginBottom: 0 }}>
@@ -550,127 +578,265 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     )}
                 </Card>
 
-                {/* «Сборка на печатный лист»: один лист несёт комплект деталей. */}
-                <Card
-                    title={(
-                        <Space>
-                            Сборка на печатный лист
-                            <Tag style={{ marginInlineEnd: 0 }}>{assemblyDetails.length}</Tag>
-                        </Space>
-                    )}
-                    extra={<Text type="secondary">Деталей в коробке: {activeDetails.length}</Text>}
-                    style={{ marginBottom: 16 }}
-                >
-                    <Form layout="inline" style={{ rowGap: 12, marginBottom: 12 }}>
-                        <Form.Item style={{ marginBottom: 0 }}>
-                            <Checkbox
-                                checked={assemblyEnabled}
-                                onChange={(event) => handleAssemblyToggle(event.target.checked)}
-                                data-testid="assembly-enabled"
-                            >
-                                Включить сборку
-                            </Checkbox>
-                        </Form.Item>
-                        <Form.Item label="Формат" style={{ marginBottom: 0 }}>
-                            <Select
-                                value={calc.assemblySettings.format}
-                                disabled={!assemblyEnabled}
-                                onChange={(format: number) => calc.updateAssemblySettings('format', format)}
-                                options={calc.printTables.map((table) => ({
-                                    value: table.formatId,
-                                    label: table.formatName,
-                                }))}
-                                style={{ width: 200 }}
-                            />
-                        </Form.Item>
-                        <Form.Item label="Тираж коробок" style={{ marginBottom: 0 }}>
-                            <InputNumber
-                                min={1}
-                                precision={0}
-                                step={1}
-                                controls={false}
-                                disabled={!assemblyEnabled}
-                                // 0 = тираж ещё не задан: показываем тираж печати.
-                                value={calc.assemblySettings.boxQuantity > 0
-                                    ? calc.assemblySettings.boxQuantity
-                                    : calc.printSettings.quantity}
-                                onChange={(value) => calc.updateAssemblySettings(
-                                    'boxQuantity',
-                                    Math.max(1, Number(value) || 1),
-                                )}
-                                suffix="шт"
-                                style={{ width: 120 }}
-                                aria-label="Тираж коробок для сборки"
-                            />
-                        </Form.Item>
-                        <Form.Item style={{ marginBottom: 0 }}>
-                            <Tag color="blue" style={{ marginInlineEnd: 0 }}>
-                                → {money(assembly.perPart)} / деталь
-                            </Tag>
-                        </Form.Item>
-                    </Form>
-
-                    {assemblyEnabled && printedDetails.length > 0 && (
-                        <Alert
-                            type="warning"
-                            showIcon
-                            title="Печать одной детали и сборка взаимоисключающие"
-                            description={
-                                'Сборка уже включена, поэтому флажки «Печать» и «Дет./лист (печать)» '
-                                + 'не участвуют в расчёте. Снимите их, чтобы не путаться в режимах.'
-                            }
-                            action={(
-                                <Button size="small" onClick={clearPrintedDetails}>
-                                    Снять «Печать»
-                                </Button>
+                {/* «Сборка на печатный лист» и «Доп. операции» — рядом под раскладкой. */}
+                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                    <Col xs={24} lg={12}>
+                        <Card
+                            title={(
+                                <Space>
+                                    Сборка на печатный лист
+                                    <Tag style={{ marginInlineEnd: 0 }}>{assemblyDetails.length}</Tag>
+                                    {assemblyEnabled && printedDetails.length > 0 && (
+                                        <Tag color="warning" style={{ marginInlineEnd: 0 }}>
+                                            Печать снята (включена сборка)
+                                        </Tag>
+                                    )}
+                                </Space>
                             )}
-                            style={{ marginBottom: 12 }}
-                        />
-                    )}
+                            styles={{ body: CARD_BODY_STYLE }}
+                            style={{ height: '100%' }}
+                        >
+                            <Form layout="inline" style={{ rowGap: 12, marginBottom: 12 }}>
+                                <Form.Item style={{ marginBottom: 0 }}>
+                                    <Checkbox
+                                        checked={assemblyEnabled}
+                                        onChange={(event) => handleAssemblyToggle(event.target.checked)}
+                                        data-testid="assembly-enabled"
+                                    >
+                                        <span style={{ fontSize: 16 }}>Включить сборку</span>
+                                    </Checkbox>
+                                </Form.Item>
+                                <Form.Item label="Формат" style={{ marginBottom: 0 }}>
+                                    <Select
+                                        size="middle"
+                                        value={calc.assemblySettings.format}
+                                        disabled={!assemblyEnabled}
+                                        onChange={(format: number) => calc.updateAssemblySettings('format', format)}
+                                        options={calc.printTables.map((table) => ({
+                                            value: table.formatId,
+                                            label: table.formatName,
+                                        }))}
+                                        style={{ ...CONTROL_STYLE, width: 160 }}
+                                    />
+                                </Form.Item>
+                                <Form.Item label="Тираж коробок" style={{ marginBottom: 0 }}>
+                                    <InputNumber
+                                        size="middle"
+                                        min={1}
+                                        precision={0}
+                                        step={1}
+                                        controls={false}
+                                        disabled={!assemblyEnabled}
+                                        // 0 = тираж ещё не задан: показываем тираж печати.
+                                        value={calc.assemblySettings.boxQuantity > 0
+                                            ? calc.assemblySettings.boxQuantity
+                                            : calc.printSettings.quantity}
+                                        onChange={(value) => calc.updateAssemblySettings(
+                                            'boxQuantity',
+                                            Math.max(1, Number(value) || 1),
+                                        )}
+                                        suffix="шт"
+                                        style={{ ...CONTROL_STYLE, width: 120 }}
+                                        aria-label="Тираж коробок для сборки"
+                                    />
+                                </Form.Item>
+                                <Form.Item style={{ marginBottom: 0 }}>
+                                    <Tag color="blue" style={{ marginInlineEnd: 0, fontSize: 16 }}>
+                                        → {money(assembly.perPart)} / деталь
+                                    </Tag>
+                                </Form.Item>
+                            </Form>
 
-                    {assemblyEnabled && assemblyDetails.length === 0 && (
-                        <Alert
-                            type="error"
-                            showIcon
-                            title="Отметьте хотя бы одну деталь «В сборку»"
-                            description="Пока на листе сборки нет деталей, стоимость печати не считается."
-                            style={{ marginBottom: 12 }}
-                        />
-                    )}
+                            {/* Единственный Alert блока: цена листа не считается без деталей. */}
+                            {assemblyEnabled && assemblyHasNoParts && (
+                                <Alert
+                                    type="error"
+                                    showIcon
+                                    title="Отметьте хотя бы одну деталь «В сборку»"
+                                    description="Пока на листе сборки нет деталей, стоимость печати не считается."
+                                    style={{ marginBottom: 12 }}
+                                />
+                            )}
 
-                    <Table<Detail>
-                        columns={assemblyColumns}
-                        dataSource={calc.details}
-                        rowKey="uiKey"
-                        size="small"
-                        pagination={false}
-                        scroll={{ x: 640 }}
-                        onRow={(record) => ({
-                            style: {
-                                opacity: record.enabled && record.countOnSheet > 0 ? 1 : 0.5,
-                            },
-                        })}
-                    />
+                            <Table<Detail>
+                                columns={assemblyColumns}
+                                dataSource={calc.details}
+                                rowKey="uiKey"
+                                size="small"
+                                pagination={false}
+                                scroll={{ x: 520 }}
+                                onRow={(record) => ({
+                                    style: {
+                                        opacity: record.enabled && record.countOnSheet > 0 ? 1 : 0.5,
+                                    },
+                                })}
+                            />
 
-                    <Divider style={{ margin: '16px 0' }} />
+                            <Divider style={{ margin: '16px 0' }} />
 
-                    <Flex gap={32} wrap>
-                        <Statistic title="Деталей на листе" value={assembly.partsOnSheet} />
-                        <Statistic title="Тираж листов" value={assembly.sheets} />
-                        <Statistic
-                            title="Стоимость листа"
-                            value={assembly.sheetCost}
-                            precision={2}
-                            suffix="₽"
-                        />
-                        <Statistic
-                            title="Стоимость детали"
-                            value={assembly.perPart}
-                            precision={2}
-                            suffix="₽"
-                        />
-                    </Flex>
-                </Card>
+                            <Flex gap={24} wrap>
+                                <Statistic title="Деталей на листе" value={assembly.partsOnSheet} />
+                                <Statistic title="Деталей в коробке" value={activeDetails.length} />
+                                <Statistic title="Тираж листов" value={assembly.sheets} />
+                                <Statistic
+                                    title="Стоимость листа"
+                                    value={assembly.sheetCost}
+                                    precision={2}
+                                    suffix="₽"
+                                />
+                                <Statistic
+                                    title="Стоимость детали"
+                                    value={assembly.perPart}
+                                    precision={2}
+                                    suffix="₽"
+                                />
+                            </Flex>
+                        </Card>
+                    </Col>
+
+                    {/* Правый блок той же строки: «Дополнительные операции». */}
+                    <Col xs={24} lg={12}>
+                        <Card
+                            title="Дополнительные операции"
+                            extra={<Tag style={{ marginInlineEnd: 0 }}>{calc.extras.length}</Tag>}
+                            styles={{ body: CARD_BODY_STYLE }}
+                            style={{ height: '100%' }}
+                        >
+                            <Form layout="inline" style={{ marginBottom: 16, rowGap: 12 }}>
+                                <Form.Item label="Печать" style={{ marginBottom: 0 }}>
+                                    <Select
+                                        size="middle"
+                                        value={calc.printSettings.format}
+                                        onChange={(format: number) => {
+                                            const table = calc.printTables.find(
+                                                (item) => item.formatId === format,
+                                            );
+                                            const firstQty = table?.steps?.[0]?.minQty || 100;
+                                            calc.updatePrintSettings('format', format);
+                                            calc.updatePrintSettings('quantity', firstQty);
+                                            calc.updatePrintSettings('enabled', true);
+                                        }}
+                                        options={calc.printTables.map((table) => ({
+                                            value: table.formatId,
+                                            label: table.formatName,
+                                        }))}
+                                        style={{ ...CONTROL_STYLE, width: 160 }}
+                                    />
+                                </Form.Item>
+                                <Form.Item label="Тираж" style={{ marginBottom: 0 }}>
+                                    <Select
+                                        size="middle"
+                                        value={calc.printSettings.quantity}
+                                        onChange={(quantity: number) => {
+                                            calc.updatePrintSettings('quantity', quantity);
+                                            calc.updatePrintSettings('enabled', true);
+                                        }}
+                                        options={qtyOptions.map((quantity) => ({
+                                            value: quantity,
+                                            label: quantity,
+                                        }))}
+                                        style={{ ...CONTROL_STYLE, width: 100 }}
+                                    />
+                                </Form.Item>
+                                <Form.Item style={{ marginBottom: 0 }}>
+                                    <Tag
+                                        color={assemblyEnabled ? 'default' : 'blue'}
+                                        style={{ marginInlineEnd: 0, fontSize: 16 }}
+                                    >
+                                        {assemblyEnabled
+                                            ? 'печать выключена: включена сборка'
+                                            : `→ ${money(localPrintPerUnit)} / ед.`}
+                                    </Tag>
+                                </Form.Item>
+                            </Form>
+
+                            <Divider style={{ margin: '0 0 8px' }} />
+
+                            <Flex vertical>
+                                {calc.extras.map((extra, index) => (
+                                    <Flex
+                                        key={`${extra.name}-${index}`}
+                                        justify="space-between"
+                                        align="center"
+                                        gap={12}
+                                        wrap
+                                        style={{
+                                            padding: '6px 0',
+                                            borderBottom: index < calc.extras.length - 1
+                                                ? '1px solid #f0f0f0'
+                                                : 'none',
+                                        }}
+                                    >
+                                        <Space wrap>
+                                            {extra.isCustom ? (
+                                                <Input
+                                                    size="middle"
+                                                    value={extra.name}
+                                                    placeholder="Название"
+                                                    onChange={(event) => calc.updateExtra(
+                                                        index,
+                                                        'name',
+                                                        event.target.value,
+                                                    )}
+                                                    style={{ ...CONTROL_STYLE, width: 140 }}
+                                                />
+                                            ) : (
+                                                <Text strong>{extra.name}</Text>
+                                            )}
+                                            <InputNumber
+                                                size="middle"
+                                                min={0}
+                                                step={0.01}
+                                                precision={2}
+                                                controls={false}
+                                                value={extra.cost}
+                                                onChange={(value) => calc.updateExtra(
+                                                    index,
+                                                    'cost',
+                                                    Number(value) || 0,
+                                                )}
+                                                suffix="₽"
+                                                style={{ ...CONTROL_STYLE, width: 120 }}
+                                            />
+                                        </Space>
+                                        <Space size={6}>
+                                            <Tag
+                                                color="blue"
+                                                style={{
+                                                    marginInlineEnd: 0,
+                                                    fontSize: 16,
+                                                    fontVariantNumeric: 'tabular-nums',
+                                                }}
+                                            >
+                                                {money(extra.cost)}
+                                            </Tag>
+                                            {extra.isCustom && (
+                                                <Tooltip title="Удалить операцию">
+                                                    <Button
+                                                        type="text"
+                                                        danger
+                                                        icon={<DeleteOutlined />}
+                                                        aria-label={`Удалить операцию ${extra.name}`}
+                                                        onClick={() => calc.removeCustomExtra(index)}
+                                                    />
+                                                </Tooltip>
+                                            )}
+                                        </Space>
+                                    </Flex>
+                                ))}
+                            </Flex>
+
+                            <Button
+                                type="dashed"
+                                block
+                                onClick={calc.addCustomExtra}
+                                style={{ marginTop: 12 }}
+                            >
+                                + Добавить операцию
+                            </Button>
+                        </Card>
+                    </Col>
+                </Row>
 
                 <Row gutter={[16, 16]}>
                     <Col xs={24} xl={11}>
@@ -840,142 +1006,6 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                         {money(calc.result?.totalCost ?? totalBoxCost)}
                                     </Text>
                                 </Flex>
-                            </Card>
-
-                            <Card
-                                title="Дополнительные операции"
-                                extra={<Tag style={{ marginInlineEnd: 0 }}>{calc.extras.length}</Tag>}
-                            >
-                                <Form layout="inline" style={{ marginBottom: 16, rowGap: 12 }}>
-                                    <Form.Item label="Печать" style={{ marginBottom: 0 }}>
-                                        <Select
-                                            value={calc.printSettings.format}
-                                            onChange={(format: number) => {
-                                                const table = calc.printTables.find(
-                                                    (item) => item.formatId === format,
-                                                );
-                                                const firstQty = table?.steps?.[0]?.minQty || 100;
-                                                calc.updatePrintSettings('format', format);
-                                                calc.updatePrintSettings('quantity', firstQty);
-                                                calc.updatePrintSettings('enabled', true);
-                                            }}
-                                            options={calc.printTables.map((table) => ({
-                                                value: table.formatId,
-                                                label: table.formatName,
-                                            }))}
-                                            style={{ width: 200 }}
-                                        />
-                                    </Form.Item>
-                                    <Form.Item label="Тираж" style={{ marginBottom: 0 }}>
-                                        <Select
-                                            value={calc.printSettings.quantity}
-                                            onChange={(quantity: number) => {
-                                                calc.updatePrintSettings('quantity', quantity);
-                                                calc.updatePrintSettings('enabled', true);
-                                            }}
-                                            options={qtyOptions.map((quantity) => ({
-                                                value: quantity,
-                                                label: quantity,
-                                            }))}
-                                            style={{ width: 100 }}
-                                        />
-                                    </Form.Item>
-                                    <Form.Item style={{ marginBottom: 0 }}>
-                                        <Tag
-                                            color={assemblyEnabled ? 'default' : 'blue'}
-                                            style={{ marginInlineEnd: 0 }}
-                                        >
-                                            {assemblyEnabled
-                                                ? 'печать выключена: включена сборка'
-                                                : `→ ${money(localPrintPerUnit)} / ед.`}
-                                        </Tag>
-                                    </Form.Item>
-                                </Form>
-
-                                <Divider style={{ margin: '0 0 8px' }} />
-
-                                <Flex vertical>
-
-                                    {calc.extras.map((extra, index) => (
-                                        <Flex
-                                            key={`${extra.name}-${index}`}
-                                            justify="space-between"
-                                            align="center"
-                                            gap={12}
-                                            wrap
-                                            style={{
-                                                padding: '6px 0',
-                                                borderBottom: index < calc.extras.length - 1
-                                                    ? '1px solid #f0f0f0'
-                                                    : 'none',
-                                            }}
-                                        >
-                                            <Space wrap>
-                                                {extra.isCustom ? (
-                                                    <Input
-                                                        size="small"
-                                                        value={extra.name}
-                                                        placeholder="Название"
-                                                        onChange={(event) => calc.updateExtra(
-                                                            index,
-                                                            'name',
-                                                            event.target.value,
-                                                        )}
-                                                        style={{ width: 140 }}
-                                                    />
-                                                ) : (
-                                                    <Text strong>{extra.name}</Text>
-                                                )}
-                                                <InputNumber
-                                                    size="small"
-                                                    min={0}
-                                                    step={0.01}
-                                                    precision={2}
-                                                    controls={false}
-                                                    value={extra.cost}
-                                                    onChange={(value) => calc.updateExtra(
-                                                        index,
-                                                        'cost',
-                                                        Number(value) || 0,
-                                                    )}
-                                                    suffix="₽"
-                                                    style={{ width: 120 }}
-                                                />
-                                            </Space>
-                                            <Space size={6}>
-                                                <Tag
-                                                    color="blue"
-                                                    style={{
-                                                        marginInlineEnd: 0,
-                                                        fontVariantNumeric: 'tabular-nums',
-                                                    }}
-                                                >
-                                                    {money(extra.cost)}
-                                                </Tag>
-                                                {extra.isCustom && (
-                                                    <Tooltip title="Удалить операцию">
-                                                        <Button
-                                                            type="text"
-                                                            danger
-                                                            icon={<DeleteOutlined />}
-                                                            aria-label={`Удалить операцию ${extra.name}`}
-                                                            onClick={() => calc.removeCustomExtra(index)}
-                                                        />
-                                                    </Tooltip>
-                                                )}
-                                            </Space>
-                                        </Flex>
-                                    ))}
-                                </Flex>
-
-                                <Button
-                                    type="dashed"
-                                    block
-                                    onClick={calc.addCustomExtra}
-                                    style={{ marginTop: 12 }}
-                                >
-                                    + Добавить операцию
-                                </Button>
                             </Card>
                         </Flex>
                     </Col>
