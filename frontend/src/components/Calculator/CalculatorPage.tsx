@@ -22,8 +22,10 @@ import {
     Typography,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
+import type { ReactNode } from 'react';
 import type { CalculatorModel } from '../../hooks/useCalculator';
 import type { Detail, Extra, PriceRow } from '../../types';
+import { calcAssemblyRun } from '../../utils/assemblyCost';
 
 const { Text, Title } = Typography;
 
@@ -93,9 +95,54 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
     }
 
     const printCostPerUnit = calc.result?.printCostPerUnit ?? localPrintPerUnit;
+
+    // --- «Сборка на печатный лист» ---
+    // Один лист несёт комплект деталей; тираж коробок = тираж каждой детали.
+    const assemblyEnabled = calc.assemblySettings.enabled;
+    const assemblyTable = calc.printTables.find(
+        (table) => table.formatId === calc.assemblySettings.format,
+    );
+    const assemblyDetails = activeDetails.filter((detail) => detail.inAssembly);
+    // Детали с включённым флажком «Печать» — второй (взаимоисключающий) режим.
+    const printedDetails = activeDetails.filter((detail) => detail.isPrinted);
+    // Всего деталей на листе сборки: сумма «кол-во на лист» по отмеченным деталям.
+    const assemblyPartsOnSheet = assemblyDetails.reduce(
+        (sum, detail) => sum + Math.max(1, detail.partsPerSheetInAssembly ?? 1),
+        0,
+    );
+    // Деталей в коробке = число активных деталей: 1 коробка = 1 комплект.
+    const localAssembly = calcAssemblyRun(
+        assemblyTable,
+        calc.assemblySettings.boxQuantity,
+        assemblyPartsOnSheet,
+        activeDetails.length,
+    );
+    // Итог бэкенда приоритетнее; локальный расчёт закрывает паузу до ответа.
+    const assembly = {
+        partsOnSheet: assemblyPartsOnSheet,
+        sheets: assemblyEnabled ? (calc.result?.assemblySheets ?? localAssembly.sheets) : 0,
+        sheetCost: assemblyEnabled ? (calc.result?.assemblySheetCost ?? localAssembly.sheetCost) : 0,
+        perPart: assemblyEnabled ? (calc.result?.assemblyCostPerPart ?? localAssembly.perPart) : 0,
+    };
+
+    // В режиме сборки стоимость печати детали — её доля стоимости листа сборки,
+    // флажок «Печать» при этом не используется.
+    const detailPrintCost = (detail: Detail): number =>
+        assemblyEnabled
+            ? (detail.inAssembly ? assembly.perPart : 0)
+            : printCostPerUnit;
+    const detailHasPrint = (detail: Detail): boolean =>
+        assemblyEnabled ? Boolean(detail.inAssembly) : Boolean(detail.isPrinted);
+
     const totalBoxCost = activeDetails.reduce(
         (sum, detail) => sum
-            + calculateDetailCost(detail, calc.extras, calc.workPrice, printCostPerUnit, Boolean(detail.isPrinted)),
+            + calculateDetailCost(
+                detail,
+                calc.extras,
+                calc.workPrice,
+                detailPrintCost(detail),
+                detailHasPrint(detail),
+            ),
         0,
     );
 
@@ -110,6 +157,13 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
             isBase: label === '10–49',
             isPriceListUsed: false,
         }));
+
+    // Подсказка к заблокированным контролам печати: включён режим сборки.
+    const withPrintHint = (node: ReactNode) => (assemblyEnabled ? (
+        <Tooltip title="Включён режим «Сборка на печатный лист»: печать одной детали недоступна">
+            <span style={{ display: 'inline-block', cursor: 'not-allowed' }}>{node}</span>
+        </Tooltip>
+    ) : node);
 
     const layoutColumns: TableColumnsType<Detail> = [
         {
@@ -191,13 +245,13 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
             dataIndex: 'partsPerSheetOnPrint',
             width: 130,
             align: 'right',
-            render: (_value, record) => (
+            render: (_value, record) => withPrintHint(
                 <InputNumber
                     min={1}
                     precision={0}
                     step={1}
                     controls={false}
-                    disabled={!record.enabled || !record.isPrinted}
+                    disabled={!record.enabled || !record.isPrinted || assemblyEnabled}
                     value={record.partsPerSheetOnPrint ?? 1}
                     onChange={(value) => calc.updateDetail(
                         record.uiKey,
@@ -206,7 +260,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     )}
                     style={{ width: 80 }}
                     aria-label={`Деталей на лист печати: ${record.name}`}
-                />
+                />,
             ),
         },
         {
@@ -214,13 +268,15 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
             key: 'operations',
             render: (_value, record) => (
                 <Space size={[12, 4]} wrap>
-                    <Checkbox
-                        checked={Boolean(record.isPrinted)}
-                        disabled={!record.enabled}
-                        onChange={(event) => calc.updateDetail(record.uiKey, 'isPrinted', event.target.checked)}
-                    >
-                        <span style={{ fontSize: 12 }}>Печать</span>
-                    </Checkbox>
+                    {withPrintHint(
+                        <Checkbox
+                            checked={Boolean(record.isPrinted)}
+                            disabled={!record.enabled || assemblyEnabled}
+                            onChange={(event) => calc.updateDetail(record.uiKey, 'isPrinted', event.target.checked)}
+                        >
+                            <span style={{ fontSize: 12 }}>Печать</span>
+                        </Checkbox>,
+                    )}
                     {calc.extras.map((extra) => (
                         <Tooltip key={extra.name} title={extra.name}>
                             <Checkbox
@@ -319,6 +375,87 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
         },
     ];
 
+    // Таблица «в сборку»: деталь, флажок участия, количество на листе и цена.
+    const assemblyColumns: TableColumnsType<Detail> = [
+        {
+            title: 'Деталь',
+            dataIndex: 'name',
+            render: (_value, record) => (
+                <Text strong={record.enabled}>{record.name}</Text>
+            ),
+        },
+        {
+            title: 'В сборку',
+            dataIndex: 'inAssembly',
+            width: 110,
+            align: 'center',
+            render: (_value, record) => (
+                <Checkbox
+                    checked={Boolean(record.inAssembly)}
+                    disabled={!assemblyEnabled || !record.enabled || record.countOnSheet <= 0}
+                    onChange={(event) => calc.toggleDetailInAssembly(record.uiKey, event.target.checked)}
+                    aria-label={`В сборку: ${record.name}`}
+                />
+            ),
+        },
+        {
+            title: 'Кол-во на лист',
+            dataIndex: 'partsPerSheetInAssembly',
+            width: 150,
+            align: 'right',
+            render: (_value, record) => (
+                <InputNumber
+                    min={1}
+                    precision={0}
+                    step={1}
+                    controls={false}
+                    disabled={!assemblyEnabled || !record.inAssembly}
+                    value={record.partsPerSheetInAssembly ?? 1}
+                    onChange={(value) => calc.updateDetail(
+                        record.uiKey,
+                        'partsPerSheetInAssembly',
+                        Math.max(1, Number(value) || 1),
+                    )}
+                    style={{ width: 80 }}
+                    aria-label={`Количество на листе сборки: ${record.name}`}
+                />
+            ),
+        },
+        {
+            title: 'Цена детали',
+            key: 'assemblyCost',
+            width: 130,
+            align: 'right',
+            render: (_value, record) => (assemblyEnabled && record.inAssembly ? (
+                <Tag
+                    color="blue"
+                    style={{ marginInlineEnd: 0, fontVariantNumeric: 'tabular-nums' }}
+                >
+                    {money(assembly.perPart)}
+                </Tag>
+            ) : (
+                <Text type="secondary">—</Text>
+            )),
+        },
+    ];
+
+    // Включение сборки: тираж коробок по умолчанию равен тиражу печати.
+    const handleAssemblyToggle = (checked: boolean) => {
+        calc.updateAssemblySettings('enabled', checked);
+        if (checked && calc.assemblySettings.boxQuantity < 1) {
+            calc.updateAssemblySettings('boxQuantity', calc.printSettings.quantity);
+        }
+    };
+
+    // «Печать» и «сборка» взаимоисключающие: снимаем флажки у всех деталей.
+    const clearPrintedDetails = () => {
+        activeDetails.forEach((detail) => {
+            if (detail.isPrinted) {
+                calc.updateDetail(detail.uiKey, 'isPrinted', false);
+            }
+        });
+    };
+
     return (
         <div data-testid="calculator-page">
             <div
@@ -413,6 +550,128 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                     )}
                 </Card>
 
+                {/* «Сборка на печатный лист»: один лист несёт комплект деталей. */}
+                <Card
+                    title={(
+                        <Space>
+                            Сборка на печатный лист
+                            <Tag style={{ marginInlineEnd: 0 }}>{assemblyDetails.length}</Tag>
+                        </Space>
+                    )}
+                    extra={<Text type="secondary">Деталей в коробке: {activeDetails.length}</Text>}
+                    style={{ marginBottom: 16 }}
+                >
+                    <Form layout="inline" style={{ rowGap: 12, marginBottom: 12 }}>
+                        <Form.Item style={{ marginBottom: 0 }}>
+                            <Checkbox
+                                checked={assemblyEnabled}
+                                onChange={(event) => handleAssemblyToggle(event.target.checked)}
+                                data-testid="assembly-enabled"
+                            >
+                                Включить сборку
+                            </Checkbox>
+                        </Form.Item>
+                        <Form.Item label="Формат" style={{ marginBottom: 0 }}>
+                            <Select
+                                value={calc.assemblySettings.format}
+                                disabled={!assemblyEnabled}
+                                onChange={(format: number) => calc.updateAssemblySettings('format', format)}
+                                options={calc.printTables.map((table) => ({
+                                    value: table.formatId,
+                                    label: table.formatName,
+                                }))}
+                                style={{ width: 200 }}
+                            />
+                        </Form.Item>
+                        <Form.Item label="Тираж коробок" style={{ marginBottom: 0 }}>
+                            <InputNumber
+                                min={1}
+                                precision={0}
+                                step={1}
+                                controls={false}
+                                disabled={!assemblyEnabled}
+                                // 0 = тираж ещё не задан: показываем тираж печати.
+                                value={calc.assemblySettings.boxQuantity > 0
+                                    ? calc.assemblySettings.boxQuantity
+                                    : calc.printSettings.quantity}
+                                onChange={(value) => calc.updateAssemblySettings(
+                                    'boxQuantity',
+                                    Math.max(1, Number(value) || 1),
+                                )}
+                                suffix="шт"
+                                style={{ width: 120 }}
+                                aria-label="Тираж коробок для сборки"
+                            />
+                        </Form.Item>
+                        <Form.Item style={{ marginBottom: 0 }}>
+                            <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+                                → {money(assembly.perPart)} / деталь
+                            </Tag>
+                        </Form.Item>
+                    </Form>
+
+                    {assemblyEnabled && printedDetails.length > 0 && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            title="Печать одной детали и сборка взаимоисключающие"
+                            description={
+                                'Сборка уже включена, поэтому флажки «Печать» и «Дет./лист (печать)» '
+                                + 'не участвуют в расчёте. Снимите их, чтобы не путаться в режимах.'
+                            }
+                            action={(
+                                <Button size="small" onClick={clearPrintedDetails}>
+                                    Снять «Печать»
+                                </Button>
+                            )}
+                            style={{ marginBottom: 12 }}
+                        />
+                    )}
+
+                    {assemblyEnabled && assemblyDetails.length === 0 && (
+                        <Alert
+                            type="error"
+                            showIcon
+                            title="Отметьте хотя бы одну деталь «В сборку»"
+                            description="Пока на листе сборки нет деталей, стоимость печати не считается."
+                            style={{ marginBottom: 12 }}
+                        />
+                    )}
+
+                    <Table<Detail>
+                        columns={assemblyColumns}
+                        dataSource={calc.details}
+                        rowKey="uiKey"
+                        size="small"
+                        pagination={false}
+                        scroll={{ x: 640 }}
+                        onRow={(record) => ({
+                            style: {
+                                opacity: record.enabled && record.countOnSheet > 0 ? 1 : 0.5,
+                            },
+                        })}
+                    />
+
+                    <Divider style={{ margin: '16px 0' }} />
+
+                    <Flex gap={32} wrap>
+                        <Statistic title="Деталей на листе" value={assembly.partsOnSheet} />
+                        <Statistic title="Тираж листов" value={assembly.sheets} />
+                        <Statistic
+                            title="Стоимость листа"
+                            value={assembly.sheetCost}
+                            precision={2}
+                            suffix="₽"
+                        />
+                        <Statistic
+                            title="Стоимость детали"
+                            value={assembly.perPart}
+                            precision={2}
+                            suffix="₽"
+                        />
+                    </Flex>
+                </Card>
+
                 <Row gutter={[16, 16]}>
                     <Col xs={24} xl={11}>
                         <Card title="Себестоимость деталей / Коробки" style={{ height: '100%' }}>
@@ -430,8 +689,8 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                         detail,
                                         calc.extras,
                                         calc.workPrice,
-                                        printCostPerUnit,
-                                        Boolean(detail.isPrinted),
+                                        detailPrintCost(detail),
+                                        detailHasPrint(detail),
                                     );
 
                                     const formulaParts: string[] = [];
@@ -441,8 +700,12 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                     if (calc.workPrice > 0) {
                                         formulaParts.push(`работа ${calc.workPrice}`);
                                     }
-                                    if (detail.isPrinted && printCostPerUnit > 0) {
-                                        formulaParts.push(`печать ${printCostPerUnit.toFixed(2)}`);
+                                    if (detailHasPrint(detail) && detailPrintCost(detail) > 0) {
+                                        formulaParts.push(
+                                            assemblyEnabled
+                                                ? `сборка ${detailPrintCost(detail).toFixed(2)}`
+                                                : `печать ${detailPrintCost(detail).toFixed(2)}`,
+                                        );
                                     }
                                     if (extraCost > 0) {
                                         formulaParts.push(`+ ${extraCost.toFixed(2)} доп.`);
@@ -618,8 +881,13 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                         />
                                     </Form.Item>
                                     <Form.Item style={{ marginBottom: 0 }}>
-                                        <Tag color="blue" style={{ marginInlineEnd: 0 }}>
-                                            → {money(localPrintPerUnit)} / ед.
+                                        <Tag
+                                            color={assemblyEnabled ? 'default' : 'blue'}
+                                            style={{ marginInlineEnd: 0 }}
+                                        >
+                                            {assemblyEnabled
+                                                ? 'печать выключена: включена сборка'
+                                                : `→ ${money(localPrintPerUnit)} / ед.`}
                                         </Tag>
                                     </Form.Item>
                                 </Form>

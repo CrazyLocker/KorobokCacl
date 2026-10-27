@@ -11,6 +11,11 @@ export interface Detail {
     // Number of identical parts printed on one print sheet.
     // Optional for backward compatibility with saved calculations; null/0 means 1.
     partsPerSheetOnPrint?: number;
+    // Режим «Сборка на печатный лист»: деталь кладётся на лист сборки.
+    // Optional: сохранённые расчёты без режима сборки поля не содержат.
+    inAssembly?: boolean;
+    // Сколько копий этой детали лежит на листе сборки; null/0 означает 1.
+    partsPerSheetInAssembly?: number;
     isCustom: boolean;
     enabled: boolean;
     // Unified map for all operations (standard + custom).
@@ -31,6 +36,19 @@ export interface PrintSettings {
     quantity: number;
 }
 
+/**
+ * Режим «Сборка на печатный лист»: один лист несёт комплект деталей,
+ * тираж коробок равен тиражу каждой детали (1 коробка = 1 комплект).
+ * Взаимоисключающий с режимом печати одной детали (isPrinted).
+ */
+export interface AssemblySettings {
+    enabled: boolean;
+    // Формат печати (print_tables.formatId).
+    format: number;
+    // Тираж коробок. 0 = ещё не задан: при включении берётся тираж печати.
+    boxQuantity: number;
+}
+
 /** Detail as it is sent to backend: no client-only fields. */
 export type ApiDetail = Omit<Detail, 'uiKey'>;
 
@@ -39,6 +57,8 @@ export interface CalculationRequest {
     details: ApiDetail[];
     extras: Extra[]; // All operations (standard + custom) in a single list
     printSettings: PrintSettings;
+    // Режим сборки; отсутствует/disabled — считается обычная печать.
+    assemblySettings?: AssemblySettings;
     workPrice: number;
     marginValue?: number; // Плечо (+N), по умолчанию 30
     priceList: Record<string, number>;
@@ -60,6 +80,11 @@ export interface CalculationResponse {
     branch: string;
     basePriceWithVAT: number;
     printCostPerUnit: number;
+    // «Сборка на печатный лист»: null/undefined, когда режим выключен.
+    assemblyCostPerPart?: number | null;
+    assemblySheetCost?: number | null;
+    assemblySheets?: number | null;
+    assemblyPartsOnSheet?: number | null;
     prices: PriceRow[];
 }
 

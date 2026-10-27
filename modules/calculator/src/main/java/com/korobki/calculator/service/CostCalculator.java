@@ -54,6 +54,31 @@ public class CostCalculator {
             Integer printQuantity,
             BigDecimal workPrice
     ) {
+        return calculateTotalCost(
+                details, extras, printEnabled, printFormat, printQuantity, workPrice, null);
+    }
+
+    /**
+     * Same as {@link #calculateTotalCost(List, List, boolean, Integer, Integer, BigDecimal)}
+     * plus the «Сборка на печатный лист» mode.
+     *
+     * <p>In assembly mode one sheet bill is shared by every detail placed on the
+     * sheet, so each detail marked {@code inAssembly} gets the same per-part
+     * print cost and the single-detail print flag is ignored.
+     *
+     * @param assemblyCostPerPart print cost of one detail in assembly mode
+     *                            (rubles); null or 0 = the mode is off
+     * @return total cost as BigDecimal (NOT yet rounded — caller decides)
+     */
+    public BigDecimal calculateTotalCost(
+            List<DetailInfo> details,
+            List<ExtraInfo> extras,
+            boolean printEnabled,
+            Integer printFormat,
+            Integer printQuantity,
+            BigDecimal workPrice,
+            BigDecimal assemblyCostPerPart
+    ) {
         BigDecimal sum = BigDecimal.ZERO;
 
         for (DetailInfo d : details) {
@@ -79,9 +104,16 @@ public class CostCalculator {
                 }
             }
 
-            // Print: each printed detail gets its own per-unit print cost,
-            // based on that detail's parts-per-sheet value.
-            if (Boolean.TRUE.equals(d.getIsPrinted()) && printEnabled) {
+            // Assembly mode: the sheet bill is shared by all details on the
+            // sheet, so every detail in the assembly gets the same per-part cost.
+            boolean inAssembly = assemblyCostPerPart != null
+                    && assemblyCostPerPart.signum() > 0
+                    && Boolean.TRUE.equals(d.getInAssembly());
+            if (inAssembly) {
+                cost = cost.add(assemblyCostPerPart);
+            } else if (Boolean.TRUE.equals(d.getIsPrinted()) && printEnabled) {
+                // Print: each printed detail gets its own per-unit print cost,
+                // based on that detail's parts-per-sheet value.
                 BigDecimal printPerUnit = printCostCalculator.calcPrintPerUnitNoVat(
                         printFormat, printQuantity, d.getPartsPerSheetOnPrint());
                 cost = cost.add(printPerUnit);
@@ -117,6 +149,8 @@ public class CostCalculator {
         private BigDecimal sheetPrice;
         private Boolean isPrinted;
         private Integer partsPerSheetOnPrint;
+        private Boolean inAssembly;
+        private Integer partsPerSheetInAssembly;
         private Boolean enabled;
         private Boolean isCustom;
         private Map<String, Boolean> operations;
@@ -131,6 +165,10 @@ public class CostCalculator {
         public void setIsPrinted(Boolean isPrinted) { this.isPrinted = isPrinted; }
         public Integer getPartsPerSheetOnPrint() { return partsPerSheetOnPrint; }
         public void setPartsPerSheetOnPrint(Integer partsPerSheetOnPrint) { this.partsPerSheetOnPrint = partsPerSheetOnPrint; }
+        public Boolean getInAssembly() { return inAssembly; }
+        public void setInAssembly(Boolean inAssembly) { this.inAssembly = inAssembly; }
+        public Integer getPartsPerSheetInAssembly() { return partsPerSheetInAssembly; }
+        public void setPartsPerSheetInAssembly(Integer partsPerSheetInAssembly) { this.partsPerSheetInAssembly = partsPerSheetInAssembly; }
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
         public Boolean getIsCustom() { return isCustom; }

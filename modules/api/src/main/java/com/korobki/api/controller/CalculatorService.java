@@ -46,7 +46,12 @@ public class CalculatorService {
         List<CostCalculator.DetailInfo> details = convertDetails(request.getDetails());
         List<CostCalculator.ExtraInfo> extras = convertExtras(request.getExtras());
 
-        boolean printEnabled = request.getPrintSettings() != null
+        // Assembly mode is mutually exclusive with single-detail print, so the
+        // isPrinted flags are ignored while assembly is on.
+        boolean assemblyEnabled = request.getAssemblySettings() != null
+                && Boolean.TRUE.equals(request.getAssemblySettings().getEnabled());
+        boolean printEnabled = !assemblyEnabled
+                && request.getPrintSettings() != null
                 && Boolean.TRUE.equals(request.getPrintSettings().getEnabled());
         Integer printFormat = request.getPrintSettings() != null ? request.getPrintSettings().getFormat() : null;
         Integer printQuantity = request.getPrintSettings() != null ? request.getPrintSettings().getQuantity() : null;
@@ -72,9 +77,40 @@ public class CalculatorService {
             }
         }
 
+        // --- 2b. Assembly mode («Сборка на печатный лист») ---
+        // One box is one complete set of details, so the box run is the run of
+        // every detail, and one sheet carries partsOnSheetTotal parts.
+        int detailCountInBox = 0;
+        int assemblyPartsOnSheet = 0;
+        for (CostCalculator.DetailInfo d : details) {
+            if (!Boolean.TRUE.equals(d.getEnabled())
+                    || d.getCountOnSheet() == null
+                    || d.getCountOnSheet().signum() <= 0) {
+                continue;
+            }
+            detailCountInBox++;
+            if (Boolean.TRUE.equals(d.getInAssembly())) {
+                assemblyPartsOnSheet += d.getPartsPerSheetInAssembly() != null
+                        && d.getPartsPerSheetInAssembly() > 0
+                        ? d.getPartsPerSheetInAssembly()
+                        : 1;
+            }
+        }
+        PrintCostCalculator.AssemblyRun assemblyRun = assemblyEnabled
+                ? printCostCalculator.calcAssemblyRun(
+                        request.getAssemblySettings().getFormat(),
+                        request.getAssemblySettings().getBoxQuantity(),
+                        assemblyPartsOnSheet,
+                        detailCountInBox)
+                : null;
+        BigDecimal assemblyCostPerPart = assemblyRun != null
+                ? assemblyRun.pricePerPart()
+                : BigDecimal.ZERO;
+
         // --- 3. Calculate total cost (full precision) ---
         BigDecimal totalCost = costCalculator.calculateTotalCost(
-                details, extras, printEnabled, printFormat, printQuantity, workPrice);
+                details, extras, printEnabled, printFormat, printQuantity, workPrice,
+                assemblyRun != null ? assemblyCostPerPart : null);
 
         // --- 4. Round to kopecks first, then to whole rubles (rounding #1) ---
         // Material is divided with scale=10, so values on a .5 boundary may be
@@ -116,6 +152,12 @@ public class CalculatorService {
         response.setBranch(branch);
         response.setBasePriceWithVAT(basePriceWithVAT);
         response.setPrintCostPerUnit(printCostPerUnit);
+        if (assemblyRun != null) {
+            response.setAssemblyCostPerPart(assemblyRun.pricePerPart());
+            response.setAssemblySheetCost(assemblyRun.pricePerSheet());
+            response.setAssemblySheets(assemblyRun.sheets());
+            response.setAssemblyPartsOnSheet(assemblyPartsOnSheet);
+        }
         response.setPrices(priceRowDtos);
 
         return response;
@@ -136,6 +178,8 @@ public class CalculatorService {
             info.setSheetPrice(dto.getSheetPrice());
             info.setIsPrinted(dto.getIsPrinted());
             info.setPartsPerSheetOnPrint(dto.getPartsPerSheetOnPrint());
+            info.setInAssembly(dto.getInAssembly());
+            info.setPartsPerSheetInAssembly(dto.getPartsPerSheetInAssembly());
             info.setEnabled(dto.getEnabled());
             info.setIsCustom(dto.getIsCustom());
             info.setOperations(dto.getOperations());
@@ -165,6 +209,9 @@ public class CalculatorService {
      * - enabled details must have countOnSheet > 0
      * - price list keys must be valid tier labels
      * - enabled print settings must have format and positive quantity
+     * - assembly mode must have format, positive box quantity and at least one
+     *   detail in the assembly
+     * - assembly mode and single-detail print are mutually exclusive
      */
     private void validate(CalculationRequest request) {
         if (request.getDetails() != null) {
@@ -224,5 +271,38 @@ public class CalculatorService {
                 throw new IllegalArgumentException("Print settings enabled but quantity must be > 0");
             }
         }
+
+        AssemblySettingsDto assembly = request.getAssemblySettings();
+        if (assembly != null && Boolean.TRUE.equals(assembly.getEnabled())) {
+            // Печать одной детали и сборка несовместимы: оба режима добавляют
+            // стоимость печати одним и тем же деталям.
+            if (request.getPrintSettings() != null
+                    && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
+                throw new IllegalArgumentException(
+                        "Assembly mode and single-detail print are mutually exclusive: "
+                                + "disable printSettings.enabled or assemblySettings.enabled");
+            }
+            if (assembly.getFormat() == null) {
+                throw new IllegalArgumentException("Assembly settings enabled but format is missing");
+            }
+            if (assembly.getBoxQuantity() == null || assembly.getBoxQuantity() <= 0) {
+                throw new IllegalArgumentException(
+                        "Assembly settings enabled but box quantity must be > 0");
+            }
+            boolean hasAssemblyDetails = request.getDetails() != null
+                    && request.getDetails().stream().anyMatch(this::isInAssembly);
+            if (!hasAssemblyDetails) {
+                throw new IllegalArgumentException(
+                        "Assembly settings enabled but no enabled detail is marked for assembly");
+            }
+        }
+    }
+
+    /** Whether the detail takes part in the assembly sheet. */
+    private boolean isInAssembly(DetailDto d) {
+        return Boolean.TRUE.equals(d.getEnabled())
+                && Boolean.TRUE.equals(d.getInAssembly())
+                && d.getCountOnSheet() != null
+                && d.getCountOnSheet().signum() > 0;
     }
 }
