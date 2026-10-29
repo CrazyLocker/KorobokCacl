@@ -180,6 +180,39 @@ export interface KnifeSaveRequest {
     managerName: string;
 }
 
+// Режим расчёта ножа — чекбоксы «Учитывать трансформации» / «Учитывать единицы измерения».
+// По умолчанию оба включены, как в прототипе.
+export interface KnifeOptions {
+    useTransform: boolean;
+    useUnits: boolean;
+}
+
+// Элемент контура в ответе /api/knife/calculate
+export interface KnifeElement {
+    type: string;
+    lengthPx: number;
+    lengthMm: number;
+    hasTransform: boolean;
+}
+
+// Результат расчёта ножа (ответ /api/knife/calculate)
+export interface KnifeResult {
+    totalLengthPx: number;
+    totalLengthMm: number;
+    knifeCost: number;
+    scale: number;
+    // Источник масштаба: 'width/height атрибуты', 'viewBox как мм', …
+    scaleSource?: string;
+    // Единица измерения корня документа: mm/cm/in/pt/pc/px
+    unit?: string;
+    elements?: KnifeElement[];
+    // Устаревшее поле без флага transform — оставлено для обратной совместимости.
+    details?: { type: string; lengthPx: number; lengthMm: number }[];
+    // Ошибка разбора SVG (битый XML, DOCTYPE с недоступным DTD и т.п.).
+    // null/undefined — разбор прошёл; иначе длины нулевые и показываем ошибку.
+    parseError?: string | null;
+}
+
 // Конструкция из БД
 export interface Construct {
     id: string;

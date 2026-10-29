@@ -1,6 +1,7 @@
 package com.korobki.api.controller;
 
 import com.korobki.api.dto.KnifeDto;
+import com.korobki.api.dto.KnifeElementDto;
 import com.korobki.api.dto.KnifeRequest;
 import com.korobki.api.dto.KnifeResponse;
 import com.korobki.api.dto.KnifeSaveRequest;
@@ -37,22 +38,37 @@ public class KnifeController {
      * @return total cut length, cost and per-element breakdown
      */
     @PostMapping("/calculate")
-    public ResponseEntity<KnifeResponse> calculate(@RequestBody KnifeRequest request) {        KnifeCalculator.KnifeResult result = knifeCalculator.calculate(request.getSvgContent());
+    public ResponseEntity<KnifeResponse> calculate(@RequestBody KnifeRequest request) {
+        boolean useTransform = !Boolean.FALSE.equals(request.getUseTransform());
+        boolean useUnits = !Boolean.FALSE.equals(request.getUseUnits());
+
+        KnifeCalculator.KnifeResult result =
+                knifeCalculator.calculate(request.getSvgContent(), useTransform, useUnits);
 
         KnifeResponse response = new KnifeResponse();
         response.setTotalLengthPx(result.getTotalLengthPx());
         response.setTotalLengthMm(result.getTotalLengthMm());
         response.setKnifeCost(result.getKnifeCost());
         response.setScale(result.getScale());
+        response.setScaleSource(result.getScaleSource());
+        response.setUnit(result.getUnit());
+        // Ошибка разбора (битый XML, недоступный DTD и т.п.) — чтобы фронт не показывал нули молча.
+        response.setParseError(result.getParseError());
 
-        List<KnifeResponse.KnifeElement> elements = result.getDetails().stream().map(d -> {
+        List<KnifeElementDto> elements = result.getDetails().stream()
+                .map(d -> new KnifeElementDto(d.getType(), d.getLengthPx(), d.getLengthMm(),
+                        d.isHasTransform()))
+                .toList();
+        response.setElements(elements);
+
+        // Обратная совместимость: прежнее поле без флага transform.
+        response.setDetails(result.getDetails().stream().map(d -> {
             KnifeResponse.KnifeElement elem = new KnifeResponse.KnifeElement();
             elem.setType(d.getType());
             elem.setLengthPx(d.getLengthPx());
             elem.setLengthMm(d.getLengthMm());
             return elem;
-        }).toList();
-        response.setDetails(elements);
+        }).toList());
 
         return ResponseEntity.ok(response);
     }
