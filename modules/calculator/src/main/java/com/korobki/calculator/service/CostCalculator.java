@@ -42,7 +42,7 @@ public class CostCalculator {
      * @param extras        all operations (standard + custom) — cost per detail, looked up by name
      * @param printEnabled  whether print is enabled globally
      * @param printFormat   print format ID
-     * @param printQuantity number of boxes in the print run
+     * @param printQuantity run of the printed details
      * @param workPrice     work price per detail (global)
      * @return total cost as BigDecimal (NOT yet rounded — caller decides)
      */
@@ -62,12 +62,15 @@ public class CostCalculator {
      * Same as {@link #calculateTotalCost(List, List, boolean, Integer, Integer, BigDecimal)}
      * plus the «Сборка на печатный лист» mode.
      *
-     * <p>In assembly mode one sheet bill is shared by every detail placed on the
-     * sheet, so each detail marked {@code inAssembly} gets the same per-part
-     * print cost and the single-detail print flag is ignored.
+     * <p>In assembly mode the print bill of the whole sheet is shared by every
+     * copy on it, so {@code assemblyRun.pricePerPart()} is the same for every
+     * detail marked {@code inAssembly}; the single-detail print flag is ignored.
+     * The run itself (sheets, tariff, bill) is resolved once by
+     * {@link PrintCostCalculator#calcAssemblyRun(Integer, Integer, List)} and
+     * passed in, so this calculator only adds the already calculated per-part
+     * print cost.
      *
-     * @param assemblyCostPerPart print cost of one detail in assembly mode
-     *                            (rubles); null or 0 = the mode is off
+     * @param assemblyRun resolved assembly run; null = the mode is off
      * @return total cost as BigDecimal (NOT yet rounded — caller decides)
      */
     public BigDecimal calculateTotalCost(
@@ -77,7 +80,7 @@ public class CostCalculator {
             Integer printFormat,
             Integer printQuantity,
             BigDecimal workPrice,
-            BigDecimal assemblyCostPerPart
+            PrintCostCalculator.AssemblyRun assemblyRun
     ) {
         BigDecimal sum = BigDecimal.ZERO;
 
@@ -104,13 +107,16 @@ public class CostCalculator {
                 }
             }
 
-            // Assembly mode: the sheet bill is shared by all details on the
-            // sheet, so every detail in the assembly gets the same per-part cost.
-            boolean inAssembly = assemblyCostPerPart != null
-                    && assemblyCostPerPart.signum() > 0
+            // Assembly mode: the sheet bill is shared by every copy on the
+            // sheet, so the same per-part print cost is added to every detail
+            // marked for the assembly. The run is resolved once by the service.
+            boolean inAssembly = assemblyRun != null
                     && Boolean.TRUE.equals(d.getInAssembly());
             if (inAssembly) {
-                cost = cost.add(assemblyCostPerPart);
+                BigDecimal perPart = assemblyRun.pricePerPart();
+                if (perPart != null && perPart.signum() > 0) {
+                    cost = cost.add(perPart);
+                }
             } else if (Boolean.TRUE.equals(d.getIsPrinted()) && printEnabled) {
                 // Print: each printed detail gets its own per-unit print cost,
                 // based on that detail's parts-per-sheet value.
@@ -150,7 +156,6 @@ public class CostCalculator {
         private Boolean isPrinted;
         private Integer partsPerSheetOnPrint;
         private Boolean inAssembly;
-        private Integer partsPerSheetInAssembly;
         private Boolean enabled;
         private Boolean isCustom;
         private Map<String, Boolean> operations;
@@ -167,8 +172,6 @@ public class CostCalculator {
         public void setPartsPerSheetOnPrint(Integer partsPerSheetOnPrint) { this.partsPerSheetOnPrint = partsPerSheetOnPrint; }
         public Boolean getInAssembly() { return inAssembly; }
         public void setInAssembly(Boolean inAssembly) { this.inAssembly = inAssembly; }
-        public Integer getPartsPerSheetInAssembly() { return partsPerSheetInAssembly; }
-        public void setPartsPerSheetInAssembly(Integer partsPerSheetInAssembly) { this.partsPerSheetInAssembly = partsPerSheetInAssembly; }
         public Boolean getEnabled() { return enabled; }
         public void setEnabled(Boolean enabled) { this.enabled = enabled; }
         public Boolean getIsCustom() { return isCustom; }

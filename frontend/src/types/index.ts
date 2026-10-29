@@ -14,8 +14,9 @@ export interface Detail {
     // Режим «Сборка на печатный лист»: деталь кладётся на лист сборки.
     // Optional: сохранённые расчёты без режима сборки поля не содержат.
     inAssembly?: boolean;
-    // Сколько копий этой детали лежит на листе сборки; null/0 означает 1.
-    partsPerSheetInAssembly?: number;
+    // Сколько копий этой детали лежит на листе сборки («кол-во на лист»).
+    // Optional: null/undefined означает 1; явный 0 бэкенд отклоняет.
+    colsOnSheet?: number;
     isCustom: boolean;
     enabled: boolean;
     // Unified map for all operations (standard + custom).
@@ -38,15 +39,15 @@ export interface PrintSettings {
 
 /**
  * Режим «Сборка на печатный лист»: один лист несёт комплект деталей,
- * тираж коробок равен тиражу каждой детали (1 коробка = 1 комплект).
+ * тираж каждой детали равен заданному quantity (1 коробка = 1 комплект).
  * Взаимоисключающий с режимом печати одной детали (isPrinted).
  */
 export interface AssemblySettings {
     enabled: boolean;
     // Формат печати (print_tables.formatId).
     format: number;
-    // Тираж коробок. 0 = ещё не задан: при включении берётся тираж печати.
-    boxQuantity: number;
+    // Тираж детали. 0 = ещё не задан: при включении берётся тираж печати.
+    quantity: number;
 }
 
 /** Detail as it is sent to backend: no client-only fields. */
@@ -74,6 +75,20 @@ export interface PriceRow {
     isPriceListUsed: boolean;
 }
 
+/** Печать одной детали в режиме сборки: доля общего счёта листа. */
+export interface DetailCost {
+    // Индекс детали в списке details запроса (0-based, порядок сохраняется).
+    detailId: number;
+    // Себестоимость печати одной копии детали без НДС, ₽.
+    perPart: number;
+    inAssembly: boolean;
+    colsOnSheet: number;
+    // Тираж листов прогона; 0 — деталь не печатается.
+    sheets: number;
+    // Деталь отмечена, но прогон не имеет цены (например, нет таблицы печати).
+    printBlocked: boolean;
+}
+
 export interface CalculationResponse {
     totalCost: number;
     basePrice: number;
@@ -81,10 +96,13 @@ export interface CalculationResponse {
     basePriceWithVAT: number;
     printCostPerUnit: number;
     // «Сборка на печатный лист»: null/undefined, когда режим выключен.
+    // Устаревшие поля, сохранены для совместимости; используйте details.
     assemblyCostPerPart?: number | null;
     assemblySheetCost?: number | null;
     assemblySheets?: number | null;
     assemblyPartsOnSheet?: number | null;
+    // Печать по деталям в порядке запроса; null/undefined вне режима сборки.
+    details?: DetailCost[] | null;
     prices: PriceRow[];
 }
 
