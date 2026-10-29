@@ -32,6 +32,14 @@ public class KnifeResponse {
     private String unit;
 
     /**
+     * Описание ошибки разбора SVG ({@code null} — разбор прошёл успешно).
+     * Если поле не {@code null}, HTTP-статус остаётся 200, но длины нулевые и
+     * фронт должен показать ошибку вместо «0.00 мм». Ненулевые длины при этом
+     * невозможны: расчёт не выполнялся.
+     */
+    private String parseError;
+
+    /**
      * Per-element length breakdown с флагом transform.
      * Используйте это поле; {@link #details} оставлено для обратной совместимости.
      */

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -339,5 +341,129 @@ class KnifeCalculatorTest {
 
         assertEquals(calculator.calculate(svg, true, true).getTotalLengthPx(),
                 calculator.calculate(svg).getTotalLengthPx(), EPS);
+    }
+
+    // --- DOCTYPE (Illustrator/CorelDRAW), BOM и честные ошибки разбора ---
+
+    /** Стандартный DOCTYPE Illustrator: раньше из-за него парсер падал (accessExternalDTD). */
+    private static final String SVG11_DOCTYPE =
+            "<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\""
+                    + " \"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n";
+
+    /**
+     * Выгрузка «как из Illustrator»: xml-decl, комментарий генератора, DOCTYPE,
+     * {@code <style>}, {@code <defs>}, вложенные группы, path с кривыми, rect, polyline.
+     */
+    private static String illustratorSvg(String doctype) {
+        return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                + "<!-- Generator: Adobe Illustrator 27.0.0, SVG Export Plug-In -->\n"
+                + doctype
+                + "<svg version=\"1.1\" id=\"Layer_1\" xmlns=\"http://www.w3.org/2000/svg\""
+                + " xmlns:xlink=\"http://www.w3.org/1999/xlink\" x=\"0px\" y=\"0px\""
+                + " width=\"210px\" height=\"297px\" viewBox=\"0 0 210 297\" xml:space=\"preserve\">\n"
+                + "<style type=\"text/css\">.st0{fill:none;stroke:#000000;}</style>\n"
+                + "<defs><style>.cls-1{fill:none;}</style></defs>\n"
+                + "<g id=\"Layer_2\"><g>"
+                + "<path class=\"st0\" d=\"M0,0c10,0,20,10,30,10s20-10,30-10\"/>"
+                + "<rect class=\"st0\" x=\"0\" y=\"100\" width=\"60\" height=\"40\"/>"
+                + "<polyline class=\"st0\" points=\"0,200 100,200 100,250\"/>"
+                + "</g></g>\n</svg>";
+    }
+
+    @Test
+    void doctypeSvg_isParsedWithoutExternalDtd() {
+        String svg = SVG11_DOCTYPE
+                + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100mm\" height=\"100mm\""
+                + " viewBox=\"0 0 100 100\">"
+                + "<g><line x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\"/></g></svg>";
+
+        KnifeCalculator.KnifeResult r = calculator.calculate(svg);
+
+        assertNull(r.getParseError());
+        assertEquals(100, r.getTotalLengthPx(), EPS);
+        assertEquals(100, r.getTotalLengthMm(), EPS);
+        assertEquals(1, r.getScale(), EPS);
+        assertEquals(1, r.getDetails().size());
+    }
+
+    @Test
+    void illustratorSvgWithDoctype_matchesSameSvgWithoutDoctype() {
+        KnifeCalculator.KnifeResult withDoctype = calculator.calculate(illustratorSvg(SVG11_DOCTYPE));
+        KnifeCalculator.KnifeResult withoutDoctype = calculator.calculate(illustratorSvg(""));
+
+        assertNull(withDoctype.getParseError());
+        assertEquals(3, withDoctype.getDetails().size());
+        assertEquals(413.827, withDoctype.getTotalLengthPx(), 1e-3);
+        assertEquals(109.4917, withDoctype.getTotalLengthMm(), 1e-3);
+        assertEquals(withoutDoctype.getTotalLengthPx(), withDoctype.getTotalLengthPx(), EPS);
+        assertEquals(withoutDoctype.getTotalLengthMm(), withDoctype.getTotalLengthMm(), EPS);
+    }
+
+    @Test
+    void bomPrefix_isStripped() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                "\uFEFF\n  " + svg1to1("<line x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\"/>"));
+
+        assertNull(r.getParseError());
+        assertEquals(100, r.getTotalLengthPx(), EPS);
+        assertEquals(1, r.getDetails().size());
+    }
+
+    @Test
+    void brokenXml_reportsParseErrorInsteadOfSilentZeros() {
+        KnifeCalculator.KnifeResult r = calculator.calculate("<svg><line x1=\"0\"");
+
+        assertNotNull(r.getParseError());
+        assertTrue(r.getParseError().contains("строка"), r.getParseError());
+        assertEquals(0, r.getTotalLengthPx(), EPS);
+        assertEquals(0, r.getKnifeCost(), EPS);
+        assertTrue(r.getDetails().isEmpty());
+        assertNull(r.getScaleSource());
+    }
+
+    @Test
+    void emptyContent_isNotReportedAsParseError() {
+        assertNull(calculator.calculate(null).getParseError());
+        assertNull(calculator.calculate("   ").getParseError());
+        assertNull(calculator.calculate("\uFEFF").getParseError());
+    }
+
+    @Test
+    void useElement_isValidSvgWithoutGeometry() {
+        // <use> не поддерживается (как в прототипе) — это НЕ ошибка разбора.
+        KnifeCalculator.KnifeResult r = calculator.calculate(svg1to1(
+                "<defs><path id=\"p\" d=\"M0 0L100 0\"/></defs>"
+                        + "<use xmlns:xlink=\"http://www.w3.org/1999/xlink\" xlink:href=\"#p\"/>"));
+
+        assertNull(r.getParseError());
+        assertEquals(0, r.getTotalLengthPx(), EPS);
+        assertTrue(r.getDetails().isEmpty());
+    }
+
+    @Test
+    void externalEntityInDoctype_isNeverRead() throws Exception {
+        // Файл-дискриминатор: если бы его прочитали, x2 стало бы 50 и длина — 50 px.
+        Path secret = Files.createTempFile("knife-xxe-secret", ".txt");
+        try {
+            Files.writeString(secret, "50");
+            String svg = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+                    + "<!DOCTYPE svg [<!ENTITY xxe SYSTEM \"" + secret.toUri() + "\">]>\n"
+                    + "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100mm\" height=\"100mm\""
+                    + " viewBox=\"0 0 100 100\">"
+                    + "<line x1=\"0\" y1=\"0\" x2=\"&xxe;\" y2=\"0\"/></svg>";
+
+            KnifeCalculator.KnifeResult r = calculator.calculate(svg);
+
+            // Внешняя сущность не подгружается: JDK 21 либо подставляет пустой поток
+            // (наш EntityResolver), либо вовсе запрещает external entity reference в атрибуте.
+            // В обоих случаях файл не читается — длина НЕ 50 px, геометрии нет.
+            assertEquals(0, r.getTotalLengthPx(), EPS);
+            assertTrue(r.getDetails().isEmpty());
+            if (r.getParseError() != null) {
+                assertTrue(r.getParseError().toLowerCase().contains("entity"), r.getParseError());
+            }
+        } finally {
+            Files.deleteIfExists(secret);
+        }
     }
 }

@@ -52,6 +52,8 @@ public class KnifeController {
         response.setScale(result.getScale());
         response.setScaleSource(result.getScaleSource());
         response.setUnit(result.getUnit());
+        // Ошибка разбора (битый XML, недоступный DTD и т.п.) — чтобы фронт не показывал нули молча.
+        response.setParseError(result.getParseError());
 
         List<KnifeElementDto> elements = result.getDetails().stream()
                 .map(d -> new KnifeElementDto(d.getType(), d.getLengthPx(), d.getLengthMm(),

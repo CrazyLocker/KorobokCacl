@@ -208,6 +208,9 @@ export interface KnifeResult {
     elements?: KnifeElement[];
     // Устаревшее поле без флага transform — оставлено для обратной совместимости.
     details?: { type: string; lengthPx: number; lengthMm: number }[];
+    // Ошибка разбора SVG (битый XML, DOCTYPE с недоступным DTD и т.п.).
+    // null/undefined — разбор прошёл; иначе длины нулевые и показываем ошибку.
+    parseError?: string | null;
 }
 
 // Конструкция из БД

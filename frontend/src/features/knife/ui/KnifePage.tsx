@@ -97,6 +97,10 @@ export const KnifePage = () => {
     };
 
     const elements = result ? toElements(result) : [];
+    // Разбор не удался (битый XML, DTD): бэкенд вернул причину вместо молчаливых нулей.
+    const parseError = result?.parseError ?? null;
+    // Валидный SVG без поддерживаемой геометрии: <use>/<text>/<image>/clipPath и т.п.
+    const hasElements = elements.length > 0;
 
     return (
         <div className="knife-page-container">
@@ -162,7 +166,31 @@ export const KnifePage = () => {
 
             {error && <Alert type="error" showIcon style={{ marginTop: 16 }} title={error} />}
 
-            {result && (
+            {/* Разбор не удался: показываем причину, а не карточки с нулями. */}
+            {result && parseError && (
+                <Alert
+                    type="error"
+                    showIcon
+                    style={{ marginTop: 16 }}
+                    title={`Не удалось разобрать SVG: ${parseError}`}
+                />
+            )}
+
+            {/* SVG разобран, но поддерживаемой геометрии нет — это не ошибка разбора. */}
+            {result && !parseError && !hasElements && (
+                <Alert
+                    type="warning"
+                    showIcon
+                    style={{ marginTop: 16 }}
+                    title="В SVG нет линий и фигур"
+                    description={
+                        'Учитываются line, rect, circle, ellipse, polyline, polygon и path. ' +
+                        'Контуры, заданные через <use>, <text>, <image> или clipPath, не поддерживаются.'
+                    }
+                />
+            )}
+
+            {result && !parseError && hasElements && (
                 <div style={{ marginTop: 24 }}>
                     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
                         <div style={{ flex: 1, minWidth: 180, padding: 16, backgroundColor: '#e8f0fe', borderRadius: 12 }}>
@@ -192,7 +220,7 @@ export const KnifePage = () => {
                         </div>
                     </div>
 
-                    {elements.length > 0 && (
+                    {hasElements && (
                         <>
                             <Typography.Text
                                 style={{
