@@ -10,8 +10,11 @@ import type {
     CalculationSaveRequest,
     SavedKnife,
     KnifeSaveRequest,
+    KnifeOptions,
+    KnifeResult,
     Operation,
 } from '../types';
+import { buildKnifeRequest } from '../utils/knifeRequest';
 
 const API_BASE = '/api';
 
@@ -96,6 +99,8 @@ export const calculatorApi = {
         axios.post(`${API_BASE}/references/import-print-tables`, data).then((res) => res.data),
 
     // === Калькулятор ножа ===
-    calculateKnife: (svgContent: string): Promise<any> =>
-        axios.post(`${API_BASE}/knife/calculate`, { svgContent }).then((res) => res.data),
+    calculateKnife: (svgContent: string, options?: Partial<KnifeOptions>): Promise<KnifeResult> =>
+        axios
+            .post(`${API_BASE}/knife/calculate`, buildKnifeRequest(svgContent, options))
+            .then((res) => res.data),
 };

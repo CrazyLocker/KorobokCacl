@@ -22,7 +22,25 @@ public class KnifeResponse {
     /** Scale factor (mm per SVG unit) used for the conversion. */
     private double scale;
 
-    /** Per-element length breakdown. */
+    /**
+     * Источник масштаба (как в прототипе): 'width/height атрибуты', 'viewBox как мм',
+     * 'default 100×100 px', 'default (px→mm)'.
+     */
+    private String scaleSource;
+
+    /** Единица измерения корня документа: mm, cm, in, pt, pc, px. */
+    private String unit;
+
+    /**
+     * Per-element length breakdown с флагом transform.
+     * Используйте это поле; {@link #details} оставлено для обратной совместимости.
+     */
+    private List<KnifeElementDto> elements;
+
+    /**
+     * Per-element length breakdown без флага transform.
+     * Оставлено для обратной совместимости — используйте {@link #elements}.
+     */
     private List<KnifeElement> details;
 
     /** Length of a single SVG element. */

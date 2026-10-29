@@ -216,4 +216,128 @@ class KnifeCalculatorTest {
         assertEquals(0, r.getTotalLengthMm(), EPS);
         assertEquals(500, r.getKnifeCost(), EPS);
     }
+
+    // --- Новый парсер: polygon, path-кривые, defs, единицы в атрибутах ---
+
+    @Test
+    void polygon_isSupportedAndClosed() {
+        // 10 + 10 + √200 = 34.1421… (в старой версии polygon игнорировался)
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                svg1to1("<polygon points=\"0,0 10,0 10,10\"/>")
+        );
+
+        assertEquals(34.14213562373095, r.getTotalLengthPx(), 1e-2);
+        assertEquals("polygon", r.getDetails().get(0).getType());
+    }
+
+    @Test
+    void pathCurvesAreMeasured() {
+        // Q: 10(√2 + asinh 1) = 22.9558715…
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                svg1to1("<path d=\"M0 0 Q10 10 20 0\"/>")
+        );
+
+        assertEquals(22.95587149392638, r.getTotalLengthPx(), 1e-2);
+    }
+
+    @Test
+    void pathCloseZAddsClosingSegment() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                svg1to1("<path d=\"M0 0 L10 0 L10 10 Z\"/>")
+        );
+
+        assertEquals(34.14213562373095, r.getTotalLengthPx(), 1e-2);
+    }
+
+    @Test
+    void pathRelativeCommandsAreResolved() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                svg1to1("<path d=\"m10 10 l20 0\"/>")
+        );
+
+        assertEquals(20, r.getTotalLengthPx(), EPS);
+    }
+
+    @Test
+    void defsGeometryIsNotCounted() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(svg1to1(
+                "<defs><line x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\"/></defs>"
+                        + "<line x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\"/>")
+        );
+
+        assertEquals(1, r.getTotalLengthPx(), EPS);
+        assertEquals(1, r.getDetails().size());
+    }
+
+    @Test
+    void elementAttributeUnitsAreConverted() {
+        // viewBox 100, width 10cm → scale 1; line 10mm = 10 мм
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\" "
+                        + "width=\"10cm\" height=\"10cm\">"
+                        + "<line x1=\"0\" y1=\"0\" x2=\"10mm\" y2=\"0\"/></svg>"
+        );
+
+        assertEquals(10, r.getTotalLengthPx(), EPS);
+        assertEquals(10, r.getTotalLengthMm(), EPS);
+    }
+
+    @Test
+    void scaleSourceAndUnitAreExposed() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(
+                svg1to1("<line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"0\"/>")
+        );
+
+        assertEquals("width/height атрибуты", r.getScaleSource());
+        assertEquals("mm", r.getUnit());
+    }
+
+    @Test
+    void hasTransformFlagIsExposedPerElement() {
+        KnifeCalculator.KnifeResult r = calculator.calculate(svg1to1(
+                "<line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"0\" transform=\"scale(2)\"/>")
+        );
+
+        assertEquals(20, r.getTotalLengthPx(), EPS);
+        assertTrue(r.getDetails().get(0).isHasTransform());
+    }
+
+    // --- Флаги useTransform / useUnits ---
+
+    @Test
+    void useTransformFalse_ignoresTransform() {
+        String svg = svg1to1("<g transform=\"scale(2)\">"
+                + "<line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"0\"/></g>");
+
+        KnifeCalculator.KnifeResult withTransform = calculator.calculate(svg, true, true);
+        KnifeCalculator.KnifeResult withoutTransform = calculator.calculate(svg, false, true);
+
+        assertEquals(20, withTransform.getTotalLengthPx(), EPS);
+        assertEquals(10, withoutTransform.getTotalLengthPx(), EPS);
+    }
+
+    @Test
+    void useUnitsFalse_fallsBackToPlainNumbers() {
+        // useUnits=true: viewBox 200 + width 100mm → масштаб 0.5 мм/ед.,
+        //   «1cm» = 10 мм → 20 единиц → 10 мм
+        // useUnits=false: width/height не читаются → viewBox как мм (масштаб 1),
+        //   «1cm» = 1 единица → 1 мм (как parseFloat в прототипе)
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 200 200\" "
+                + "width=\"100mm\" height=\"100mm\">"
+                + "<line x1=\"0\" y1=\"0\" x2=\"1cm\" y2=\"0\"/></svg>";
+
+        KnifeCalculator.KnifeResult withUnits = calculator.calculate(svg, true, true);
+        KnifeCalculator.KnifeResult withoutUnits = calculator.calculate(svg, true, false);
+
+        assertEquals(10, withUnits.getTotalLengthMm(), EPS);
+        assertEquals(1, withoutUnits.getTotalLengthMm(), EPS);
+    }
+
+    @Test
+    void defaultOverloadUsesPrototypeFlags() {
+        String svg = svg1to1("<line x1=\"0\" y1=\"0\" x2=\"10\" y2=\"0\" transform=\"scale(2)\"/>");
+
+        assertEquals(calculator.calculate(svg, true, true).getTotalLengthPx(),
+                calculator.calculate(svg).getTotalLengthPx(), EPS);
+    }
 }

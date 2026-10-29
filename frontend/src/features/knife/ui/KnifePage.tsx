@@ -1,41 +1,102 @@
 // frontend/src/features/knife/ui/KnifePage.tsx
 import { useState } from 'react';
-import { Alert, Spin, Typography } from 'antd';
+import { Alert, Checkbox, Space, Spin, Table, Typography } from 'antd';
+import type { TableProps } from 'antd';
 import { calculatorApi } from '../../../api/calculatorApi';
+import type { KnifeElement, KnifeOptions, KnifeResult } from '../../../types';
+import { KNIFE_DEFAULT_OPTIONS } from '../../../utils/knifeRequest';
 
-// Результат расчёта ножа (ответ /api/knife/calculate)
-export interface KnifeResult {
-    totalLengthPx: number;
-    totalLengthMm: number;
-    knifeCost: number;
-    scale: number;
-    details: { type: string; lengthPx: number; lengthMm: number }[];
-}
+/** Колонки таблицы элементов контура — как в прототипе (№, тип, px, мм, transform). */
+const elementColumns: TableProps<KnifeElement>['columns'] = [
+    {
+        title: '№',
+        key: 'index',
+        width: 56,
+        render: (_value, _record, index) => index + 1,
+    },
+    { title: 'Тип', dataIndex: 'type', key: 'type' },
+    {
+        title: 'Длина, px',
+        dataIndex: 'lengthPx',
+        key: 'lengthPx',
+        align: 'right',
+        render: (value: number) => value.toFixed(2),
+    },
+    {
+        title: 'Длина, мм',
+        dataIndex: 'lengthMm',
+        key: 'lengthMm',
+        align: 'right',
+        render: (value: number) => value.toFixed(2),
+    },
+    {
+        title: 'transform',
+        dataIndex: 'hasTransform',
+        key: 'hasTransform',
+        align: 'center',
+        render: (value: boolean) => (value ? 'да' : '—'),
+    },
+];
+
+/** Элементы из ответа: новое поле elements, иначе устаревшее details. */
+const toElements = (result: KnifeResult): KnifeElement[] =>
+    result.elements ??
+    (result.details ?? []).map((d) => ({ ...d, hasTransform: false }));
+
+/** Текст ошибки из axios/Error без использования `any`. */
+const errorText = (err: unknown): string => {
+    const e = err as { response?: { data?: { message?: string } }; message?: string };
+    return e?.response?.data?.message || e?.message || String(err);
+};
 
 /**
  * Страница "Расчет ножа": загрузка SVG → длина линий в мм → стоимость (длина × 3 + 500).
+ * Геометрия считается на бэкенде (SvgLengthCalculator — порт прототипа);
+ * фронт только передаёт флаги режима (по умолчанию оба включены) и показывает результат.
  */
 export const KnifePage = () => {
     const [fileName, setFileName] = useState<string>('');
+    const [svgContent, setSvgContent] = useState<string>('');
+    const [options, setOptions] = useState<KnifeOptions>(KNIFE_DEFAULT_OPTIONS);
     const [result, setResult] = useState<KnifeResult | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    const calculate = async (content: string, nextOptions: KnifeOptions) => {
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await calculatorApi.calculateKnife(content, nextOptions);
+            setResult(res);
+        } catch (err) {
+            setResult(null);
+            setError('Ошибка расчёта ножа: ' + errorText(err));
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleFile = async (file: File) => {
         setFileName(file.name);
         setResult(null);
         setError(null);
-        setLoading(true);
         try {
-            const svgContent = await file.text();
-            const res = await calculatorApi.calculateKnife(svgContent);
-            setResult(res);
-        } catch (err: any) {
-            setError('Ошибка расчёта ножа: ' + (err.response?.data?.message || err.message));
-        } finally {
-            setLoading(false);
+            const content = await file.text();
+            setSvgContent(content);
+            await calculate(content, options);
+        } catch (err) {
+            setError('Не удалось прочитать файл: ' + errorText(err));
         }
     };
+
+    /** Переключение чекбокса сразу пересчитывает загруженный файл (как в прототипе). */
+    const handleOptionChange = (patch: Partial<KnifeOptions>) => {
+        const next = { ...options, ...patch };
+        setOptions(next);
+        if (svgContent) void calculate(svgContent, next);
+    };
+
+    const elements = result ? toElements(result) : [];
 
     return (
         <div className="knife-page-container">
@@ -46,10 +107,25 @@ export const KnifePage = () => {
                 Расчет ножа
             </Typography.Title>
             <Typography.Paragraph
-                style={{ fontSize: 13, color: '#5f6368', marginBottom: 16, textAlign: 'left' }}
+                style={{ fontSize: 13, color: '#5f6368', marginBottom: 12, textAlign: 'left' }}
             >
                 Загрузите SVG-файл развёртки. Стоимость = длина линий (мм) × 3 + 500 ₽.
             </Typography.Paragraph>
+
+            <Space size={24} style={{ marginBottom: 12 }}>
+                <Checkbox
+                    checked={options.useTransform}
+                    onChange={(e) => handleOptionChange({ useTransform: e.target.checked })}
+                >
+                    Учитывать трансформации
+                </Checkbox>
+                <Checkbox
+                    checked={options.useUnits}
+                    onChange={(e) => handleOptionChange({ useUnits: e.target.checked })}
+                >
+                    Учитывать единицы измерения
+                </Checkbox>
+            </Space>
 
             {/* Почему нативный input + onDrop, а не AntD Upload.Dragger:
                 сохраняем текущий UX (клик по всей зоне, drag-n-drop, скрытый input);
@@ -102,14 +178,21 @@ export const KnifePage = () => {
                             </div>
                         </div>
                         <div style={{ flex: 1, minWidth: 180, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 12 }}>
-                            <Typography.Text style={{ fontSize: 12, color: '#5f6368' }}>Масштаб (мм/ед. SVG)</Typography.Text>
+                            <Typography.Text style={{ fontSize: 12, color: '#5f6368' }}>
+                                Масштаб (мм/{result.unit ?? 'ед. SVG'})
+                            </Typography.Text>
                             <div style={{ fontSize: 22, fontWeight: 700, color: '#202124' }}>
                                 {result.scale.toFixed(4)}
                             </div>
+                            {result.scaleSource && (
+                                <Typography.Text style={{ fontSize: 11, color: '#5f6368' }}>
+                                    источник: {result.scaleSource}
+                                </Typography.Text>
+                            )}
                         </div>
                     </div>
 
-                    {result.details.length > 0 && (
+                    {elements.length > 0 && (
                         <>
                             <Typography.Text
                                 style={{
@@ -121,26 +204,16 @@ export const KnifePage = () => {
                                     textAlign: 'left',
                                 }}
                             >
-                                Элементы:
+                                Элементы: {elements.length}
                             </Typography.Text>
-                            <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #e8eaed', borderRadius: 8 }}>
-                                {result.details.map((d, i) => (
-                                    <div
-                                        key={i}
-                                        style={{
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            padding: '8px 16px',
-                                            borderBottom: '1px solid #f1f3f4',
-                                        }}
-                                    >
-                                        <Typography.Text style={{ fontSize: 13 }}>{d.type}</Typography.Text>
-                                        <Typography.Text style={{ fontSize: 13, color: '#5f6368' }}>
-                                            {d.lengthMm.toFixed(2)} мм
-                                        </Typography.Text>
-                                    </div>
-                                ))}
-                            </div>
+                            <Table<KnifeElement>
+                                size="small"
+                                columns={elementColumns}
+                                dataSource={elements}
+                                pagination={false}
+                                scroll={{ y: 300 }}
+                                rowKey={(_record, index) => String(index ?? 0)}
+                            />
                         </>
                     )}
                 </div>
