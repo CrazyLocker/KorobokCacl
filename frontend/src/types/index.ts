@@ -159,6 +159,23 @@ export interface CalculationSaveRequest {
     calculation: CalculationRequest;
 }
 
+// Вид расчёта (read-only): метаданные, сохранённый запрос и результат
+// пересчёта, который считает бэкенд из сохранённого state.
+export interface CalculationView {
+    id: string;
+    name: string;
+    clientName: string;
+    managerName: string;
+    status: SavedCalculation['status'];
+    createdAt: string;
+    updatedAt: string;
+    // null — сохранённый state не удалось разобрать в запрос.
+    request: CalculationRequest | null;
+    // null — пересчёт не удался; причина в viewError.
+    result: CalculationResponse | null;
+    viewError?: string | null;
+}
+
 // Сохранённый нож
 export interface SavedKnife {
     id: string;

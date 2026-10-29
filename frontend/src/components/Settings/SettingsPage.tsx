@@ -7,6 +7,7 @@ import {
 import type { SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { sortParts } from '../../utils/sortParts';
+import { CalculationViewDrawer } from './CalculationViewDrawer';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -141,6 +142,8 @@ export const SettingsPage = ({ onNotify }: Props) => {
     // --- Список расчётов ---
     const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
     const [loading, setLoading] = useState(false);
+    // Открытый «Вид расчёта»: id выбранного расчёта, null — дровер закрыт.
+    const [viewId, setViewId] = useState<string | null>(null);
 
     const loadCalculations = () => {
         setLoading(true);
@@ -300,18 +303,28 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                 {
                                     title: '',
                                     key: 'actions',
-                                    width: 96,
+                                    width: 170,
                                     align: 'right',
                                     render: (_: unknown, c: SavedCalculation) => (
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            danger
-                                            onClick={() => handleDeleteCalculation(c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Удалить
-                                        </Button>
+                                        <Flex justify="flex-end" gap={4}>
+                                            <Button
+                                                size="small"
+                                                type="text"
+                                                onClick={() => setViewId(c.id)}
+                                                style={{ fontSize: 11 }}
+                                            >
+                                                Открыть
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                type="text"
+                                                danger
+                                                onClick={() => handleDeleteCalculation(c.id)}
+                                                style={{ fontSize: 11 }}
+                                            >
+                                                Удалить
+                                            </Button>
+                                        </Flex>
                                     ),
                                 },
                             ]}
@@ -430,6 +443,12 @@ export const SettingsPage = ({ onNotify }: Props) => {
                     </Card>
                 </Flex>
             )}
+
+            <CalculationViewDrawer
+                open={!!viewId}
+                id={viewId}
+                onClose={() => setViewId(null)}
+            />
         </div>
     );
 };

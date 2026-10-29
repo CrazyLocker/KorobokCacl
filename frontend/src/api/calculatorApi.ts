@@ -8,6 +8,7 @@ import type {
     PriceListData,
     SavedCalculation,
     CalculationSaveRequest,
+    CalculationView,
     SavedKnife,
     KnifeSaveRequest,
     KnifeOptions,
@@ -74,6 +75,9 @@ export const calculatorApi = {
 
     getCalculation: (id: string): Promise<SavedCalculation> =>
         axios.get(`${API_BASE}/calculations/${id}`).then((res) => res.data),
+
+    getCalculationView: (id: string): Promise<CalculationView> =>
+        axios.get(`${API_BASE}/calculations/${id}/view`).then((res) => res.data),
 
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),
