@@ -1,90 +1,96 @@
 // frontend/src/utils/assemblyCost.ts
 import type { PrintTable } from '../types';
+import { calcPrintBill } from './printCost';
 
 /**
- * Расчёт режима «Сборка на печатный лист».
+ * Расчёт режима «Сборка на печатный лист» для комплекта деталей.
  *
- * Аксиома заказчика: 1 коробка = 1 комплект деталей (дно + разделитель + крышка …),
- * поэтому тираж каждой детали равен тиражу коробок.
+ * Один лист несёт комплект: деталь с `colsOnSheet = 3` лежит на каждом листе
+ * трижды. Прогон должен напечатать листов не меньше, чем нужно любой детали,
+ * поэтому тираж листов задаёт деталь, которой нужно больше всего листов:
  *
- *   setsPerSheet  = partsOnSheet / partsInBox      (сколько комплектов на листе)
- *   sheets        = ceil(boxQuantity / setsPerSheet)
- *   tariff        = ближайшая ступень print_tables с minQty >= sheets
- *   bill          = цена выбранной ступени
- *   sheetCost     = bill / tariffSheets            (цена листа по тарифу)
- *   perPart       = sheetCost / partsOnSheet       (себестоимость печати детали)
+ *   totalPartsOnSheet = Σ colsOnSheet_j
+ *   sheets            = max(ceil(quantity / colsOnSheet_j))
+ *   bill              = calcPrintBill(table, sheets)
+ *   sheetCost         = bill / sheets
+ *   perPart           = sheetCost / totalPartsOnSheet
  *
- * Пример: 200 коробок, лист = 1 дно + 1 разделитель + 1 крышка (3 детали при
- * 3 деталях в коробке) → 200 листов → тариф 300 за 7500 → 25 ₽ за лист →
- * 8.33 ₽ за деталь → 25 ₽ за коробку.
+ * `perPart` одинаков для всех деталей комплекта: счёт за лист делят все копии
+ * на этом листе. `quantity` — тираж каждой детали (1 коробка = 1 комплект).
+ *
+ * Деталь с `colsOnSheet < 1` не помещается на лист и здесь пропускается;
+ * бэкенд отклоняет такой запрос ошибкой валидации, поэтому молчаливый пропуск
+ * в API не скрывает ошибку пользователя.
  *
  * ВАЖНО: формула дублирует бэкенд (PrintCostCalculator.calcAssemblyRun) —
  * менять обе реализации вместе.
  */
+export interface AssemblyDetailInput {
+    // Сколько копий детали лежит на листе сборки; null/undefined = 1.
+    colsOnSheet?: number | null;
+}
+
 export interface AssemblyRun {
-    /** Всего деталей на листе сборки (сумма «кол-во на лист»). */
-    partsOnSheet: number;
-    /** Деталей в одной коробке (комплект). */
-    partsInBox: number;
-    /** Сколько комплектов несёт один лист. */
-    setsPerSheet: number;
-    /** Тираж листов. */
+    /** Сумма копий всех деталей на одном листе. */
+    totalPartsOnSheet: number;
+    /** Тираж листов прогона: max(ceil(quantity / colsOnSheet)). */
     sheets: number;
     /** Тираж ступени, по которой взят тариф (300 при 200 листах). */
     tariffSheets: number;
-    /** Стоимость одного листа. */
+    /** Счёт типографии за тираж, ₽. */
+    bill: number;
+    /** Стоимость одного напечатанного листа: bill / sheets. */
     sheetCost: number;
-    /** Себестоимость печати одной детали. */
+    /** Себестоимость печати одной копии любой детали комплекта. */
     perPart: number;
 }
 
 const emptyRun = (): AssemblyRun => ({
-    partsOnSheet: 0,
-    partsInBox: 0,
-    setsPerSheet: 0,
+    totalPartsOnSheet: 0,
     sheets: 0,
     tariffSheets: 0,
+    bill: 0,
     sheetCost: 0,
     perPart: 0,
 });
 
+/** Копий на листе: null/undefined = 1, нечисловое значение = 0 (пропуск). */
+const resolvedCols = (value: number | null | undefined): number => {
+    if (value == null) return 1;
+    return Number.isFinite(value) ? Math.floor(value) : 0;
+};
+
 export const calcAssemblyRun = (
     table: PrintTable | undefined,
-    boxQuantity: number,
-    partsOnSheet: number,
-    partsInBox: number,
+    quantity: number,
+    details: readonly AssemblyDetailInput[],
 ): AssemblyRun => {
     if (!table || !table.steps?.length) return emptyRun();
-    if (!(boxQuantity > 0) || !(partsOnSheet > 0) || !(partsInBox > 0)) return emptyRun();
+    if (!(quantity > 0) || !Number.isFinite(quantity)) return emptyRun();
 
-    // sheets = ceil(boxQuantity / (partsOnSheet / partsInBox)); делим целые
-    // числа, чтобы не ловить погрешность float на дробных комплектах.
-    const sheets = Math.ceil((boxQuantity * partsInBox) / partsOnSheet);
+    const cols = details
+        .map((detail) => resolvedCols(detail?.colsOnSheet))
+        .filter((value) => value > 0);
+    if (!cols.length) return emptyRun();
 
-    const steps = table.steps;
-    const lastStep = steps[steps.length - 1];
-    let bill: number;
-    let tariffSheets: number;
-    if (sheets >= 3000) {
-        // Как в calcPrintCost: экстраполяция от последней ступени шагом 1000.
-        const extra = Math.ceil((sheets - 3000) / 1000) * (table.stepAfter3000 || 0);
-        bill = lastStep.price + extra;
-        tariffSheets = lastStep.minQty;
-    } else {
-        const step = steps.find((item) => item.minQty >= sheets) ?? steps[0];
-        bill = step.price;
-        tariffSheets = step.minQty;
-    }
+    const totalPartsOnSheet = cols.reduce((sum, value) => sum + value, 0);
+    const sheets = cols.reduce(
+        (max, value) => Math.max(max, Math.ceil(quantity / value)),
+        0,
+    );
+    if (!(sheets > 0)) return emptyRun();
 
-    const sheetCost = tariffSheets > 0 ? bill / tariffSheets : 0;
+    const { tariffSheets, bill } = calcPrintBill(table, sheets);
+    if (!(bill > 0)) return emptyRun();
 
+    const sheetCost = bill / sheets;
     return {
-        partsOnSheet,
-        partsInBox,
-        setsPerSheet: partsOnSheet / partsInBox,
+        totalPartsOnSheet,
         sheets,
         tariffSheets,
+        bill,
         sheetCost,
-        perPart: sheetCost / partsOnSheet,
+        perPart: sheetCost / totalPartsOnSheet,
     };
 };
+

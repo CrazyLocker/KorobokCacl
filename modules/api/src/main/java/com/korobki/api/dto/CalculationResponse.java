@@ -26,28 +26,50 @@ public class CalculationResponse {
     private BigDecimal printCostPerUnit; // стоимость печати на единицу без НДС
 
     /**
-     * Assembly mode: print cost of one detail without VAT (rubles).
+     * Assembly mode: print cost of one copy of any detail on the sheet
+     * without VAT (rubles) — {@code (bill / sheets) / totalPartsOnSheet}.
      * Null when the mode is off.
+     *
+     * @deprecated the same value is returned per detail in {@link #details};
+     *             kept for backward compatibility.
      */
+    @Deprecated
     private BigDecimal assemblyCostPerPart;
 
     /**
-     * Assembly mode: cost of one assembly sheet without VAT (rubles).
-     * Null when the mode is off.
+     * Assembly mode: cost of one printed sheet without VAT (rubles) —
+     * {@code bill / sheets}. Null when the mode is off.
+     *
+     * @deprecated use {@link #details} or {@link #assemblyCostPerPart};
+     *             kept for backward compatibility.
      */
+    @Deprecated
     private BigDecimal assemblySheetCost;
 
     /**
-     * Assembly mode: number of sheets needed for the box run.
-     * Null when the mode is off.
+     * Assembly mode: number of sheets printed for the run
+     * ({@code max(ceil(quantity / colsOnSheet))}). Null when the mode is off.
+     *
+     * @deprecated the same value is returned per detail in {@link #details};
+     *             kept for backward compatibility.
      */
+    @Deprecated
     private Integer assemblySheets;
 
     /**
-     * Assembly mode: total number of details on one assembly sheet.
+     * Assembly mode: sum of copies-per-sheet of all details on the sheet.
+     * Null when the mode is off.
+     *
+     * @deprecated use {@link #details}; kept for backward compatibility.
+     */
+    @Deprecated
+    private Integer assemblyPartsOnSheet;
+
+    /**
+     * Assembly mode: print part of each request detail, in request order.
      * Null when the mode is off.
      */
-    private Integer assemblyPartsOnSheet;
+    private List<DetailCostDto> details;
 
     /** Client prices for all 7 quantity tiers. */
     private List<PriceRowDto> prices;

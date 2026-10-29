@@ -385,22 +385,43 @@ class CostCalculatorTest {
         return detail;
     }
 
+    /** Resolved assembly run with the given per-part print cost. */
+    private static PrintCostCalculator.AssemblyRun assemblyRun(String perPart) {
+        return new PrintCostCalculator.AssemblyRun(
+                200, 300, new BigDecimal("7500"), new BigDecimal("37.5"),
+                new BigDecimal(perPart), 4);
+    }
+
     @Test
-    void assemblyCostPerPart_addedOnlyToDetailsInAssembly() {
-        // 25 ₽ / 3 детали = 8.333… — стоимость печати одной детали сборки
+    void assemblyCost_addedOnlyToDetailsInAssembly() {
+        // Дно в сборке → 8.333… ₽, крышка не в сборке → 0.
         BigDecimal total = costCalculator.calculateTotalCost(
                 List.of(bareDetail("Дно", true), bareDetail("Крышка", false)),
                 Collections.emptyList(),
                 false, null, null,
                 BigDecimal.ZERO,
-                new BigDecimal("8.3333333333")
+                assemblyRun("8.3333333333")
         );
 
         assertBD("8.3333333333", total);
     }
 
     @Test
-    void assemblyCostPerPart_winsOverSingleDetailPrintFlag() {
+    void assemblyCost_sharedByEveryAssembledDetail() {
+        // Счёт листа делится на все копии, поэтому обе детали получают одну цену.
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(bareDetail("Дно", true), bareDetail("Крышка", true)),
+                Collections.emptyList(),
+                false, null, null,
+                BigDecimal.ZERO,
+                assemblyRun("9.1666666667")
+        );
+
+        assertBD("18.3333333334", total);
+    }
+
+    @Test
+    void assemblyCost_winsOverSingleDetailPrintFlag() {
         CostCalculator.DetailInfo detail = bareDetail("Дно", true);
         detail.setIsPrinted(true);
         detail.setPartsPerSheetOnPrint(1);
@@ -411,10 +432,24 @@ class CostCalculatorTest {
                 Collections.emptyList(),
                 false, 1, 200,
                 BigDecimal.ZERO,
-                new BigDecimal("10")
+                assemblyRun("10")
         );
 
         assertBD("10", total);
+        verify(printCostCalculator, never()).calcPrintPerUnitNoVat(any(), any(), any());
+    }
+
+    @Test
+    void emptyAssemblyRun_addsNoPrintCost() {
+        BigDecimal total = costCalculator.calculateTotalCost(
+                List.of(bareDetail("Дно", true)),
+                Collections.emptyList(),
+                false, null, null,
+                BigDecimal.ZERO,
+                PrintCostCalculator.AssemblyRun.empty()
+        );
+
+        assertBD("0", total);
     }
 
     @Test

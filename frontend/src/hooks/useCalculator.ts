@@ -62,12 +62,12 @@ export function useCalculator() {
         format: 1,
         quantity: 100,
     });
-    // «Сборка на печатный лист». boxQuantity = 0 — тираж ещё не задан:
+    // «Сборка на печатный лист». quantity = 0 — тираж ещё не задан:
     // при включении режима подставляется тираж печати (printSettings.quantity).
     const [assemblySettings, setAssemblySettings] = useState<AssemblySettings>({
         enabled: false,
         format: 1,
-        boxQuantity: 0,
+        quantity: 0,
     });
     const [workPrice, setWorkPrice] = useState<number>(5);
     const [marginValue, setMarginValue] = useState<number>(30);
@@ -128,7 +128,7 @@ export function useCalculator() {
                 partsPerSheetOnPrint: 1,
                 // Сборка на печатный лист по умолчанию выключена.
                 inAssembly: false,
-                partsPerSheetInAssembly: 1,
+                colsOnSheet: 1,
                 isCustom: false,
                 enabled: part.perSheet > 0,
                 operations: {},
@@ -266,7 +266,7 @@ export function useCalculator() {
                 isPrinted: false,
                 partsPerSheetOnPrint: 1,
                 inAssembly: false,
-                partsPerSheetInAssembly: 1,
+                colsOnSheet: 1,
                 isCustom: true,
                 enabled: true,
                 operations: {},
@@ -321,7 +321,7 @@ export function useCalculator() {
                     isPrinted: false,
                     partsPerSheetOnPrint: 1,
                     inAssembly: false,
-                    partsPerSheetInAssembly: 1,
+                    colsOnSheet: 1,
                     isCustom: true,
                     enabled: true,
                     operations: {},
@@ -395,8 +395,8 @@ export function useCalculator() {
                 ? {
                     ...detail,
                     inAssembly: value,
-                    partsPerSheetInAssembly: (detail.partsPerSheetInAssembly ?? 0) > 0
-                        ? detail.partsPerSheetInAssembly
+                    colsOnSheet: (detail.colsOnSheet ?? 0) > 0
+                        ? detail.colsOnSheet
                         : 1,
                 }
                 : detail

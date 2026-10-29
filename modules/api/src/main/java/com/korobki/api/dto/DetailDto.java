@@ -1,5 +1,6 @@
 package com.korobki.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.util.Map;
@@ -42,10 +43,15 @@ public class DetailDto {
     private Boolean inAssembly;
 
     /**
-     * How many copies of this detail fit on the assembly sheet;
-     * null or 0 is treated as 1.
+     * How many copies of this detail lie on one assembly sheet
+     * («кол-во на лист»). Null is treated as 1 for legacy payloads; an
+     * explicit value below 1 is rejected by the service validation.
+     *
+     * <p>The old name {@code partsPerSheetInAssembly} is accepted as an alias
+     * so calculations saved before the assembly model was reworked still load.
      */
-    private Integer partsPerSheetInAssembly;
+    @JsonAlias("partsPerSheetInAssembly")
+    private Integer colsOnSheet;
 
     /** Whether the detail was added by the user (not from the construction). */
     private Boolean isCustom;

@@ -39,6 +39,7 @@ public class CalculatorService {
      * @return calculation result with total cost and per-tier client prices
      * @throws IllegalArgumentException on business-rule validation failure
      */
+    @SuppressWarnings("deprecation") // legacy assembly response fields
     public CalculationResponse calculate(CalculationRequest request) {
         validate(request);
 
@@ -78,39 +79,27 @@ public class CalculatorService {
         }
 
         // --- 2b. Assembly mode («Сборка на печатный лист») ---
-        // One box is one complete set of details, so the box run is the run of
-        // every detail, and one sheet carries partsOnSheetTotal parts.
-        int detailCountInBox = 0;
-        int assemblyPartsOnSheet = 0;
-        for (CostCalculator.DetailInfo d : details) {
-            if (!Boolean.TRUE.equals(d.getEnabled())
-                    || d.getCountOnSheet() == null
-                    || d.getCountOnSheet().signum() <= 0) {
-                continue;
-            }
-            detailCountInBox++;
-            if (Boolean.TRUE.equals(d.getInAssembly())) {
-                assemblyPartsOnSheet += d.getPartsPerSheetInAssembly() != null
-                        && d.getPartsPerSheetInAssembly() > 0
-                        ? d.getPartsPerSheetInAssembly()
-                        : 1;
-            }
-        }
+        // One sheet carries the whole set of details, so the run is resolved
+        // once for all of them: the number of sheets is driven by the detail
+        // that needs the most sheets, and the bill is shared by every copy on
+        // the sheet. The same per-part print cost is then added to every detail
+        // marked for the assembly.
+        Integer assemblyFormat = assemblyEnabled
+                ? request.getAssemblySettings().getFormat()
+                : null;
+        Integer assemblyQuantity = assemblyEnabled
+                ? request.getAssemblySettings().getQuantity()
+                : null;
         PrintCostCalculator.AssemblyRun assemblyRun = assemblyEnabled
                 ? printCostCalculator.calcAssemblyRun(
-                        request.getAssemblySettings().getFormat(),
-                        request.getAssemblySettings().getBoxQuantity(),
-                        assemblyPartsOnSheet,
-                        detailCountInBox)
+                        assemblyFormat, assemblyQuantity,
+                        collectAssemblySheets(request.getDetails()))
                 : null;
-        BigDecimal assemblyCostPerPart = assemblyRun != null
-                ? assemblyRun.pricePerPart()
-                : BigDecimal.ZERO;
 
         // --- 3. Calculate total cost (full precision) ---
         BigDecimal totalCost = costCalculator.calculateTotalCost(
                 details, extras, printEnabled, printFormat, printQuantity, workPrice,
-                assemblyRun != null ? assemblyCostPerPart : null);
+                assemblyRun);
 
         // --- 4. Round to kopecks first, then to whole rubles (rounding #1) ---
         // Material is divided with scale=10, so values on a .5 boundary may be
@@ -156,7 +145,8 @@ public class CalculatorService {
             response.setAssemblyCostPerPart(assemblyRun.pricePerPart());
             response.setAssemblySheetCost(assemblyRun.pricePerSheet());
             response.setAssemblySheets(assemblyRun.sheets());
-            response.setAssemblyPartsOnSheet(assemblyPartsOnSheet);
+            response.setAssemblyPartsOnSheet(assemblyRun.totalPartsOnSheet());
+            response.setDetails(buildDetailCosts(request.getDetails(), assemblyRun));
         }
         response.setPrices(priceRowDtos);
 
@@ -179,7 +169,6 @@ public class CalculatorService {
             info.setIsPrinted(dto.getIsPrinted());
             info.setPartsPerSheetOnPrint(dto.getPartsPerSheetOnPrint());
             info.setInAssembly(dto.getInAssembly());
-            info.setPartsPerSheetInAssembly(dto.getPartsPerSheetInAssembly());
             info.setEnabled(dto.getEnabled());
             info.setIsCustom(dto.getIsCustom());
             info.setOperations(dto.getOperations());
@@ -209,8 +198,10 @@ public class CalculatorService {
      * - enabled details must have countOnSheet > 0
      * - price list keys must be valid tier labels
      * - enabled print settings must have format and positive quantity
-     * - assembly mode must have format, positive box quantity and at least one
+     * - assembly mode must have format, positive run quantity and at least one
      *   detail in the assembly
+     * - a detail marked for the assembly must have colsOnSheet >= 1
+     *   (null is a legacy payload and means 1 copy per sheet)
      * - assembly mode and single-detail print are mutually exclusive
      */
     private void validate(CalculationRequest request) {
@@ -227,8 +218,20 @@ public class CalculatorService {
                             "Detail '" + d.getName() + "' (index " + i + ") sheetPrice must be >= 0");
                 }
 
+                // Assembly sheet: a checked detail must carry at least one copy
+                // per sheet. Null is a legacy payload and means 1; an explicit
+                // zero/negative value would silently drop the detail from the
+                // sheet, so it is rejected instead.
+                if (isInAssembly(d)
+                        && d.getColsOnSheet() != null
+                        && d.getColsOnSheet() < 1) {
+                    throw new IllegalArgumentException(
+                            "Detail '" + d.getName() + "' (index " + i
+                                    + ") is in assembly but colsOnSheet must be >= 1");
+                }
+
                 // Prototype validatePrint(): active printed details must fit
-                // into the box run (parts per sheet <= box count).
+                // into the detail run (parts per sheet <= quantity).
                 PrintSettingsDto ps = request.getPrintSettings();
                 boolean printIsEnabled = ps != null && Boolean.TRUE.equals(ps.getEnabled());
                 if (printIsEnabled
@@ -285,9 +288,9 @@ public class CalculatorService {
             if (assembly.getFormat() == null) {
                 throw new IllegalArgumentException("Assembly settings enabled but format is missing");
             }
-            if (assembly.getBoxQuantity() == null || assembly.getBoxQuantity() <= 0) {
+            if (assembly.getQuantity() == null || assembly.getQuantity() <= 0) {
                 throw new IllegalArgumentException(
-                        "Assembly settings enabled but box quantity must be > 0");
+                        "Assembly settings enabled but quantity must be > 0");
             }
             boolean hasAssemblyDetails = request.getDetails() != null
                     && request.getDetails().stream().anyMatch(this::isInAssembly);
@@ -304,5 +307,64 @@ public class CalculatorService {
                 && Boolean.TRUE.equals(d.getInAssembly())
                 && d.getCountOnSheet() != null
                 && d.getCountOnSheet().signum() > 0;
+    }
+
+    /**
+     * Details that take part in the assembly sheet, in request order.
+     * Only enabled details with a positive material count can be printed.
+     *
+     * @param dtos request details, may be null
+     * @return details for {@link PrintCostCalculator#calcAssemblyRun}
+     */
+    private List<PrintCostCalculator.DetailSheet> collectAssemblySheets(List<DetailDto> dtos) {
+        List<PrintCostCalculator.DetailSheet> sheets = new ArrayList<>();
+        if (dtos == null) {
+            return sheets;
+        }
+        for (DetailDto d : dtos) {
+            if (isInAssembly(d)) {
+                sheets.add(new PrintCostCalculator.DetailSheet(d.getName(), d.getColsOnSheet()));
+            }
+        }
+        return sheets;
+    }
+
+    /**
+     * Per-detail print part of the assembly run for the response.
+     *
+     * <p>{@code detailId} is the index of the detail in the request
+     * {@code details} list, so the client can match it without sending a
+     * client-only row id to the backend.
+     *
+     * @param dtos request details, may be null
+     * @param run  resolved assembly run, not null
+     * @return one entry per request detail, in request order
+     */
+    private List<DetailCostDto> buildDetailCosts(List<DetailDto> dtos,
+                                                 PrintCostCalculator.AssemblyRun run) {
+        List<DetailCostDto> costs = new ArrayList<>();
+        if (dtos == null) {
+            return costs;
+        }
+        boolean runPriced = run != null && run.priced();
+        for (int i = 0; i < dtos.size(); i++) {
+            DetailDto d = dtos.get(i);
+            boolean inAssembly = isInAssembly(d);
+            int cols = d.getColsOnSheet() != null && d.getColsOnSheet() > 0
+                    ? d.getColsOnSheet()
+                    : 1;
+            boolean blocked = inAssembly
+                    && ((d.getColsOnSheet() != null && d.getColsOnSheet() < 1) || !runPriced);
+
+            DetailCostDto cost = new DetailCostDto();
+            cost.setDetailId(i);
+            cost.setInAssembly(inAssembly);
+            cost.setColsOnSheet(cols);
+            cost.setSheets(inAssembly && !blocked ? run.sheets() : 0);
+            cost.setPerPart(inAssembly && !blocked ? run.pricePerPart() : BigDecimal.ZERO);
+            cost.setPrintBlocked(blocked);
+            costs.add(cost);
+        }
+        return costs;
     }
 }

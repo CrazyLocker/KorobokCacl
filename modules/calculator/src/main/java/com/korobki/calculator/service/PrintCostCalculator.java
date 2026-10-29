@@ -74,50 +74,67 @@ public class PrintCostCalculator {
         if (table == null || table.getSteps() == null || table.getSteps().isEmpty()) {
             return BigDecimal.ZERO;
         }
-
-        List<Map<String, Object>> steps = table.getSteps();
-        BigDecimal stepAfter3000 = table.getStepAfter3000();
-
-        // If quantity >= 3000, use linear extrapolation
-        if (quantity >= 3000) {
-            BigDecimal price3000 = extractPrice(steps.get(steps.size() - 1));
-            int extraThousands = (int) Math.ceil((quantity - 3000) / 1000.0);
-            return price3000.add(stepAfter3000.multiply(BigDecimal.valueOf(extraThousands)));
-        }
-
-        // Find the first step where minQty >= quantity
-        for (Map<String, Object> step : steps) {
-            int minQty = extractInt(step.get("minQty"));
-            if (minQty >= quantity) {
-                return extractPrice(step);
-            }
-        }
-
-        // If quantity is below the minimum step, return the first step's price
-        return extractPrice(steps.get(0));
+        return tariffFor(table, quantity).bill();
     }
 
     /**
-     * Calculate the print cost of one detail per box (without VAT).
+     * Resolves the tariff step for a print run: the first step with
+     * {@code minQty >= sheets}, the first step for a run below the table and
+     * linear extrapolation from 3000 sheets.
+     */
+    private Tariff tariffFor(PrintTable table, int sheets) {
+        List<Map<String, Object>> steps = table.getSteps();
+
+        // From 3000 sheets: the last step plus stepAfter3000 per started 1000.
+        if (sheets >= 3000) {
+            Map<String, Object> lastStep = steps.get(steps.size() - 1);
+            BigDecimal stepAfter3000 = table.getStepAfter3000() != null
+                    ? table.getStepAfter3000()
+                    : BigDecimal.ZERO;
+            int extraThousands = (int) Math.ceil((sheets - 3000) / 1000.0);
+            return new Tariff(
+                    extractInt(lastStep.get("minQty")),
+                    extractPrice(lastStep).add(
+                            stepAfter3000.multiply(BigDecimal.valueOf(extraThousands))));
+        }
+
+        // First step that covers the run; below the first step — the first step.
+        Map<String, Object> chosen = steps.get(0);
+        for (Map<String, Object> step : steps) {
+            if (extractInt(step.get("minQty")) >= sheets) {
+                chosen = step;
+                break;
+            }
+        }
+        return new Tariff(extractInt(chosen.get("minQty")), extractPrice(chosen));
+    }
+
+    /** A tariff step chosen for a print run. */
+    private record Tariff(int tariffSheets, BigDecimal bill) {
+    }
+
+    /**
+     * Calculate the print cost of one detail in the single-detail print mode
+     * (without VAT), spread over the detail run.
      *
      * Mirrors the prototype formula:
      * <pre>
-     *   rawSheets   = ceil(boxCount / partsPerSheetOnPrint)
-     *   printBill   = calcPrintCost(formatId, rawSheets)
-     *   printPerBox = (printBill / boxCount) / partsPerSheetOnPrint
+     *   rawSheets    = ceil(quantity / partsPerSheetOnPrint)
+     *   printBill    = calcPrintCost(formatId, rawSheets)
+     *   printPerUnit = (printBill / quantity) / partsPerSheetOnPrint
      * </pre>
      *
      * The second division is intentional: one print sheet carries several
      * identical details, so the bill is shared between them.
      *
      * @param formatId              print format (1, 2, or 3)
-     * @param boxCount              number of boxes in the print run
+     * @param quantity              run of the detail
      * @param partsPerSheetOnPrint  details printed on one sheet; null/0 means 1
-     * @return print cost per detail per box, or ZERO for invalid input or when
-     *         there are more details on a sheet than boxes in the run
+     * @return print cost per detail, or ZERO for invalid input or when there
+     *         are more details on a sheet than details in the run
      */
-    public BigDecimal calcPrintPerUnitNoVat(Integer formatId, Integer boxCount, Integer partsPerSheetOnPrint) {
-        if (boxCount == null || boxCount <= 0) {
+    public BigDecimal calcPrintPerUnitNoVat(Integer formatId, Integer quantity, Integer partsPerSheetOnPrint) {
+        if (quantity == null || quantity <= 0) {
             return BigDecimal.ZERO;
         }
 
@@ -127,69 +144,116 @@ public class PrintCostCalculator {
 
         // The prototype blocks the calculation in this case; the calculator
         // itself must not produce a nonsensical negative/zero-sheet bill.
-        if (partsPerSheet > boxCount) {
+        if (partsPerSheet > quantity) {
             return BigDecimal.ZERO;
         }
 
-        int rawSheets = (boxCount + partsPerSheet - 1) / partsPerSheet;
+        int rawSheets = ceilDiv(quantity, partsPerSheet);
         BigDecimal printBill = calcPrintCost(formatId, rawSheets);
 
         return printBill
-                .divide(BigDecimal.valueOf(boxCount), 10, RoundingMode.HALF_UP)
+                .divide(BigDecimal.valueOf(quantity), 10, RoundingMode.HALF_UP)
                 .divide(BigDecimal.valueOf(partsPerSheet), 10, RoundingMode.HALF_UP);
     }
 
     /**
-     * Resolved assembly run: how many sheets are printed, which tariff step was
-     * applied and what one sheet / one detail costs.
+     * A detail placed on the assembly sheet.
      *
-     * @param sheets        sheets needed for the box run
-     * @param tariffSheets  minQty of the tariff step the bill was taken from
-     * @param bill          tariff price for the whole run
-     * @param pricePerSheet bill / tariffSheets
-     * @param pricePerPart  pricePerSheet / partsOnSheetTotal
+     * @param name        detail name (used for diagnostics only)
+     * @param colsOnSheet copies of this detail on one assembly sheet;
+     *                    null = 1 (legacy payloads), less than 1 = invalid
      */
-    public record AssemblyRun(int sheets, int tariffSheets, BigDecimal bill,
-                              BigDecimal pricePerSheet, BigDecimal pricePerPart) {
+    public record DetailSheet(String name, Integer colsOnSheet) {
 
-        /** Empty run: the mode is off or the input is invalid. */
-        public static AssemblyRun empty() {
-            return new AssemblyRun(0, 0, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
+        /** Copies on one sheet with null treated as 1 (legacy payloads). */
+        public int resolvedColsOnSheet() {
+            return colsOnSheet != null ? colsOnSheet : 1;
         }
     }
 
     /**
-     * Calculate the «Сборка на печатный лист» run (customer-approved formula).
+     * Resolved assembly run for the whole set of details on one sheet.
      *
-     * <p>One box is one complete set of details (1 bottom + 1 divider + 1 lid …),
-     * so the box run equals the run of each detail. A sheet carries
-     * {@code partsOnSheetTotal} parts, i.e. {@code partsOnSheetTotal /
-     * detailCountInBox} complete sets:
-     * <pre>
-     *   sheets        = ceil(boxQuantity * detailCountInBox / partsOnSheetTotal)
-     *   bill          = price of the first step with minQty >= sheets
-     *                   (from 3000 — the last step plus stepAfter3000 per 1000)
-     *   pricePerSheet = bill / tariffSheets                 // 7500 / 300 = 25
-     *   pricePerPart  = pricePerSheet / partsOnSheetTotal   // 25 / 3 = 8.33
-     * </pre>
-     * The bill is shared by the details on the sheet only, so a box made of the
-     * assembled details costs {@code pricePerPart * details in the box} (25 ₽ in
-     * the example) — unlike the prototype the bill is NOT divided by the box run
-     * a second time.
-     *
-     * @param formatId          print format (1, 2, or 3)
-     * @param boxQuantity       box run (one box = one set of details)
-     * @param partsOnSheetTotal details placed on one assembly sheet
-     * @param detailCountInBox  details in one box (one complete set)
-     * @return resolved run; {@link AssemblyRun#empty()} for invalid input or a
-     *         missing print table
+     * @param sheets            sheets printed for the run:
+     *                          {@code max(ceil(quantity / colsOnSheet_j))}
+     * @param tariffSheets      minQty of the tariff step the bill was taken from
+     * @param bill              tariff price for the whole run
+     * @param pricePerSheet     bill / sheets — what one printed sheet costs
+     * @param pricePerPart      (bill / sheets) / totalPartsOnSheet — print cost
+     *                          of one copy of any detail in the set
+     * @param totalPartsOnSheet sum of {@code colsOnSheet} over the details on the sheet
      */
-    public AssemblyRun calcAssemblyRun(Integer formatId, Integer boxQuantity,
-                                       Integer partsOnSheetTotal, Integer detailCountInBox) {
-        if (formatId == null
-                || boxQuantity == null || boxQuantity <= 0
-                || partsOnSheetTotal == null || partsOnSheetTotal <= 0
-                || detailCountInBox == null || detailCountInBox <= 0) {
+    public record AssemblyRun(int sheets, int tariffSheets, BigDecimal bill,
+                              BigDecimal pricePerSheet, BigDecimal pricePerPart,
+                              int totalPartsOnSheet) {
+
+        /** Empty run: the mode is off, the input is invalid or there is no tariff. */
+        public static AssemblyRun empty() {
+            return new AssemblyRun(0, 0, BigDecimal.ZERO, BigDecimal.ZERO,
+                    BigDecimal.ZERO, 0);
+        }
+
+        /** Whether the run has at least one sheet and a printable bill. */
+        public boolean priced() {
+            return sheets > 0 && bill != null && bill.signum() > 0;
+        }
+    }
+
+    /**
+     * Calculates the «Сборка на печатный лист» run for the whole set of details
+     * placed on one assembly sheet.
+     *
+     * <p>One sheet carries a complete set of details: a detail with
+     * {@code colsOnSheet = 3} appears three times on every sheet. The run must
+     * print enough sheets for every detail, so it is driven by the detail that
+     * needs the most sheets:
+     * <pre>
+     *   totalPartsOnSheet = Σ colsOnSheet_j
+     *   sheets            = max(ceil(quantity / colsOnSheet_j))
+     *   bill              = calcPrintCost(formatId, sheets)
+     *   pricePerSheet     = bill / sheets
+     *   pricePerPart      = pricePerSheet / totalPartsOnSheet
+     * </pre>
+     * {@code pricePerPart} is the same for every detail in the set: one sheet
+     * bill is shared by all copies printed on it. {@code quantity} is the run
+     * of each detail (one box = one complete set), so it replaces the old
+     * box-count based formula.
+     *
+     * <p>A detail with {@code colsOnSheet < 1} cannot be placed on the sheet and
+     * is skipped here. {@code CalculatorService} rejects such a request with a
+     * validation error, so silently skipping can never hide a user mistake in
+     * the API path; skipping instead of failing the whole run keeps this method
+     * total and lets the caller report a precise per-detail error.
+     *
+     * @param formatId print format (1, 2, or 3)
+     * @param quantity run of each detail (number of complete sets)
+     * @param details  details placed on the sheet
+     * @return resolved run; {@link AssemblyRun#empty()} when the input is
+     *         invalid, nothing can be placed on the sheet, the print table is
+     *         missing or the tariff bill is zero
+     */
+    public AssemblyRun calcAssemblyRun(Integer formatId, Integer quantity,
+                                       List<DetailSheet> details) {
+        if (formatId == null || quantity == null || quantity <= 0
+                || details == null || details.isEmpty()) {
+            return AssemblyRun.empty();
+        }
+
+        int totalPartsOnSheet = 0;
+        int sheets = 0;
+        for (DetailSheet detail : details) {
+            if (detail == null) {
+                continue;
+            }
+            int cols = detail.resolvedColsOnSheet();
+            if (cols < 1) {
+                // Rejected by CalculatorService validation; skip defensively.
+                continue;
+            }
+            totalPartsOnSheet += cols;
+            sheets = Math.max(sheets, ceilDiv(quantity, cols));
+        }
+        if (totalPartsOnSheet == 0 || sheets == 0) {
             return AssemblyRun.empty();
         }
 
@@ -198,55 +262,23 @@ public class PrintCostCalculator {
             return AssemblyRun.empty();
         }
 
-        // sheets = ceil(boxQuantity / (partsOnSheetTotal / detailCountInBox)).
-        // Integer math keeps fractional sets exact (2 parts on a sheet, 3 in a box).
-        long numerator = (long) boxQuantity * detailCountInBox;
-        int sheets = (int) ((numerator + partsOnSheetTotal - 1) / partsOnSheetTotal);
-
-        List<Map<String, Object>> steps = table.getSteps();
-        BigDecimal bill;
-        int tariffSheets;
-        if (sheets >= 3000) {
-            // Same extrapolation rule as calcPrintCost().
-            Map<String, Object> lastStep = steps.get(steps.size() - 1);
-            BigDecimal stepAfter3000 = table.getStepAfter3000() != null
-                    ? table.getStepAfter3000()
-                    : BigDecimal.ZERO;
-            int extraThousands = (int) Math.ceil((sheets - 3000) / 1000.0);
-            bill = extractPrice(lastStep)
-                    .add(stepAfter3000.multiply(BigDecimal.valueOf(extraThousands)));
-            tariffSheets = extractInt(lastStep.get("minQty"));
-        } else {
-            // First step that covers the run; below the first step — the first step.
-            Map<String, Object> chosen = steps.get(0);
-            for (Map<String, Object> step : steps) {
-                if (extractInt(step.get("minQty")) >= sheets) {
-                    chosen = step;
-                    break;
-                }
-            }
-            bill = extractPrice(chosen);
-            tariffSheets = extractInt(chosen.get("minQty"));
+        Tariff tariff = tariffFor(table, sheets);
+        if (tariff.bill().signum() <= 0) {
+            return AssemblyRun.empty();
         }
 
-        BigDecimal pricePerSheet = tariffSheets > 0
-                ? bill.divide(BigDecimal.valueOf(tariffSheets), 10, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
-        BigDecimal pricePerPart = pricePerSheet.divide(
-                BigDecimal.valueOf(partsOnSheetTotal), 10, RoundingMode.HALF_UP);
+        BigDecimal pricePerSheet = tariff.bill()
+                .divide(BigDecimal.valueOf(sheets), 10, RoundingMode.HALF_UP);
+        BigDecimal pricePerPart = pricePerSheet
+                .divide(BigDecimal.valueOf(totalPartsOnSheet), 10, RoundingMode.HALF_UP);
 
-        return new AssemblyRun(sheets, tariffSheets, bill, pricePerSheet, pricePerPart);
+        return new AssemblyRun(sheets, tariff.tariffSheets(), tariff.bill(),
+                pricePerSheet, pricePerPart, totalPartsOnSheet);
     }
 
-    /**
-     * Print cost of one detail in the assembly mode (without VAT).
-     *
-     * @see #calcAssemblyRun(Integer, Integer, Integer, Integer)
-     */
-    public BigDecimal calcAssemblyPerPartNoVat(Integer formatId, Integer boxQuantity,
-                                               Integer partsOnSheetTotal, Integer detailCountInBox) {
-        return calcAssemblyRun(formatId, boxQuantity, partsOnSheetTotal, detailCountInBox)
-                .pricePerPart();
+    /** Integer ceiling division for positive operands. */
+    private static int ceilDiv(int dividend, int divisor) {
+        return (dividend + divisor - 1) / divisor;
     }
 
     private BigDecimal extractPrice(Map<String, Object> step) {

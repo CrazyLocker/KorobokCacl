@@ -223,95 +223,165 @@ class PrintCostCalculatorTest {
         assertBD("0", calculator.calcPrintPerUnitNoVat(1, -5, 1));
     }
 
-    // --- calcAssemblyRun / calcAssemblyPerPartNoVat ---
+    // --- calcAssemblyRun («Сборка на печатный лист») ---
+
+    /** A detail with the given number of copies on one assembly sheet. */
+    private static PrintCostCalculator.DetailSheet cols(String name, Integer cols) {
+        return new PrintCostCalculator.DetailSheet(name, cols);
+    }
+
+    /** Steps used by the assembly tests: 100 → 5500, 300 → 7500, 500 → 9000. */
+    private void stubAssemblySteps() {
+        stub(1, table(1, "1500", new Object[][]{{100, 5500}, {300, 7500}, {500, 9000}}));
+    }
 
     @Test
-    void assembly_oneSetPerSheet_usesTariffOfNextStep() {
-        // 200 коробок, лист = 3 детали при 3 деталях в коробке → 1 комплект,
-        // 200 листов → тариф 300 (7500) → 25 ₽/лист → 25/3 ₽ за деталь
-        stub(1, table(1, "1500", new Object[][]{{100, 5500}, {300, 7500}, {500, 9000}}));
+    void assembly_sheetsDrivenByTheDetailWithMostSheets() {
+        // Дно 3/лист → ceil(200/3)=67 листов, крышка 1/лист → 200 листов.
+        // Комплект печатается 200 листов → тариф 300 (7500); на листе 4 детали
+        // → 7500 / 200 / 4 = 9.375 ₽ за деталь.
+        stubAssemblySteps();
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200, 3, 3);
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200,
+                List.of(cols("Дно", 3), cols("Крышка", 1)));
 
         assertEquals(200, run.sheets());
         assertEquals(300, run.tariffSheets());
         assertBD("7500", run.bill());
-        assertBD("25", run.pricePerSheet());
-        assertBD("8.3333333333", run.pricePerPart());
-        assertBD("8.3333333333", calculator.calcAssemblyPerPartNoVat(1, 200, 3, 3));
+        assertEquals(4, run.totalPartsOnSheet());
+        assertBD("37.5", run.pricePerSheet());
+        assertBD("9.375", run.pricePerPart());
+        assertTrue(run.priced());
     }
 
     @Test
-    void assembly_twoSetsPerSheet_halvesTheSheetCount() {
-        // 6 деталей на листе при 3 в коробке → 2 комплекта → 200 коробок = 100 листов
-        stub(1, table(1, "1500", new Object[][]{{100, 6000}, {300, 7500}}));
+    void assembly_threeDetailsOneCopyEach_shareTheBillBetweenAllCopies() {
+        // 100 комплектов, три детали по 1 копии → 100 листов → тариф 100 (5500)
+        // → 55 ₽/лист → 55 / 3 ≈ 18.33 ₽ за деталь (одинаково для всех).
+        stubAssemblySteps();
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200, 6, 3);
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 100,
+                List.of(cols("Дно", 1), cols("Разделитель", 1), cols("Крышка", 1)));
 
         assertEquals(100, run.sheets());
         assertEquals(100, run.tariffSheets());
-        assertBD("60", run.pricePerSheet());
-        assertBD("10", run.pricePerPart());
+        assertBD("5500", run.bill());
+        assertEquals(3, run.totalPartsOnSheet());
+        assertBD("55", run.pricePerSheet());
+        assertBD("18.3333333333", run.pricePerPart());
     }
 
     @Test
-    void assembly_partialSetPerSheet_roundsSheetCountUp() {
-        // 2 детали на листе при 3 в коробке → 2/3 комплекта →
-        // ceil(200 * 3 / 2) = 300 листов → тариф 300
-        stub(1, table(1, "1500", new Object[][]{{100, 5500}, {300, 7500}}));
+    void assembly_oneDetailOneCopy_isTheWholeBillPerCopy() {
+        // 100 комплектов, одна деталь по 1 копии → 100 листов → 5500 / 100 = 55 ₽.
+        stubAssemblySteps();
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200, 2, 3);
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 100,
+                List.of(cols("Дно", 1)));
 
-        assertEquals(300, run.sheets());
-        assertEquals(300, run.tariffSheets());
-        assertBD("25", run.pricePerSheet());
-        assertBD("12.5", run.pricePerPart());
+        assertEquals(100, run.sheets());
+        assertEquals(1, run.totalPartsOnSheet());
+        assertBD("55", run.pricePerSheet());
+        assertBD("55", run.pricePerPart());
+    }
+
+    @Test
+    void assembly_oneDetailThreeCopies_dividesByBothSheetsAndCopies() {
+        // 200 комплектов, 3 копии на листе → ceil(200/3)=67 листов → 5500 / 67
+        // = 82.0895522388 ₽/лист → / 3 копии = 27.3631840796 ₽ за копию.
+        stubAssemblySteps();
+
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200,
+                List.of(cols("Дно", 3)));
+
+        assertEquals(67, run.sheets());
+        assertEquals(100, run.tariffSheets());
+        assertBD("5500", run.bill());
+        assertBD("82.0895522388", run.pricePerSheet());
+        assertBD("27.3631840796", run.pricePerPart());
     }
 
     @Test
     void assembly_belowFirstStep_usesFirstStepTariff() {
-        // 20 коробок → 20 листов → первая ступень 100 (5500) → 55 ₽/лист
+        // 20 комплектов → 20 листов → первая ступень 100 (5500) → 275 ₽/лист.
         stub(1, table(1, "1500", new Object[][]{{100, 5500}, {300, 7500}}));
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 20, 3, 3);
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 20,
+                List.of(cols("Дно", 1)));
 
         assertEquals(20, run.sheets());
         assertEquals(100, run.tariffSheets());
-        assertBD("55", run.pricePerSheet());
+        assertBD("275", run.pricePerSheet());
+        assertBD("275", run.pricePerPart());
     }
 
     @Test
     void assembly_above3000_addsIncrements() {
-        // 4000 коробок → 4000 листов → 30000 + 1 * 1500 при тарифе 3000
+        // 4000 комплектов → 4000 листов → 30000 + 1 * 1500 при тарифе 3000.
         stub(1, table(1, "1500", new Object[][]{{100, 5500}, {3000, 30000}}));
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 4000, 3, 3);
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 4000,
+                List.of(cols("Дно", 1)));
 
         assertEquals(4000, run.sheets());
         assertEquals(3000, run.tariffSheets());
         assertBD("31500", run.bill());
-        assertBD("10.5", run.pricePerSheet());
-        assertBD("3.5", run.pricePerPart());
+        assertBD("7.875", run.pricePerSheet());
+        assertBD("7.875", run.pricePerPart());
     }
 
     @Test
-    void assembly_missingTable_returnsZero() {
+    void assembly_nullColsOnSheet_meansOneCopy() {
+        // null — legacy-запрос без «кол-ва на лист»; 1 копия.
+        stubAssemblySteps();
+
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(1, 200,
+                List.of(cols("Дно", null)));
+
+        assertEquals(200, run.sheets());
+        assertEquals(1, run.totalPartsOnSheet());
+        assertBD("37.5", run.pricePerPart());
+    }
+
+    @Test
+    void assembly_zeroOrNegativeColsOnSheet_isSkipped() {
+        // Явный 0/отрицательное значение отклоняется валидацией сервиса;
+        // калькулятор не роняет весь прогон из-за одной такой детали.
+        stubAssemblySteps();
+
+        PrintCostCalculator.AssemblyRun onlyInvalid = calculator.calcAssemblyRun(1, 100,
+                List.of(cols("Дно", 0)));
+        assertEquals(0, onlyInvalid.sheets());
+        assertFalse(onlyInvalid.priced());
+
+        PrintCostCalculator.AssemblyRun mixed = calculator.calcAssemblyRun(1, 100,
+                List.of(cols("Дно", 0), cols("Крышка", 1)));
+        assertEquals(100, mixed.sheets());
+        assertEquals(1, mixed.totalPartsOnSheet());
+        assertBD("55", mixed.pricePerPart());
+    }
+
+    @Test
+    void assembly_missingTable_returnsEmpty() {
         when(printTableRepository.findByFormatId(99)).thenReturn(Optional.empty());
 
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(99, 200, 3, 3));
-        assertEquals(0, calculator.calcAssemblyRun(99, 200, 3, 3).sheets());
+        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(99, 200,
+                List.of(cols("Дно", 1)));
+
+        assertEquals(0, run.sheets());
+        assertBD("0", run.pricePerPart());
+        assertFalse(run.priced());
     }
 
     @Test
-    void assembly_invalidInput_returnsZero() {
-        stub(1, table(1, "1500", new Object[][]{{100, 5500}}));
+    void assembly_invalidInput_returnsEmpty() {
+        stubAssemblySteps();
 
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(null, 200, 3, 3));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, null, 3, 3));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, 0, 3, 3));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, 200, null, 3));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, 200, 0, 3));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, 200, 3, null));
-        assertBD("0", calculator.calcAssemblyPerPartNoVat(1, 200, 3, 0));
+        assertEquals(0, calculator.calcAssemblyRun(null, 200, List.of(cols("Дно", 1))).sheets());
+        assertEquals(0, calculator.calcAssemblyRun(1, null, List.of(cols("Дно", 1))).sheets());
+        assertEquals(0, calculator.calcAssemblyRun(1, 0, List.of(cols("Дно", 1))).sheets());
+        assertEquals(0, calculator.calcAssemblyRun(1, -5, List.of(cols("Дно", 1))).sheets());
+        assertEquals(0, calculator.calcAssemblyRun(1, 200, List.of()).sheets());
+        assertEquals(0, calculator.calcAssemblyRun(1, 200, null).sheets());
     }
 }

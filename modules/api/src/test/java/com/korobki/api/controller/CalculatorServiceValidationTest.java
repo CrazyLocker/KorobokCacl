@@ -15,6 +15,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@SuppressWarnings("deprecation") // legacy assembly response fields
 class CalculatorServiceValidationTest {
 
     private CalculatorService service;
@@ -214,12 +215,12 @@ class CalculatorServiceValidationTest {
     private CalculationRequest assemblyRequest() {
         CalculationRequest request = validRequest();
         request.getDetails().get(0).setInAssembly(true);
-        request.getDetails().get(0).setPartsPerSheetInAssembly(1);
+        request.getDetails().get(0).setColsOnSheet(1);
 
         com.korobki.api.dto.AssemblySettingsDto assembly = new com.korobki.api.dto.AssemblySettingsDto();
         assembly.setEnabled(true);
         assembly.setFormat(1);
-        assembly.setBoxQuantity(200);
+        assembly.setQuantity(200);
         request.setAssemblySettings(assembly);
         return request;
     }
@@ -266,13 +267,31 @@ class CalculatorServiceValidationTest {
     }
 
     @Test
-    void assemblyWithZeroBoxQuantity_rejected() {
+    void assemblyWithZeroQuantity_rejected() {
         CalculationRequest request = assemblyRequest();
-        request.getAssemblySettings().setBoxQuantity(0);
+        request.getAssemblySettings().setQuantity(0);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("box quantity must be > 0"));
+        assertTrue(ex.getMessage().contains("quantity must be > 0"));
+    }
+
+    @Test
+    void assemblyWithZeroColsOnSheet_rejected() {
+        CalculationRequest request = assemblyRequest();
+        request.getDetails().get(0).setColsOnSheet(0);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.calculate(request));
+        assertTrue(ex.getMessage().contains("colsOnSheet must be >= 1"));
+    }
+
+    @Test
+    void assemblyWithNullColsOnSheet_meansOneCopy() {
+        CalculationRequest request = assemblyRequest();
+        request.getDetails().get(0).setColsOnSheet(null);
+
+        assertDoesNotThrow(() -> service.calculate(request));
     }
 
     @Test
@@ -308,62 +327,92 @@ class CalculatorServiceValidationTest {
 
     // --- Сборка: связывание расчёта и ответа ---
 
-    /** Tariff 300 for 7500 → 25 ₽/sheet and 8.33 ₽/part (the customer example). */
-    private static PrintCostCalculator.AssemblyRun customerExampleRun() {
+    /** Reference run: 200 sheets → tariff 300 (7500) → 37.5 ₽/sheet, 37.5 ₽/part. */
+    private static PrintCostCalculator.AssemblyRun referenceRun() {
         return new PrintCostCalculator.AssemblyRun(200, 300, new BigDecimal("7500"),
-                new BigDecimal("25"), new BigDecimal("8.3333333333"));
+                new BigDecimal("37.5"), new BigDecimal("37.5"), 1);
     }
 
     @Test
     void assemblyMode_mapsRunToResponseFields() {
-        org.mockito.Mockito.when(printCostCalculator.calcAssemblyRun(1, 200, 1, 1))
-                .thenReturn(customerExampleRun());
+        org.mockito.Mockito.when(printCostCalculator.calcAssemblyRun(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(referenceRun());
 
         CalculationResponse response = service.calculate(assemblyRequest());
 
         assertEquals(200, response.getAssemblySheets());
         assertEquals(1, response.getAssemblyPartsOnSheet());
-        assertEquals(0, new BigDecimal("25").compareTo(response.getAssemblySheetCost()));
-        assertEquals(0, new BigDecimal("8.3333333333").compareTo(response.getAssemblyCostPerPart()));
+        assertEquals(0, new BigDecimal("37.5").compareTo(response.getAssemblySheetCost()));
+        assertEquals(0, new BigDecimal("37.5").compareTo(response.getAssemblyCostPerPart()));
         // Режимы взаимоисключающие: печать одной детали в ответе остаётся нулевой.
         assertEquals(0, BigDecimal.ZERO.compareTo(response.getPrintCostPerUnit()));
+
+        // Новый per-detail блок: одна деталь в сборке, 200 листов, 37.5 ₽ за копию.
+        assertEquals(1, response.getDetails().size());
+        var detailCost = response.getDetails().get(0);
+        assertEquals(0, detailCost.getDetailId());
+        assertTrue(detailCost.getInAssembly());
+        assertEquals(1, detailCost.getColsOnSheet());
+        assertEquals(200, detailCost.getSheets());
+        assertEquals(0, new BigDecimal("37.5").compareTo(detailCost.getPerPart()));
+        assertFalse(detailCost.getPrintBlocked());
     }
 
     @Test
-    void assemblyMode_forwardsPerPartCostToCostCalculator() {
-        org.mockito.Mockito.when(printCostCalculator.calcAssemblyRun(1, 200, 1, 1))
-                .thenReturn(customerExampleRun());
+    void assemblyMode_forwardsFormatQuantityAndDetailsToCalculator() {
+        org.mockito.Mockito.when(printCostCalculator.calcAssemblyRun(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(referenceRun());
 
         service.calculate(assemblyRequest());
 
-        org.mockito.ArgumentCaptor<BigDecimal> perPart =
-                org.mockito.ArgumentCaptor.forClass(BigDecimal.class);
-        org.mockito.Mockito.verify(costCalculator).calculateTotalCost(
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                perPart.capture());
-        assertEquals(0, new BigDecimal("8.3333333333").compareTo(perPart.getValue()));
+        org.mockito.ArgumentCaptor<Integer> format =
+                org.mockito.ArgumentCaptor.forClass(Integer.class);
+        org.mockito.ArgumentCaptor<Integer> quantity =
+                org.mockito.ArgumentCaptor.forClass(Integer.class);
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.List<PrintCostCalculator.DetailSheet>> sheets =
+                org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+
+        org.mockito.Mockito.verify(printCostCalculator)
+                .calcAssemblyRun(format.capture(), quantity.capture(), sheets.capture());
+
+        assertEquals(1, format.getValue().intValue());
+        assertEquals(200, quantity.getValue().intValue());
+        assertEquals(1, sheets.getValue().size());
+        assertEquals("Дно", sheets.getValue().get(0).name());
+        assertEquals(Integer.valueOf(1), sheets.getValue().get(0).colsOnSheet());
     }
 
     @Test
-    void baseMode_forwardsNullAssemblyCost() {
+    void baseMode_forwardsNullAssemblyRun() {
         service.calculate(validRequest());
 
-        org.mockito.ArgumentCaptor<BigDecimal> perPart =
-                org.mockito.ArgumentCaptor.forClass(BigDecimal.class);
+        org.mockito.ArgumentCaptor<PrintCostCalculator.AssemblyRun> run =
+                org.mockito.ArgumentCaptor.forClass(PrintCostCalculator.AssemblyRun.class);
         org.mockito.Mockito.verify(costCalculator).calculateTotalCost(
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
-                perPart.capture());
+                run.capture());
         // Без режима сборки CostCalculator не должен добавлять стоимость печати.
-        assertNull(perPart.getValue());
+        assertNull(run.getValue());
     }
 
     @Test
     void assemblyMode_countsOnlyActiveDetailsAndAssembledParts() {
         CalculationRequest request = assemblyRequest();
+        // 1 + 2 = 3 детали на листе; 37.5 ₽/лист → 12.5 ₽ за копию.
+        PrintCostCalculator.AssemblyRun run = new PrintCostCalculator.AssemblyRun(
+                200, 300, new BigDecimal("7500"), new BigDecimal("37.5"),
+                new BigDecimal("12.5"), 3);
+        org.mockito.Mockito.when(printCostCalculator.calcAssemblyRun(
+                        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any()))
+                .thenReturn(run);
         DetailDto first = request.getDetails().get(0); // 1 копия на листе
 
         DetailDto second = new DetailDto();
@@ -372,7 +421,7 @@ class CalculatorServiceValidationTest {
         second.setSheetPrice(new BigDecimal("35"));
         second.setEnabled(true);
         second.setInAssembly(true);
-        second.setPartsPerSheetInAssembly(2); // 2 копии на листе
+        second.setColsOnSheet(2); // 2 копии на листе
 
         DetailDto disabled = new DetailDto();
         disabled.setName("Разделитель");
@@ -383,9 +432,23 @@ class CalculatorServiceValidationTest {
 
         request.setDetails(java.util.List.of(first, second, disabled));
 
-        service.calculate(request);
+        CalculationResponse response = service.calculate(request);
 
-        // partsOnSheet = 1 + 2 = 3, деталей в коробке (комплект) = 2 активных.
-        org.mockito.Mockito.verify(printCostCalculator).calcAssemblyRun(1, 200, 3, 2);
+        assertEquals(3, response.getAssemblyPartsOnSheet());
+        // В ответе — строка на каждую деталь запроса; выключенная не участвует.
+        assertEquals(3, response.getDetails().size());
+        assertFalse(response.getDetails().get(2).getInAssembly());
+        assertEquals(0, BigDecimal.ZERO.compareTo(response.getDetails().get(2).getPerPart()));
+
+        // Прогон считается один раз, по всем деталям на листе.
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.List<PrintCostCalculator.DetailSheet>> sheets =
+                org.mockito.ArgumentCaptor.forClass(java.util.List.class);
+        org.mockito.Mockito.verify(printCostCalculator, org.mockito.Mockito.times(1))
+                .calcAssemblyRun(org.mockito.ArgumentMatchers.eq(1),
+                        org.mockito.ArgumentMatchers.eq(200), sheets.capture());
+        assertEquals(2, sheets.getValue().size());
+        assertEquals(Integer.valueOf(1), sheets.getValue().get(0).colsOnSheet());
+        assertEquals(Integer.valueOf(2), sheets.getValue().get(1).colsOnSheet());
     }
 }
