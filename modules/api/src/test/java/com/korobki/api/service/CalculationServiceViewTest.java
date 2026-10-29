@@ -5,8 +5,14 @@ import com.korobki.api.controller.CalculatorService;
 import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.exception.NotFoundException;
+import com.korobki.calculator.service.CostCalculator;
+import com.korobki.calculator.service.PrintCostCalculator;
+import com.korobki.core.config.PricingConfig;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.entity.PrintTable;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.PrintTableRepository;
+import com.korobki.pricing.PriceCalculator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -20,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -75,6 +82,37 @@ class CalculationServiceViewTest {
         calculation.setUpdatedAt(LocalDateTime.now());
         when(repository.findById(calculation.getId())).thenReturn(Optional.of(calculation));
         return calculation;
+    }
+
+    /**
+     * Real calculation pipeline for tests that need actual numbers: the
+     * material/print calculators are real, only the price list and the print
+     * table repository are mocked.
+     */
+    private CalculatorService realCalculatorService() {
+        PrintTableRepository printTables = mock(PrintTableRepository.class);
+        PrintTable table = new PrintTable();
+        table.setFormatId(1);
+        table.setFormatName("70×100");
+        table.setSteps(List.of(
+                Map.of("minQty", 100, "price", 5500),
+                Map.of("minQty", 300, "price", 7500)));
+        table.setStepAfter3000(new BigDecimal("1500"));
+        when(printTables.findByFormatId(1)).thenReturn(Optional.of(table));
+
+        PricingConfig config = new PricingConfig();
+        config.setManufacturingCost(BigDecimal.ZERO);
+
+        PrintCostCalculator printCostCalculator = new PrintCostCalculator(printTables);
+        CostCalculator costCalculator = new CostCalculator(printCostCalculator, config);
+
+        PriceCalculator priceCalculator = mock(PriceCalculator.class);
+        when(priceCalculator.generatePrices(any(), any(), any())).thenReturn(List.of());
+        when(priceCalculator.calcBasePrice(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(priceCalculator.getBranch(any(), any())).thenReturn("+30");
+        when(priceCalculator.getVatMultiplier()).thenReturn(new BigDecimal("1.11"));
+
+        return new CalculatorService(costCalculator, priceCalculator, printCostCalculator);
     }
 
     @Test
@@ -155,5 +193,42 @@ class CalculationServiceViewTest {
         when(repository.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> service.view(id));
+    }
+
+    @Test
+    void view_printAndAssemblyBothEnabled_disablesPrintAndReturnsResult() {
+        // Наследие старых сохранений: оба режима включены одновременно.
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("name", "Дно");
+        detail.put("countOnSheet", 4);
+        detail.put("sheetPrice", 35);
+        detail.put("enabled", true);
+        detail.put("inAssembly", true);
+        detail.put("colsOnSheet", 1);
+
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("construction", "Этне 2 (шубер)");
+        state.put("details", List.of(detail));
+        state.put("workPrice", 5);
+        state.put("printSettings", Map.of("enabled", true, "format", 1, "quantity", 100));
+        state.put("assemblySettings", Map.of("enabled", true, "format", 1, "quantity", 50));
+        Calculation calculation = storedCalculation(state);
+
+        CalculationService realService =
+                new CalculationService(repository, new ObjectMapper(), realCalculatorService());
+
+        CalculationViewDto view = realService.view(calculation.getId());
+
+        assertNull(view.getViewError());
+        assertNotNull(view.getResult());
+        assertTrue(view.getResult().getTotalCost().compareTo(BigDecimal.ZERO) > 0,
+                "себестоимость должна быть посчитана: " + view.getResult().getTotalCost());
+
+        // Сборка остаётся включённой, обычная печать гасится — иначе пересчёт
+        // падает на «mutually exclusive».
+        assertNotNull(view.getRequest().getAssemblySettings());
+        assertTrue(view.getRequest().getAssemblySettings().getEnabled());
+        assertEquals(50, view.getRequest().getAssemblySettings().getQuantity().intValue());
+        assertFalse(view.getRequest().getPrintSettings().getEnabled());
     }
 }

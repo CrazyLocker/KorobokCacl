@@ -116,6 +116,7 @@ public class CalculationService {
             view.setViewError("Не удалось разобрать сохранённый расчёт: пустой запрос");
             return view;
         }
+        normalizeModeFlags(request);
         view.setRequest(request);
 
         String incomplete = findIncomplete(request);
@@ -131,6 +132,31 @@ public class CalculationService {
             view.setViewError("Не удалось пересчитать: " + describe(ex));
         }
         return view;
+    }
+
+    /**
+     * Resolves the print/assembly conflict of legacy saved states.
+     *
+     * <p>Assembly mode prints the details itself, so it is mutually exclusive
+     * with single-detail print and the calculator rejects a request with both
+     * flags on. Old saves may carry both: the assembly flag wins and
+     * single-detail print is switched off in the view, so the stored snapshot
+     * still opens instead of failing with a validation error.
+     *
+     * <p>The state in the database is not touched — only the parsed request
+     * of the view response.
+     *
+     * @param request parsed stored request, modified in place
+     */
+    private void normalizeModeFlags(CalculationRequest request) {
+        if (request.getAssemblySettings() == null
+                || !Boolean.TRUE.equals(request.getAssemblySettings().getEnabled())) {
+            return;
+        }
+        if (request.getPrintSettings() != null
+                && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
+            request.getPrintSettings().setEnabled(false);
+        }
     }
 
     /**

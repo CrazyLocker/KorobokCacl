@@ -43,6 +43,17 @@ const money = (value: number | null | undefined): string =>
 const formatDate = (value: string | null | undefined): string =>
     value ? new Date(value).toLocaleString('ru-RU') : '—';
 
+/**
+ * Текст строки «Печать». При включённой сборке обычная печать не работает:
+ * режимы взаимоисключающие, и нормализатор гасит её при чтении старого state.
+ */
+const describePrintMode = (request: CalculationRequest): string =>
+    request.printSettings.enabled
+        ? `формат ${request.printSettings.format}, тираж ${request.printSettings.quantity}`
+        : request.assemblySettings?.enabled
+            ? 'выключена: работает режим сборки'
+            : 'выключена';
+
 /** Сообщение об ошибке загрузки: тело ErrorResponse важнее текста axios. */
 const toErrorMessage = (err: unknown): string => {
     const response = (err as {
@@ -57,7 +68,8 @@ const toErrorMessage = (err: unknown): string => {
 
 /**
  * Приводит запрос из ответа к безопасному виду: старые расчёты могут не
- * содержать printSettings/assemblySettings, а нормализатор даёт дефолты.
+ * содержать printSettings/assemblySettings, а нормализатор даёт дефолты и
+ * разрешает конфликт «печать + сборка» (сборка выигрывает).
  */
 const normalizeViewRequest = (
     raw: CalculationRequest | null | undefined,
@@ -363,10 +375,7 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
                                 {
                                     key: 'print',
                                     label: 'Печать',
-                                    children: request.printSettings.enabled
-                                        ? `формат ${request.printSettings.format}, `
-                                            + `тираж ${request.printSettings.quantity}`
-                                        : 'выключена',
+                                    children: describePrintMode(request),
                                 },
                                 {
                                     key: 'assembly',

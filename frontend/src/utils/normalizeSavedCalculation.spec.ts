@@ -80,6 +80,46 @@ describe('normalizeSavedCalculation', () => {
         expect(request.priceList['до 9']).toBe(0);
     });
 
+    it('выключает печать, если включена сборка', () => {
+        const request = normalizeSavedCalculation(minimalState({
+            printSettings: { enabled: true, format: 1, quantity: 100 },
+            assemblySettings: { enabled: true, format: 2, quantity: 50 },
+        }));
+
+        expect(request.assemblySettings).toEqual({ enabled: true, format: 2, quantity: 50 });
+        expect(request.printSettings).toEqual({ enabled: false, format: 1, quantity: 100 });
+    });
+
+    it('не трогает уже выключенную печать при включённой сборке', () => {
+        const request = normalizeSavedCalculation(minimalState({
+            printSettings: { enabled: false, format: 3, quantity: 200 },
+            assemblySettings: { enabled: true, format: 2, quantity: 50 },
+        }));
+
+        expect(request.assemblySettings?.enabled).toBe(true);
+        expect(request.printSettings).toEqual({ enabled: false, format: 3, quantity: 200 });
+    });
+
+    it('не трогает печать, когда сборка выключена', () => {
+        const request = normalizeSavedCalculation(minimalState({
+            printSettings: { enabled: true, format: 1, quantity: 100 },
+            assemblySettings: { enabled: false, format: 1, quantity: 0 },
+        }));
+
+        expect(request.printSettings).toEqual({ enabled: true, format: 1, quantity: 100 });
+        expect(request.assemblySettings).toEqual({ enabled: false, format: 1, quantity: 0 });
+    });
+
+    it('оставляет оба режима выключенными', () => {
+        const request = normalizeSavedCalculation(minimalState({
+            printSettings: { enabled: false, format: 1, quantity: 100 },
+            assemblySettings: { enabled: false, format: 1, quantity: 0 },
+        }));
+
+        expect(request.printSettings.enabled).toBe(false);
+        expect(request.assemblySettings?.enabled).toBe(false);
+    });
+
     it('бросает понятную ошибку для неполных данных', () => {
         expect(() => normalizeSavedCalculation(null))
             .toThrow('пустые или повреждённые данные');

@@ -135,6 +135,22 @@ const toPriceList = (value: unknown): Record<string, number> => {
 };
 
 /**
+ * Разрешает конфликт режимов у старых сохранений.
+ *
+ * <p>«Сборка на печатный лист» сама печатает детали, поэтому режимы
+ * взаимоисключающие: если в state включены оба, сборка выигрывает, а обычная
+ * печать гасится — иначе бэкенд отказывается считать. Когда сборка выключена,
+ * флаги не трогаем.
+ *
+ * @param request нормализованный запрос, меняется на месте
+ */
+const resolveModeConflict = (request: CalculationRequest): void => {
+    if (request.assemblySettings?.enabled === true) {
+        request.printSettings.enabled = false;
+    }
+};
+
+/**
  * Приводит сохранённый state расчёта к {@link CalculationRequest}.
  *
  * <p>Виджет «Вид расчёта» показывает только числа, поэтому все необязательные
@@ -168,6 +184,9 @@ export const normalizeSavedCalculation = (raw: unknown): CalculationRequest => {
         workPrice: requireNumber(raw.workPrice, 'workPrice'),
         priceList: toPriceList(raw.priceList),
     };
+
+    // Алиасы и дефолты применены — можно разрешать конфликт режимов.
+    resolveModeConflict(request);
 
     const marginValue = toNumber(raw.marginValue);
     if (marginValue !== undefined) {
