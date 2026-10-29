@@ -1,6 +1,7 @@
 package com.korobki.api.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.korobki.api.controller.CalculatorService;
 import com.korobki.api.dto.CalculationDto;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.persistence.entity.Calculation;
@@ -25,7 +26,7 @@ class CalculationServiceTest {
     @BeforeEach
     void setUp() {
         repository = mock(CalculationRepository.class);
-        service = new CalculationService(repository, new ObjectMapper());
+        service = new CalculationService(repository, new ObjectMapper(), mock(CalculatorService.class));
     }
 
     private CalculationSaveRequest validRequest() {

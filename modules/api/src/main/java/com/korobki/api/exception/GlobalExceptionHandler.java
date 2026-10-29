@@ -47,6 +47,24 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles missing entities (404).
+     *
+     * @param ex not found exception
+     * @return error response with the reason
+     */
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
+        ErrorResponse response = new ErrorResponse(
+                HttpStatus.NOT_FOUND.value(),
+                "Not found",
+                Map.of("error", ex.getMessage() != null ? ex.getMessage() : ""),
+                LocalDateTime.now()
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    /**
      * Handles business-rule violations (400).
      *
      * @param ex illegal argument exception

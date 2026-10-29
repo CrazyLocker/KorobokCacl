@@ -2,6 +2,7 @@ package com.korobki.api.controller;
 
 import com.korobki.api.dto.CalculationDto;
 import com.korobki.api.dto.CalculationSaveRequest;
+import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -51,6 +52,18 @@ public class CalculationController {
     @GetMapping("/{id}")
     public ResponseEntity<CalculationDto> get(@PathVariable UUID id) {
         return ResponseEntity.ok(calculationService.get(id));
+    }
+
+    /**
+     * Returns a read-only view of a saved calculation: metadata, the stored
+     * request and the result recomputed from it.
+     *
+     * @param id calculation identifier
+     * @return calculation view
+     */
+    @GetMapping("/{id}/view")
+    public ResponseEntity<CalculationViewDto> view(@PathVariable UUID id) {
+        return ResponseEntity.ok(calculationService.view(id));
     }
 
     /**
