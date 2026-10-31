@@ -3,11 +3,13 @@ package com.korobki.api.service;
 import com.korobki.api.controller.CalculatorService;
 import com.korobki.api.dto.CalculationDto;
 import com.korobki.api.dto.CalculationRequest;
+import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,7 +21,15 @@ import java.util.UUID;
 
 /**
  * Service for saving and retrieving calculations.
- * Stores the full calculation request as a JSON snapshot.
+ *
+ * <p>A saved calculation is a version chain: the first save opens the chain
+ * ({@code rootId} = own id, {@code version} = 1) and every edit appends a new
+ * row with the next version number. History is never overwritten, so an old
+ * version can still be opened and recalculated.
+ *
+ * <p>The request snapshot is stored next to the result snapshot computed at
+ * save time: the stored numbers are what the manager saw, while the snapshot
+ * of the request lets the view be recalculated later.
  */
 @Service
 @RequiredArgsConstructor
@@ -30,31 +40,76 @@ public class CalculationService {
     private final CalculatorService calculatorService;
 
     /**
-     * Saves a new calculation with status "draft".
+     * Saves a new calculation as the first version of a new chain.
+     *
+     * <p>The result is computed before the insert: a calculation the calculator
+     * rejects is not stored at all, so the database never keeps a state that
+     * cannot be priced.
      *
      * @param request calculation data (name, client, manager, state)
      * @return the saved calculation
+     * @throws IllegalArgumentException if the calculator rejects the request
      */
     @Transactional
     public CalculationDto save(CalculationSaveRequest request) {
-        Calculation calculation = new Calculation();
-        calculation.setName(request.getName());
-        calculation.setClientName(request.getClientName());
-        calculation.setManagerName(request.getManagerName());
-        calculation.setStatus("draft");
-        calculation.setCalculationState(convertToMap(request.getCalculation()));
+        CalculationResponse result = calculateOrFail(request.getCalculation());
 
+        Calculation calculation = new Calculation();
+        applyMetadata(calculation, request.getName(), request.getClientName(), request.getManagerName());
+        calculation.setStatus("draft");
+        calculation.setVersion(1);
+        calculation.setCalculationState(convertToMap(request.getCalculation()));
+        calculation.setCalculationResult(convertToMap(result));
+
+        // root_id = собственный id: первая версия открывает цепочку.
+        // Первичный ключ генерируется при вставке, поэтому поле проставляется
+        // сразу после save(). Сущность управляемая — UPDATE уходит при коммите.
         Calculation saved = calculationRepository.save(calculation);
+        if (saved.getRootId() == null) {
+            saved.setRootId(saved.getId());
+        }
         return toDto(saved);
     }
 
     /**
-     * Lists all saved calculations, newest first.
+     * Saves an edited calculation as the next version of its chain.
+     *
+     * <p>The metadata (name, client, manager, status) is inherited from the
+     * parent: an iteration changes the calculation itself, not its attribution.
+     * The parent version stays untouched.
+     *
+     * @param id      identifier of any version of the chain
+     * @param request edited calculation request
+     * @return the saved version
+     * @throws NotFoundException        if the calculation does not exist
+     * @throws IllegalArgumentException if the calculator rejects the request
+     */
+    @Transactional
+    public CalculationDto iterate(UUID id, CalculationRequest request) {
+        Calculation parent = calculationRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Calculation not found: " + id));
+
+        // Пересчёт до вставки: расчёт, который не считается, не сохраняется.
+        CalculationResponse result = calculateOrFail(request);
+
+        Calculation next = new Calculation();
+        applyMetadata(next, parent.getName(), parent.getClientName(), parent.getManagerName());
+        next.setStatus(parent.getStatus() != null ? parent.getStatus() : "draft");
+        next.setRootId(rootIdOf(parent));
+        next.setVersion(nextVersion(parent));
+        next.setCalculationState(convertToMap(request));
+        next.setCalculationResult(convertToMap(result));
+
+        return toDto(calculationRepository.save(next));
+    }
+
+    /**
+     * Lists the latest version of every calculation, most recently updated first.
      *
      * @return list of saved calculations
      */
     public List<CalculationDto> list() {
-        return calculationRepository.findAllByOrderByCreatedAtDesc().stream()
+        return calculationRepository.findAllHeads().stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -74,12 +129,15 @@ public class CalculationService {
 
     /**
      * Builds a read-only view of a saved calculation: metadata, the stored
-     * request and the result recomputed from it.
+     * request and the result.
      *
-     * <p>The stored state is the request snapshot saved earlier, so it is
-     * parsed back into {@link CalculationRequest}. Broken or incomplete state
-     * does not fail the request: the view is returned with {@code viewError}
-     * filled in and {@code result} left null.
+     * <p>The result comes from the snapshot saved with the version. Only
+     * versions stored before snapshots existed (or with a broken snapshot) are
+     * recalculated on the fly, so the view of an old version may differ from
+     * the numbers the manager saw if the references changed in the meantime.
+     *
+     * <p>Broken or incomplete state does not fail the request: the view is
+     * returned with {@code viewError} filled in and {@code result} left null.
      *
      * @param id calculation identifier
      * @return read-only calculation view
@@ -96,6 +154,7 @@ public class CalculationService {
         view.setClientName(calculation.getClientName());
         view.setManagerName(calculation.getManagerName());
         view.setStatus(calculation.getStatus());
+        view.setVersion(calculation.getVersion());
         view.setCreatedAt(calculation.getCreatedAt());
         view.setUpdatedAt(calculation.getUpdatedAt());
 
@@ -122,6 +181,12 @@ public class CalculationService {
         String incomplete = findIncomplete(request);
         if (incomplete != null) {
             view.setViewError("Не удалось пересчитать: " + incomplete);
+            return view;
+        }
+
+        CalculationResponse snapshot = readSnapshot(calculation.getCalculationResult());
+        if (snapshot != null) {
+            view.setResult(snapshot);
             return view;
         }
 
@@ -179,6 +244,84 @@ public class CalculationService {
     }
 
     /**
+     * Reads the stored result snapshot.
+     *
+     * @param stored JSON snapshot of the result, may be null
+     * @return parsed result, or null when there is nothing usable to show
+     */
+    private CalculationResponse readSnapshot(Map<String, Object> stored) {
+        if (stored == null || stored.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.convertValue(stored, CalculationResponse.class);
+        } catch (IllegalArgumentException ex) {
+            // Снапшот старее текущего формата ответа — показываем пересчёт.
+            return null;
+        }
+    }
+
+    /**
+     * Calculates the request and refuses to continue when it cannot be priced.
+     *
+     * @param request calculation request to price
+     * @return calculation result
+     * @throws IllegalArgumentException if the request is missing or rejected
+     */
+    private CalculationResponse calculateOrFail(CalculationRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Расчёт не передан");
+        }
+        CalculationResponse response = calculatorService.calculate(request);
+        if (response == null) {
+            throw new IllegalArgumentException("Калькулятор не вернул результат");
+        }
+        return response;
+    }
+
+    /**
+     * Copies the attribution fields into an entity.
+     *
+     * @param calculation entity to fill
+     * @param name        calculation name
+     * @param clientName  client the calculation was made for
+     * @param managerName manager who made it
+     */
+    private void applyMetadata(Calculation calculation, String name, String clientName, String managerName) {
+        calculation.setName(name);
+        calculation.setClientName(clientName);
+        calculation.setManagerName(managerName);
+    }
+
+    /**
+     * Returns the chain identifier of a version.
+     *
+     * @param calculation any version of the chain
+     * @return root identifier; the own id for rows saved before versioning
+     */
+    private UUID rootIdOf(Calculation calculation) {
+        return calculation.getRootId() != null ? calculation.getRootId() : calculation.getId();
+    }
+
+    /**
+     * Returns the number of the next version of a chain.
+     *
+     * <p>The latest version is looked up in the database rather than taken from
+     * the parent, because an older version can be edited too.
+     *
+     * @param parent version the iteration starts from
+     * @return next free version number
+     */
+    private int nextVersion(Calculation parent) {
+        int parentVersion = parent.getVersion() != null ? parent.getVersion() : 1;
+        int headVersion = calculationRepository
+                .findTopByRootIdOrderByVersionDesc(rootIdOf(parent))
+                .map(head -> head.getVersion() != null ? head.getVersion() : 1)
+                .orElse(parentVersion);
+        return Math.max(headVersion, parentVersion) + 1;
+    }
+
+    /**
      * Extracts a human-readable reason from an exception.
      *
      * @param ex failure raised while parsing or recalculating
@@ -190,13 +333,19 @@ public class CalculationService {
     }
 
     /**
-     * Deletes a saved calculation.
+     * Deletes a calculation with its whole version chain.
      *
-     * @param id calculation identifier
+     * <p>Only the first version is deleted: the foreign key cascades to every
+     * later version, so history never outlives the calculation it belongs to.
+     *
+     * @param id identifier of any version of the chain
+     * @throws NotFoundException if the calculation does not exist
      */
     @Transactional
     public void delete(UUID id) {
-        calculationRepository.deleteById(id);
+        Calculation calculation = calculationRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Calculation not found: " + id));
+        calculationRepository.deleteById(rootIdOf(calculation));
     }
 
     /**
@@ -206,7 +355,7 @@ public class CalculationService {
      * @return map representation
      */
     private Map<String, Object> convertToMap(Object request) {
-        return objectMapper.convertValue(request, Map.class);
+        return objectMapper.convertValue(request, new TypeReference<Map<String, Object>>() { });
     }
 
     /**
@@ -218,6 +367,8 @@ public class CalculationService {
     private CalculationDto toDto(Calculation calculation) {
         CalculationDto dto = new CalculationDto();
         dto.setId(calculation.getId());
+        dto.setRootId(calculation.getRootId());
+        dto.setVersion(calculation.getVersion());
         dto.setName(calculation.getName());
         dto.setClientName(calculation.getClientName());
         dto.setManagerName(calculation.getManagerName());

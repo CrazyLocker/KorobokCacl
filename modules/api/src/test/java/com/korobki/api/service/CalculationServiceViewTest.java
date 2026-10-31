@@ -144,6 +144,23 @@ class CalculationServiceViewTest {
     }
 
     @Test
+    void view_storedSnapshot_isReturnedWithoutRecalculation() {
+        Calculation calculation = storedCalculation(validState());
+        calculation.setVersion(3);
+        calculation.setCalculationResult(Map.of(
+                "totalCost", new BigDecimal("500.00"),
+                "basePrice", new BigDecimal("1500.00")));
+
+        CalculationViewDto view = service.view(calculation.getId());
+
+        assertNull(view.getViewError());
+        assertEquals(3, view.getVersion());
+        assertNotNull(view.getResult());
+        assertEquals(0, new BigDecimal("500.00").compareTo(view.getResult().getTotalCost()));
+        verify(calculatorService, never()).calculate(any());
+    }
+
+    @Test
     void view_brokenState_returnsViewErrorWithoutResult() {
         Map<String, Object> state = validState();
         state.put("details", "broken"); // не список деталей — разбор падает

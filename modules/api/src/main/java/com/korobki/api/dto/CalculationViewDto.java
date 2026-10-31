@@ -20,6 +20,9 @@ public class CalculationViewDto {
     /** Calculation identifier. */
     private UUID id;
 
+    /** Version number inside the chain, starting at 1. */
+    private Integer version;
+
     /** Human-readable calculation name. */
     private String name;
 

@@ -1,6 +1,7 @@
 package com.korobki.api.controller;
 
 import com.korobki.api.dto.CalculationDto;
+import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.service.CalculationService;
@@ -31,6 +32,23 @@ public class CalculationController {
     @PostMapping("/save")
     public ResponseEntity<CalculationDto> save(@Valid @RequestBody CalculationSaveRequest request) {
         return ResponseEntity.ok(calculationService.save(request));
+    }
+
+    /**
+     * Saves an edited calculation as the next version of its chain.
+     *
+     * <p>Metadata (name, client, manager) is inherited from the parent version,
+     * so the body carries only the calculation itself.
+     *
+     * @param id      identifier of the version being edited
+     * @param request edited calculation request
+     * @return the saved version
+     */
+    @PostMapping("/{id}/iterate")
+    public ResponseEntity<CalculationDto> iterate(
+            @PathVariable UUID id,
+            @Valid @RequestBody CalculationRequest request) {
+        return ResponseEntity.ok(calculationService.iterate(id, request));
     }
 
     /**

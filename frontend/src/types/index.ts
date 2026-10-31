@@ -142,6 +142,10 @@ export interface Operation {
 // Сохранённый расчёт коробки
 export interface SavedCalculation {
     id: string;
+    // Первая версия цепочки: у всех версий одного расчёта rootId одинаков.
+    rootId?: string;
+    // Номер версии в цепочке, начиная с 1.
+    version?: number;
     name: string;
     clientName: string;
     managerName: string;
@@ -163,6 +167,8 @@ export interface CalculationSaveRequest {
 // пересчёта, который считает бэкенд из сохранённого state.
 export interface CalculationView {
     id: string;
+    // Номер версии в цепочке расчёта.
+    version?: number;
     name: string;
     clientName: string;
     managerName: string;

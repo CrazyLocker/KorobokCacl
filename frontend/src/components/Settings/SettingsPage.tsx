@@ -7,6 +7,7 @@ import {
 import type { SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { sortParts } from '../../utils/sortParts';
+import { openCalculationEditor } from '../../navigation';
 import { CalculationViewDrawer } from './CalculationViewDrawer';
 
 interface Props {
@@ -303,7 +304,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                 {
                                     title: '',
                                     key: 'actions',
-                                    width: 170,
+                                    width: 250,
                                     align: 'right',
                                     render: (_: unknown, c: SavedCalculation) => (
                                         <Flex justify="flex-end" gap={4}>
@@ -314,6 +315,14 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                                 style={{ fontSize: 11 }}
                                             >
                                                 Открыть
+                                            </Button>
+                                            <Button
+                                                size="small"
+                                                type="text"
+                                                onClick={() => openCalculationEditor(c.id)}
+                                                style={{ fontSize: 11 }}
+                                            >
+                                                Редактировать
                                             </Button>
                                             <Button
                                                 size="small"
@@ -448,6 +457,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                 open={!!viewId}
                 id={viewId}
                 onClose={() => setViewId(null)}
+                onEdit={openCalculationEditor}
             />
         </div>
     );

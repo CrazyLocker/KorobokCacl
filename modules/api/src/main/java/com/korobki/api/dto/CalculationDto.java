@@ -13,6 +13,12 @@ public class CalculationDto {
     /** Calculation identifier. */
     private UUID id;
 
+    /** Identifier of the first version in the chain. */
+    private UUID rootId;
+
+    /** Version number inside the chain, starting at 1. */
+    private Integer version;
+
     /** Human-readable calculation name. */
     private String name;
 

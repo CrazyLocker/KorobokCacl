@@ -47,3 +47,18 @@ export const pageFromPath = (pathname: string): PageType => {
         .find(([, path]) => path === normalized);
     return entry ? entry[0] : 'calculator';
 };
+
+/** URL калькулятора, открывающего сохранённый расчёт на правку. */
+export const calculationEditorPath = (id: string): string =>
+    `${PAGE_PATHS.calculator}?calculationId=${encodeURIComponent(id)}`;
+
+/**
+ * Переход к правке сохранённого расчёта.
+ *
+ * <p>Калькулятор восстанавливает state из URL при загрузке, поэтому здесь
+ * именно переход по адресу, а не pushState: страница должна перечитаться,
+ * иначе текущий расчёт остался бы в памяти и спорил с восстановленным.
+ */
+export const openCalculationEditor = (id: string): void => {
+    window.location.assign(calculationEditorPath(id));
+};

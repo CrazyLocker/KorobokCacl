@@ -1,7 +1,7 @@
 // frontend/src/components/Settings/CalculationViewDrawer.tsx
 import { useEffect, useState } from 'react';
 import {
-    Alert, Descriptions, Drawer, Flex, Grid, Spin, Statistic, Table, Tag, Typography,
+    Alert, Button, Descriptions, Drawer, Flex, Grid, Spin, Statistic, Table, Tag, Typography,
 } from 'antd';
 import type { DescriptionsProps, TableColumnsType } from 'antd';
 import type {
@@ -17,6 +17,8 @@ interface Props {
     id: string | null;
     /** Закрытие дровера. */
     onClose: () => void;
+    /** Переход к правке расчёта; без обработчика кнопка не показывается. */
+    onEdit?: (id: string) => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -225,7 +227,7 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
  * Дровер «Вид расчёта»: метаданные сохранённого расчёта, сохранённый запрос
  * и результат пересчёта. Только чтение — ни одного поля ввода.
  */
-export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
+export const CalculationViewDrawer = ({ open, id, onClose, onEdit }: Props) => {
     const screens = Grid.useBreakpoint();
     const [view, setView] = useState<CalculationView | null>(null);
     const [loading, setLoading] = useState(false);
@@ -259,6 +261,7 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
 
     const descriptionItems: DescriptionsProps['items'] = view ? [
         { key: 'name', label: 'Название', children: view.name || '—' },
+        { key: 'version', label: 'Версия', children: view.version ?? '—' },
         { key: 'client', label: 'Клиент', children: view.clientName || '—' },
         { key: 'manager', label: 'Менеджер', children: view.managerName || '—' },
         {
@@ -293,6 +296,11 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
             size={screens.md ? 900 : '100%'}
             destroyOnHidden
             styles={{ body: { padding: 16 } }}
+            extra={view && onEdit ? (
+                <Button type="primary" onClick={() => onEdit(view.id)}>
+                    Редактировать
+                </Button>
+            ) : undefined}
         >
             {loading ? (
                 <Flex justify="center" style={{ padding: 48 }}>

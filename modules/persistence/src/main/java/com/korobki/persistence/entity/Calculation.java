@@ -49,6 +49,26 @@ public class Calculation {
     @Column(name = "calculation_state", columnDefinition = "JSONB", nullable = false)
     private Map<String, Object> calculationState;
 
+    /**
+     * Identifier of the first version in the chain.
+     * The first version points at itself; later versions inherit the value.
+     */
+    @Column(name = "root_id")
+    private UUID rootId;
+
+    /** Version number inside the chain, starting at 1. */
+    @Column(nullable = false)
+    private Integer version = 1;
+
+    /**
+     * Calculation result computed when this version was saved (JSON snapshot).
+     * Null for rows saved before versioning existed; they are recalculated on
+     * read instead.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "calculation_result", columnDefinition = "JSONB")
+    private Map<String, Object> calculationResult;
+
     /** Creation timestamp. */
     @Column(name = "created_at")
     private LocalDateTime createdAt;

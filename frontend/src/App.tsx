@@ -114,6 +114,8 @@ function App() {
                 open={saveDialogOpen}
                 onClose={() => setSaveDialogOpen(false)}
                 onNotify={handleNotify}
+                restored={calc.restoredCalculation}
+                onSaved={calc.applySavedVersion}
                 calculation={{
                     construction: calc.currentConstruction,
                     details: calc.details,
