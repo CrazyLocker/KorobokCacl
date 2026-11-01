@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import type { DescriptionsProps, TableColumnsType } from 'antd';
 import type {
-    ApiDetail, CalculationRequest, CalculationView, Extra, PriceRow,
+    ApiDetail, CalculationRequest, CalculationVersion, CalculationView, Extra, PriceRow,
 } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { normalizeSavedCalculation } from '../../utils/normalizeSavedCalculation';
@@ -224,28 +224,99 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
 ];
 
 /**
+ * История цепочки: строка — версия. Клик по строке переключает показываемую
+ * версию в этом же дровере, поэтому колонки держим узкими.
+ */
+const VERSION_COLUMNS: TableColumnsType<CalculationVersion> = [
+    {
+        title: 'Версия',
+        dataIndex: 'version',
+        key: 'version',
+        width: 130,
+        render: (version: number, row) => (
+            <Flex gap={6} align="center">
+                <span>v{version}</span>
+                {row.latest && <Tag color="green" style={{ marginInlineEnd: 0 }}>текущая</Tag>}
+            </Flex>
+        ),
+    },
+    {
+        title: 'Изменена',
+        dataIndex: 'updatedAt',
+        key: 'updatedAt',
+        render: (value: string) => formatDate(value),
+    },
+    {
+        title: 'Менеджер',
+        dataIndex: 'managerName',
+        key: 'managerName',
+        render: (value: string) => value || '—',
+    },
+    {
+        title: 'Себестоимость',
+        dataIndex: 'totalCost',
+        key: 'totalCost',
+        align: 'right',
+        width: 140,
+        render: (value: number | null) => money(value),
+    },
+];
+
+/**
  * Дровер «Вид расчёта»: метаданные сохранённого расчёта, сохранённый запрос
  * и результат пересчёта. Только чтение — ни одного поля ввода.
+ *
+ * <p>Дровер показывает одну версию цепочки: клик по строке истории
+ * переключает показываемую версию, «Редактировать» открывает на правку именно
+ * её (сохранение создаст следующую версию от неё, цепочка не ветвится).
  */
 export const CalculationViewDrawer = ({ open, id, onClose, onEdit }: Props) => {
     const screens = Grid.useBreakpoint();
     const [view, setView] = useState<CalculationView | null>(null);
+    const [versions, setVersions] = useState<CalculationVersion[]>([]);
+    const [versionsError, setVersionsError] = useState<string | null>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Показываемая версия: выбранная в истории или та, ради которой открыли дровер.
+    const shownId = selectedId ?? id;
 
     useEffect(() => {
         if (!open || !id) return;
         let cancelled = false;
+        setSelectedId(null);
+        setVersions([]);
+        setVersionsError(null);
+
+        calculatorApi.getCalculationVersions(id)
+            .then((data) => {
+                if (!cancelled) setVersions(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setVersionsError(toErrorMessage(err));
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, id]);
+
+    useEffect(() => {
+        if (!open || !shownId) return;
+        let cancelled = false;
         setLoading(true);
         setError(null);
-        setView(null);
 
-        calculatorApi.getCalculationView(id)
+        calculatorApi.getCalculationView(shownId)
             .then((data) => {
                 if (!cancelled) setView(data);
             })
             .catch((err: unknown) => {
-                if (!cancelled) setError(toErrorMessage(err));
+                if (!cancelled) {
+                    setView(null);
+                    setError(toErrorMessage(err));
+                }
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -254,10 +325,14 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit }: Props) => {
         return () => {
             cancelled = true;
         };
-    }, [open, id]);
+    }, [open, shownId]);
 
     const { request, error: normalizeError } = normalizeViewRequest(view?.request);
     const result = view?.result ?? null;
+
+    // Версия, открытая только для просмотра: правка создаст новую от неё.
+    const shownVersion = versions.find((version) => version.id === shownId) ?? null;
+    const isOldVersion = shownVersion ? !shownVersion.latest : false;
 
     const descriptionItems: DescriptionsProps['items'] = view ? [
         { key: 'name', label: 'Название', children: view.name || '—' },
@@ -297,12 +372,12 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit }: Props) => {
             destroyOnHidden
             styles={{ body: { padding: 16 } }}
             extra={view && onEdit ? (
-                <Button type="primary" onClick={() => onEdit(view.id)}>
-                    Редактировать
+                <Button type="primary" onClick={() => onEdit(shownId ?? view.id)}>
+                    {isOldVersion ? 'Редактировать эту версию' : 'Редактировать'}
                 </Button>
             ) : undefined}
         >
-            {loading ? (
+            {loading && !view ? (
                 <Flex justify="center" style={{ padding: 48 }}>
                     <Spin size="large" />
                 </Flex>
@@ -338,6 +413,45 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit }: Props) => {
                             message="Запрос прочитан не полностью"
                             description={normalizeError}
                         />
+                    )}
+
+                    {versionsError && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Не удалось загрузить историю версий"
+                            description={versionsError}
+                        />
+                    )}
+
+                    {isOldVersion && shownVersion && (
+                        <Alert
+                            type="info"
+                            showIcon
+                            message={`Открыта версия v${shownVersion.version} — не последняя`}
+                            description="«Редактировать эту версию» откроет её на правку: сохранение добавит новую версию от неё, а более новые версии останутся в истории."
+                        />
+                    )}
+
+                    {versions.length > 1 && (
+                        <Flex vertical gap={8}>
+                            <Typography.Text strong>История версий</Typography.Text>
+                            <Table<CalculationVersion>
+                                size="small"
+                                pagination={false}
+                                dataSource={versions}
+                                rowKey="id"
+                                columns={VERSION_COLUMNS}
+                                scroll={{ x: 560 }}
+                                onRow={(row) => ({
+                                    onClick: () => setSelectedId(row.id),
+                                    style: {
+                                        cursor: 'pointer',
+                                        background: row.id === shownId ? '#e6f4ff' : undefined,
+                                    },
+                                })}
+                            />
+                        </Flex>
                     )}
 
                     <Descriptions

@@ -277,6 +277,21 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                     render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
                                 },
                                 {
+                                    // Номер последней версии: полная история — в «Виде расчёта».
+                                    title: 'Версия',
+                                    dataIndex: 'version',
+                                    key: 'version',
+                                    width: 90,
+                                    render: (version: number | undefined) => (
+                                        <Tag
+                                            color={version && version > 1 ? 'blue' : 'default'}
+                                            style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
+                                        >
+                                            v{version ?? 1}
+                                        </Tag>
+                                    ),
+                                },
+                                {
                                     title: 'Статус',
                                     dataIndex: 'status',
                                     key: 'status',

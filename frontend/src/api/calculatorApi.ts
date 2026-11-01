@@ -9,6 +9,7 @@ import type {
     SavedCalculation,
     CalculationSaveRequest,
     CalculationView,
+    CalculationVersion,
     SavedKnife,
     KnifeSaveRequest,
     KnifeOptions,
@@ -105,6 +106,10 @@ export const calculatorApi = {
 
     getCalculationView: (id: string): Promise<CalculationView> =>
         axios.get(`${API_BASE}/calculations/${id}/view`).then((res) => res.data),
+
+    // История версий: вся цепочка расчёта, от новой к старой.
+    getCalculationVersions: (id: string): Promise<CalculationVersion[]> =>
+        axios.get(`${API_BASE}/calculations/${id}/versions`).then((res) => res.data),
 
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),

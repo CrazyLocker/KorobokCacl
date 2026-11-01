@@ -182,6 +182,24 @@ export interface CalculationView {
     viewError?: string | null;
 }
 
+// Одна версия цепочки сохранённого расчёта (история правок).
+export interface CalculationVersion {
+    // Идентификатор версии: по нему открывается её состояние.
+    id: string;
+    // Номер версии в цепочке, начиная с 1.
+    version: number;
+    name: string;
+    clientName: string;
+    managerName: string;
+    status: SavedCalculation['status'];
+    // Себестоимость из снапшота версии; null у записей до появления снапшотов.
+    totalCost: number | null;
+    // Признак последней версии цепочки.
+    latest: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // Сохранённый нож
 export interface SavedKnife {
     id: string;

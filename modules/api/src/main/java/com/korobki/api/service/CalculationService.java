@@ -6,6 +6,7 @@ import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
+import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
 import com.korobki.persistence.repository.CalculationRepository;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -111,6 +113,33 @@ public class CalculationService {
     public List<CalculationDto> list() {
         return calculationRepository.findAllHeads().stream()
                 .map(this::toDto)
+                .toList();
+    }
+
+    /**
+     * Lists the versions of a calculation, newest first.
+     *
+     * <p>The chain is resolved through the root id, so any version id can be
+     * passed: the UI opens the history from the row it already knows. The
+     * total cost comes from the stored result snapshot, hence versions saved
+     * before snapshots existed have {@code totalCost == null} and are shown
+     * without a price.
+     *
+     * @param id identifier of any version of the chain
+     * @return versions of the chain, newest first
+     * @throws NotFoundException if the calculation does not exist
+     */
+    @Transactional(readOnly = true)
+    public List<CalculationVersionDto> versions(UUID id) {
+        Calculation calculation = calculationRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
+
+        List<Calculation> chain = calculationRepository
+                .findByRootIdOrderByVersionDesc(rootIdOf(calculation));
+        int latestVersion = chain.isEmpty() ? 0 : versionOf(chain.get(0));
+
+        return chain.stream()
+                .map(version -> toVersionDto(version, versionOf(version) == latestVersion))
                 .toList();
     }
 
@@ -356,6 +385,66 @@ public class CalculationService {
      */
     private Map<String, Object> convertToMap(Object request) {
         return objectMapper.convertValue(request, new TypeReference<Map<String, Object>>() { });
+    }
+
+    /**
+     * Maps a calculation entity to a history entry.
+     *
+     * @param calculation version to map
+     * @param latest      whether this version is the head of the chain
+     * @return version DTO
+     */
+    private CalculationVersionDto toVersionDto(Calculation calculation, boolean latest) {
+        CalculationVersionDto dto = new CalculationVersionDto();
+        dto.setId(calculation.getId());
+        dto.setVersion(versionOf(calculation));
+        dto.setName(calculation.getName());
+        dto.setClientName(calculation.getClientName());
+        dto.setManagerName(calculation.getManagerName());
+        dto.setStatus(calculation.getStatus());
+        dto.setTotalCost(totalCostOf(calculation.getCalculationResult()));
+        dto.setLatest(latest);
+        dto.setCreatedAt(calculation.getCreatedAt());
+        dto.setUpdatedAt(calculation.getUpdatedAt());
+        return dto;
+    }
+
+    /**
+     * Returns the version number, defaulting rows saved before versioning to 1.
+     *
+     * @param calculation version row
+     * @return version number
+     */
+    private int versionOf(Calculation calculation) {
+        return calculation.getVersion() != null ? calculation.getVersion() : 1;
+    }
+
+    /**
+     * Reads the total cost out of a stored result snapshot.
+     *
+     * <p>JSON numbers may arrive as {@code Integer}, {@code Double} or
+     * {@code BigDecimal} depending on the value, so the conversion goes
+     * through the textual form.
+     *
+     * @param stored JSON snapshot of the result, may be null
+     * @return total cost, or null when the snapshot is missing or has no price
+     */
+    private BigDecimal totalCostOf(Map<String, Object> stored) {
+        if (stored == null) {
+            return null;
+        }
+        Object value = stored.get("totalCost");
+        if (value instanceof Number number) {
+            return new BigDecimal(number.toString());
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return new BigDecimal(text);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

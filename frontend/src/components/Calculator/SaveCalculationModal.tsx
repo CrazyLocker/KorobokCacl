@@ -120,7 +120,7 @@ export const SaveCalculationModal = ({
         <Modal
             open={open}
             title={restored
-                ? `Новая версия расчёта${restored.version ? ` (текущая — ${restored.version})` : ''}`
+                ? `Новая версия расчёта${restored.version ? ` (на основе v${restored.version})` : ''}`
                 : 'Сохранить расчёт'}
             okText="Сохранить"
             cancelText="Отмена"
@@ -141,7 +141,7 @@ export const SaveCalculationModal = ({
                     showIcon
                     style={{ marginBottom: 16 }}
                     message="Расчёт открыт на правку"
-                    description={'Название, клиент и менеджер наследуются от текущей версии. '
+                    description={'Название, клиент и менеджер наследуются от версии, которую редактируете. '
                         + 'Изменённые значения применяются только при сохранении как нового расчёта.'}
                 />
             )}
@@ -176,7 +176,7 @@ export const SaveCalculationModal = ({
             </Form>
             {restored && (
                 <Flex vertical gap={4} style={{ fontSize: 12, color: '#9aa0a6' }}>
-                    <span>Текущая версия: {restored.version ?? 1}</span>
+                    <span>Редактируется версия: v{restored.version ?? 1}</span>
                     <span>Клиент: {restored.clientName} · Менеджер: {restored.managerName}</span>
                 </Flex>
             )}

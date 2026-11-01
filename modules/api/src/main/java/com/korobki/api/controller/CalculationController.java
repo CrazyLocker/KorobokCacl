@@ -4,6 +4,7 @@ import com.korobki.api.dto.CalculationDto;
 import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
+import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,17 @@ public class CalculationController {
     @GetMapping("/{id}")
     public ResponseEntity<CalculationDto> get(@PathVariable UUID id) {
         return ResponseEntity.ok(calculationService.get(id));
+    }
+
+    /**
+     * Returns the whole version chain of a saved calculation, newest first.
+     *
+     * @param id identifier of any version of the chain
+     * @return versions of the chain
+     */
+    @GetMapping("/{id}/versions")
+    public ResponseEntity<List<CalculationVersionDto>> versions(@PathVariable UUID id) {
+        return ResponseEntity.ok(calculationService.versions(id));
     }
 
     /**
