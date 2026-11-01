@@ -1,14 +1,16 @@
 // frontend/src/components/Settings/CalculationViewDrawer.tsx
 import { useEffect, useState } from 'react';
 import {
-    Alert, Descriptions, Drawer, Flex, Grid, Spin, Statistic, Table, Tag, Typography,
+    Alert, Button, Descriptions, Drawer, Flex, Grid, Popconfirm, Spin, Statistic, Table, Tag, Tooltip,
+    Typography,
 } from 'antd';
 import type { DescriptionsProps, TableColumnsType } from 'antd';
 import type {
-    ApiDetail, CalculationRequest, CalculationView, Extra, PriceRow,
+    ApiDetail, CalculationRequest, CalculationVersion, CalculationView, Extra, PriceRow,
 } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { normalizeSavedCalculation } from '../../utils/normalizeSavedCalculation';
+import { VersionTree } from './VersionTree';
 
 interface Props {
     /** Дровер открыт. */
@@ -17,6 +19,10 @@ interface Props {
     id: string | null;
     /** Закрытие дровера. */
     onClose: () => void;
+    /** Переход к правке расчёта; без обработчика кнопка не показывается. */
+    onEdit?: (id: string) => void;
+    /** Дерево изменилось (версия помечена удалённой) — списку пора обновиться. */
+    onChanged?: () => void;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -224,26 +230,60 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
 /**
  * Дровер «Вид расчёта»: метаданные сохранённого расчёта, сохранённый запрос
  * и результат пересчёта. Только чтение — ни одного поля ввода.
+ *
+ * <p>Дровер показывает одну версию дерева: выбор узла в «Истории версий»
+ * переключает показываемую версию, «Редактировать эту версию» открывает её на
+ * правку — сохранение добавит подветку именно от неё. Удалённая версия остаётся
+ * в дереве зачёркнутой: история нужна при согласовании с заказчиком.
  */
-export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
+export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: Props) => {
     const screens = Grid.useBreakpoint();
     const [view, setView] = useState<CalculationView | null>(null);
+    const [versions, setVersions] = useState<CalculationVersion[]>([]);
+    const [versionsError, setVersionsError] = useState<string | null>(null);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [reloadToken, setReloadToken] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Показываемая версия: выбранная в истории или та, ради которой открыли дровер.
+    const shownId = selectedId ?? id;
 
     useEffect(() => {
         if (!open || !id) return;
         let cancelled = false;
+        setSelectedId(null);
+        setVersions([]);
+        setVersionsError(null);
+
+        calculatorApi.getCalculationVersions(id)
+            .then((data) => {
+                if (!cancelled) setVersions(data);
+            })
+            .catch((err: unknown) => {
+                if (!cancelled) setVersionsError(toErrorMessage(err));
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [open, id, reloadToken]);
+
+    useEffect(() => {
+        if (!open || !shownId) return;
+        let cancelled = false;
         setLoading(true);
         setError(null);
-        setView(null);
 
-        calculatorApi.getCalculationView(id)
+        calculatorApi.getCalculationView(shownId)
             .then((data) => {
                 if (!cancelled) setView(data);
             })
             .catch((err: unknown) => {
-                if (!cancelled) setError(toErrorMessage(err));
+                if (!cancelled) {
+                    setView(null);
+                    setError(toErrorMessage(err));
+                }
             })
             .finally(() => {
                 if (!cancelled) setLoading(false);
@@ -252,13 +292,31 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
         return () => {
             cancelled = true;
         };
-    }, [open, id]);
+    }, [open, shownId]);
 
     const { request, error: normalizeError } = normalizeViewRequest(view?.request);
     const result = view?.result ?? null;
 
+    const shownVersion = versions.find((version) => version.id === shownId) ?? null;
+    const hasChildren = versions.some((version) => version.parentId === shownId);
+    const isDeleted = shownVersion?.deleted ?? view?.deleted ?? false;
+
+    /** Помечает версию и её подветку удалёнными: строки остаются в истории. */
+    const handleDeleteVersion = async () => {
+        if (!shownId) return;
+        try {
+            await calculatorApi.deleteCalculation(shownId);
+            setSelectedId(null);
+            setReloadToken((token) => token + 1);
+            onChanged?.();
+        } catch (err) {
+            setVersionsError(toErrorMessage(err));
+        }
+    };
+
     const descriptionItems: DescriptionsProps['items'] = view ? [
         { key: 'name', label: 'Название', children: view.name || '—' },
+        { key: 'version', label: 'Версия', children: view.version ?? '—' },
         { key: 'client', label: 'Клиент', children: view.clientName || '—' },
         { key: 'manager', label: 'Менеджер', children: view.managerName || '—' },
         {
@@ -293,8 +351,34 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
             size={screens.md ? 900 : '100%'}
             destroyOnHidden
             styles={{ body: { padding: 16 } }}
+            extra={view ? (
+                <Flex gap={8}>
+                    {onEdit && (
+                        <Popconfirm
+                            title="Пометить версию удалённой?"
+                            description="Версия и её подветка останутся в истории зачёркнутыми."
+                            okText="Удалить"
+                            cancelText="Отмена"
+                            okButtonProps={{ danger: true }}
+                            disabled={isDeleted}
+                            onConfirm={handleDeleteVersion}
+                        >
+                            <Button danger disabled={isDeleted}>Удалить версию</Button>
+                        </Popconfirm>
+                    )}
+                    {onEdit && (
+                        <Button
+                            type="primary"
+                            disabled={isDeleted}
+                            onClick={() => onEdit(shownId ?? view.id)}
+                        >
+                            {hasChildren ? 'Редактировать эту версию' : 'Редактировать'}
+                        </Button>
+                    )}
+                </Flex>
+            ) : undefined}
         >
-            {loading ? (
+            {loading && !view ? (
                 <Flex justify="center" style={{ padding: 48 }}>
                     <Spin size="large" />
                 </Flex>
@@ -330,6 +414,54 @@ export const CalculationViewDrawer = ({ open, id, onClose }: Props) => {
                             message="Запрос прочитан не полностью"
                             description={normalizeError}
                         />
+                    )}
+
+                    {versionsError && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Не удалось загрузить историю версий"
+                            description={versionsError}
+                        />
+                    )}
+
+                    {isDeleted && (
+                        <Alert
+                            type="warning"
+                            showIcon
+                            message="Версия помечена удалённой"
+                            description="Она осталась в истории для согласования с заказчиком; редактировать её нельзя."
+                        />
+                    )}
+
+                    {hasChildren && shownVersion && !isDeleted && (
+                        <Alert
+                            type="info"
+                            showIcon
+                            message={`Открыта версия v${shownVersion.version} — из неё уже есть продолжение`}
+                            description="«Редактировать эту версию» добавит к ней ещё одну подветку: остальные версии останутся в истории."
+                        />
+                    )}
+
+                    {versions.length > 0 && (
+                        <Flex vertical gap={8}>
+                            <Flex gap={8} align="center">
+                                <Typography.Text strong>История версий</Typography.Text>
+                                <Typography.Text type="secondary">
+                                    {versions.length === 1
+                                        ? 'одна версия'
+                                        : `${versions.length} версий`}
+                                </Typography.Text>
+                                <Tooltip title="Версия, из которой сделана правка, раскрывается вложенным списком">
+                                    <Typography.Text type="secondary">· дерево</Typography.Text>
+                                </Tooltip>
+                            </Flex>
+                            <VersionTree
+                                versions={versions}
+                                selectedId={shownId}
+                                onSelect={(next) => setSelectedId(next)}
+                            />
+                        </Flex>
                     )}
 
                     <Descriptions

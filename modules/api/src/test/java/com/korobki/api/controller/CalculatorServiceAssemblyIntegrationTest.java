@@ -151,6 +151,6 @@ class CalculatorServiceAssemblyIntegrationTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(assemblyRequest(100, detail("Дно", 0, true))));
 
-        assertTrue(ex.getMessage().contains("colsOnSheet must be >= 1"));
+        assertTrue(ex.getMessage().contains("штук на листе должно быть не меньше 1"));
     }
 }

@@ -13,19 +13,19 @@ import jakarta.validation.constraints.NotNull;
 public class CalculationSaveRequest {
 
     /** Human-readable calculation name. */
-    @NotBlank(message = "Calculation name is required")
+    @NotBlank(message = "Укажите название расчёта")
     private String name;
 
     /** Client the calculation was made for. */
-    @NotBlank(message = "Client name is required")
+    @NotBlank(message = "Укажите клиента")
     private String clientName;
 
     /** Manager who created the calculation. */
-    @NotBlank(message = "Manager name is required")
+    @NotBlank(message = "Укажите менеджера")
     private String managerName;
 
     /** Full calculation request snapshot to store. */
     @Valid
-    @NotNull(message = "Calculation data is required")
+    @NotNull(message = "Нет данных расчёта")
     private CalculationRequest calculation;
 }

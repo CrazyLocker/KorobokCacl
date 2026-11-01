@@ -144,6 +144,23 @@ class CalculationServiceViewTest {
     }
 
     @Test
+    void view_storedSnapshot_isReturnedWithoutRecalculation() {
+        Calculation calculation = storedCalculation(validState());
+        calculation.setVersion(3);
+        calculation.setCalculationResult(Map.of(
+                "totalCost", new BigDecimal("500.00"),
+                "basePrice", new BigDecimal("1500.00")));
+
+        CalculationViewDto view = service.view(calculation.getId());
+
+        assertNull(view.getViewError());
+        assertEquals(3, view.getVersion());
+        assertNotNull(view.getResult());
+        assertEquals(0, new BigDecimal("500.00").compareTo(view.getResult().getTotalCost()));
+        verify(calculatorService, never()).calculate(any());
+    }
+
+    @Test
     void view_brokenState_returnsViewErrorWithoutResult() {
         Map<String, Object> state = validState();
         state.put("details", "broken"); // не список деталей — разбор падает
@@ -177,13 +194,13 @@ class CalculationServiceViewTest {
     void view_calculatorRejectsState_returnsViewError() {
         Calculation calculation = storedCalculation(validState());
         when(calculatorService.calculate(any()))
-                .thenThrow(new IllegalArgumentException("Print settings enabled but format is missing"));
+                .thenThrow(new IllegalArgumentException("Печать включена, но не выбран формат печати"));
 
         CalculationViewDto view = service.view(calculation.getId());
 
         assertNotNull(view.getRequest());
         assertNull(view.getResult());
-        assertEquals("Не удалось пересчитать: Print settings enabled but format is missing",
+        assertEquals("Не удалось пересчитать: Печать включена, но не выбран формат печати",
                 view.getViewError());
     }
 
@@ -224,8 +241,8 @@ class CalculationServiceViewTest {
         assertTrue(view.getResult().getTotalCost().compareTo(BigDecimal.ZERO) > 0,
                 "себестоимость должна быть посчитана: " + view.getResult().getTotalCost());
 
-        // Сборка остаётся включённой, обычная печать гасится — иначе пересчёт
-        // падает на «mutually exclusive».
+        // Сборка остаётся включённой, обычная печать гасится — сборка выигрывает,
+        // поэтому пересчёт проходит без ошибки взаимоисключающих режимов.
         assertNotNull(view.getRequest().getAssemblySettings());
         assertTrue(view.getRequest().getAssemblySettings().getEnabled());
         assertEquals(50, view.getRequest().getAssemblySettings().getQuantity().intValue());

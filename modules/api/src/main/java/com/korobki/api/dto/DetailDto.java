@@ -18,13 +18,13 @@ public class DetailDto {
     private String name;
 
     /** 0 допустим для отключённых деталей; для включённых проверяется > 0 в сервисе. */
-    @NotNull(message = "Detail countOnSheet is required")
-    @DecimalMin(value = "0", message = "Detail countOnSheet must be >= 0")
+    @NotNull(message = "Укажите количество на листе")
+    @DecimalMin(value = "0", message = "Количество на листе не может быть отрицательным")
     private BigDecimal countOnSheet;
 
     /** Material price per sheet (rubles). */
-    @NotNull(message = "Detail sheetPrice is required")
-    @DecimalMin(value = "0", message = "Detail sheetPrice must be >= 0")
+    @NotNull(message = "Укажите цену листа")
+    @DecimalMin(value = "0", message = "Цена листа не может быть отрицательной")
     private BigDecimal sheetPrice;
 
     /** Whether print cost is applied to this detail. */

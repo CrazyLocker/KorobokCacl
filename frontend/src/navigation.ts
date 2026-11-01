@@ -8,6 +8,7 @@ export type PageType =
     | 'cliche'
     | 'congrev'
     | 'silkscreen'
+    | 'calculations'
     | 'references'
     | 'settings';
 
@@ -19,6 +20,7 @@ export const PAGE_PATHS: Record<PageType, string> = {
     cliche: '/cliche',
     congrev: '/congrev',
     silkscreen: '/silkscreen',
+    calculations: '/calculations',
     references: '/references',
     settings: '/settings',
 };
@@ -31,6 +33,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
     { key: 'calculator', label: 'Расчет коробки' },
+    { key: 'calculations', label: 'Сохранённые расчёты' },
     { key: 'layout', label: 'Раскладка' },
     { key: 'knife', label: 'Расчет ножа' },
     { key: 'cliche', label: 'Расчет клише', dev: true },
@@ -46,4 +49,19 @@ export const pageFromPath = (pathname: string): PageType => {
     const entry = (Object.entries(PAGE_PATHS) as Array<[PageType, string]>)
         .find(([, path]) => path === normalized);
     return entry ? entry[0] : 'calculator';
+};
+
+/** URL калькулятора, открывающего сохранённый расчёт на правку. */
+export const calculationEditorPath = (id: string): string =>
+    `${PAGE_PATHS.calculator}?calculationId=${encodeURIComponent(id)}`;
+
+/**
+ * Переход к правке сохранённого расчёта.
+ *
+ * <p>Калькулятор восстанавливает state из URL при загрузке, поэтому здесь
+ * именно переход по адресу, а не pushState: страница должна перечитаться,
+ * иначе текущий расчёт остался бы в памяти и спорил с восстановленным.
+ */
+export const openCalculationEditor = (id: string): void => {
+    window.location.assign(calculationEditorPath(id));
 };

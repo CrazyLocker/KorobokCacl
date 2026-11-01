@@ -13,28 +13,28 @@ import java.math.BigDecimal;
 public class KnifeSaveRequest {
 
     /** Human-readable knife name. */
-    @NotBlank(message = "Knife name is required")
+    @NotBlank(message = "Укажите название ножа")
     private String name;
 
     /** SVG markup of the knife layout. */
-    @NotBlank(message = "SVG content is required")
+    @NotBlank(message = "Загрузите SVG-файл")
     private String svgContent;
 
     /** Total cutting length in millimeters. */
-    @NotNull(message = "Total length is required")
-    @Positive(message = "Total length must be > 0")
+    @NotNull(message = "Укажите общую длину")
+    @Positive(message = "Общая длина должна быть больше 0")
     private BigDecimal totalLengthMm;
 
     /** Computed knife cost (rubles). */
-    @NotNull(message = "Knife cost is required")
-    @Positive(message = "Knife cost must be > 0")
+    @NotNull(message = "Укажите стоимость ножа")
+    @Positive(message = "Стоимость ножа должна быть больше 0")
     private BigDecimal knifeCost;
 
     /** Client the knife was made for. */
-    @NotBlank(message = "Client name is required")
+    @NotBlank(message = "Укажите клиента")
     private String clientName;
 
     /** Manager who saved the knife. */
-    @NotBlank(message = "Manager name is required")
+    @NotBlank(message = "Укажите менеджера")
     private String managerName;
 }

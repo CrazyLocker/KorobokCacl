@@ -49,6 +49,40 @@ public class Calculation {
     @Column(name = "calculation_state", columnDefinition = "JSONB", nullable = false)
     private Map<String, Object> calculationState;
 
+    /**
+     * Identifier of the first version in the chain.
+     * The first version points at itself; later versions inherit the value.
+     */
+    @Column(name = "root_id")
+    private UUID rootId;
+
+    /**
+     * Version this one was branched from.
+     * Null for the first version of a chain: the tree is rooted at it.
+     */
+    @Column(name = "parent_id")
+    private UUID parentId;
+
+    /** Version number inside the branch, starting at 1 (parent + 1). */
+    @Column(nullable = false)
+    private Integer version = 1;
+
+    /**
+     * Soft-delete timestamp: the version is gone from the working tree but its
+     * history is kept for the agreement with the client.
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
+    /**
+     * Calculation result computed when this version was saved (JSON snapshot).
+     * Null for rows saved before versioning existed; they are recalculated on
+     * read instead.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "calculation_result", columnDefinition = "JSONB")
+    private Map<String, Object> calculationResult;
+
     /** Creation timestamp. */
     @Column(name = "created_at")
     private LocalDateTime createdAt;

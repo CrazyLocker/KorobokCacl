@@ -9,6 +9,7 @@ import {
     CalculatorOutlined,
     FireOutlined,
     HighlightOutlined,
+    HistoryOutlined,
     MenuOutlined,
     SaveOutlined,
     ScissorOutlined,
@@ -40,6 +41,7 @@ const NAV_ICONS: Record<PageType, ReactNode> = {
     cliche: <HighlightOutlined />,
     congrev: <FireOutlined />,
     silkscreen: <BgColorsOutlined />,
+    calculations: <HistoryOutlined />,
     references: <BookOutlined />,
     settings: <SettingOutlined />,
 };

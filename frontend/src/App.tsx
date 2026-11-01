@@ -6,6 +6,7 @@ import { CalculatorPage } from './components/Calculator/CalculatorPage';
 import { SaveCalculationModal } from './components/Calculator/SaveCalculationModal';
 import { useCalculator } from './hooks/useCalculator';
 import { ReferencesPage } from './components/References/ReferencesPage';
+import { CalculationsPage } from './components/Calculations/CalculationsPage';
 import { SettingsPage } from './components/Settings/SettingsPage';
 import { DevStub } from './components/DevStub';
 import { LayoutPage } from './features/layout/ui/LayoutPage';
@@ -84,6 +85,9 @@ function App() {
             case 'references':
                 return <ReferencesPage onNotify={handleNotify} />;
 
+            case 'calculations':
+                return <CalculationsPage onNotify={handleNotify} />;
+
             case 'cliche':
             case 'congrev':
             case 'silkscreen':
@@ -114,16 +118,9 @@ function App() {
                 open={saveDialogOpen}
                 onClose={() => setSaveDialogOpen(false)}
                 onNotify={handleNotify}
-                calculation={{
-                    construction: calc.currentConstruction,
-                    details: calc.details,
-                    extras: calc.extras,
-                    printSettings: calc.printSettings,
-                    assemblySettings: calc.assemblySettings,
-                    workPrice: calc.workPrice,
-                    marginValue: calc.marginValue,
-                    priceList: calc.priceList,
-                }}
+                restored={calc.restoredCalculation}
+                onSaved={calc.applySavedVersion}
+                calculation={calc.buildRequest()}
             />
         </>
     );

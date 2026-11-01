@@ -15,13 +15,13 @@ import java.math.BigDecimal;
 public class ExtraDto {
 
     /** Operation name, e.g. "Тиснение". */
-    @NotBlank(message = "Operation name is required")
-    @Size(max = 50, message = "Operation name must be <= 50 characters")
+    @NotBlank(message = "Укажите название операции")
+    @Size(max = 50, message = "Название операции — не длиннее 50 символов")
     private String name;
 
     /** Cost per detail (rubles). */
-    @NotNull(message = "Operation cost is required")
-    @DecimalMin(value = "0.0", message = "Operation cost must be >= 0")
+    @NotNull(message = "Укажите стоимость операции")
+    @DecimalMin(value = "0.0", message = "Стоимость операции не может быть отрицательной")
     private BigDecimal cost;
 
     /** Whether the operation is available. */

@@ -1,10 +1,13 @@
 // frontend/src/hooks/useCalculator.ts
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { calculatorApi } from '../api/calculatorApi';
 import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
+import { normalizeSavedCalculation } from '../utils/normalizeSavedCalculation';
+import { buildDetailRows, readCalculationIdFromLocation } from '../utils/restoreCalculation';
 import { sortConstructs } from '../utils/sortConstructs';
 import { sortParts } from '../utils/sortParts';
 import type {
+    CalculationRequest,
     Detail,
     Extra,
     PrintSettings,
@@ -13,6 +16,7 @@ import type {
     Construct,
     PrintTable,
     Operation,
+    SavedCalculation,
 } from '../types';
 
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
@@ -36,6 +40,21 @@ export interface LayoutCount {
 export interface LayoutCountsReport {
     updated: string[];
     added: string[];
+}
+
+/**
+ * Сохранённый расчёт, открытый на правку.
+ *
+ * <p>Идентификатор — текущая версия цепочки: сохранение правки создаёт
+ * следующую версию с тем же rootId, а метаданные (название, клиент,
+ * менеджер) наследуются на бэкенде.
+ */
+export interface RestoredCalculation {
+    id: string;
+    name: string;
+    clientName: string;
+    managerName: string;
+    version?: number;
 }
 
 /** Prototype normDetailName: case, ё and whitespace insensitive. */
@@ -75,15 +94,95 @@ export function useCalculator() {
     const [result, setResult] = useState<CalculationResponse | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    // Расчёт, открытый на правку: null — калькулятор считает новый расчёт.
+    const [restoredCalculation, setRestoredCalculation] = useState<RestoredCalculation | null>(null);
+    // Пока расчёт восстановлен, автоматические перезагрузки справочника не
+    // должны пересобирать детали: правка идёт по сохранённому state, а
+    // loadConstruction заменил бы его данными из справочника.
+    const isRestoredRef = useRef(false);
+
+    // --- Request from the current state ---
+    // Один и тот же запрос уходит и в расчёт, и в сохранение версии: иначе
+    // сохранённое могло бы разойтись с показанным на экране.
+    const buildRequest = useCallback((): CalculationRequest => ({
+        construction: currentConstruction,
+        details: toApiDetails(details),
+        extras,
+        // В режиме сборки печать одной детали выключена: режимы
+        // взаимоисключающие (то же правило проверяет бэкенд).
+        printSettings: assemblySettings.enabled
+            ? { ...printSettings, enabled: false }
+            : printSettings,
+        assemblySettings,
+        workPrice,
+        marginValue,
+        priceList,
+    }), [currentConstruction, details, extras, printSettings, assemblySettings, workPrice, marginValue, priceList]);
+
+    // --- Restore a saved calculation for editing ---
+    // Детали, операции и прайс берутся строго из сохранённого state: расчёт
+    // должен открываться таким, каким был сохранён, даже если справочник
+    // с тех пор изменился.
+    const restoreCalculation = useCallback(async (id: string): Promise<void> => {
+        const saved = await calculatorApi.getCalculation(id);
+        const request = normalizeSavedCalculation(saved.calculation);
+
+        setCurrentConstruction(request.construction);
+        setDetails(buildDetailRows(request.details));
+        setExtras(request.extras);
+        setPrintSettings(request.printSettings);
+        setAssemblySettings(request.assemblySettings ?? { enabled: false, format: 1, quantity: 0 });
+        setWorkPrice(request.workPrice);
+        setMarginValue(request.marginValue ?? 30);
+        setPriceList(request.priceList);
+
+        setRestoredCalculation({
+            id: saved.id,
+            name: saved.name,
+            clientName: saved.clientName,
+            managerName: saved.managerName,
+            version: saved.version,
+        });
+        isRestoredRef.current = true;
+    }, []);
+
+    // Сохранённая версия (новая или как отдельный расчёт): дальше правка
+    // продолжает уже её цепочку.
+    const applySavedVersion = useCallback((saved: SavedCalculation) => {
+        setRestoredCalculation({
+            id: saved.id,
+            name: saved.name,
+            clientName: saved.clientName,
+            managerName: saved.managerName,
+            version: saved.version,
+        });
+        isRestoredRef.current = true;
+    }, []);
 
     // --- Load initial data ---
     useEffect(() => {
+        // Ссылка вида /?calculationId=… открывает сохранённый расчёт на правку.
+        const restoreId = readCalculationIdFromLocation();
+
         Promise.all([calculatorApi.getConstructs(), calculatorApi.getPrintTables()])
             .then(([c, pt]) => {
                 // Порядок из API произвольный: в UI конструкции идут по классу и размеру.
                 const sortedConstructs = sortConstructs(c);
                 setConstructs(sortedConstructs);
                 setPrintTables(pt);
+
+                if (restoreId) {
+                    restoreCalculation(restoreId).catch((err) => {
+                        const reason = err instanceof Error ? err.message : String(err);
+                        setError('Ошибка загрузки расчёта: ' + reason);
+                        // Без восстановления калькулятор должен остаться рабочим.
+                        if (sortedConstructs.length > 0) {
+                            loadConstruction(sortedConstructs[0].name, sortedConstructs);
+                        }
+                    });
+                    return;
+                }
+
                 if (sortedConstructs.length > 0) {
                     loadConstruction(sortedConstructs[0].name, sortedConstructs);
                 }
@@ -101,6 +200,10 @@ export function useCalculator() {
             .catch(() => {
                 // keep STANDARD_EXTRAS
             });
+        // Загрузка выполняется один раз при монтировании: loadConstruction и
+        // restoreCalculation живут в этом же рендере и не должны перезапускать
+        // эффект при каждом изменении стейта.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     // --- Load construction ---
@@ -166,6 +269,10 @@ export function useCalculator() {
             const list = sortConstructs(await calculatorApi.getConstructs());
             const isUnchanged = JSON.stringify(list) === JSON.stringify(constructs);
             setConstructs(list);
+
+            // Восстановленный расчёт показывает сохранённый state: пересборка
+            // деталей из справочника потеряла бы правку пользователя.
+            if (isRestoredRef.current) return;
             if (isUnchanged) return;
 
             const current = list.find((c) => c.name === currentConstruction);
@@ -195,28 +302,26 @@ export function useCalculator() {
         setLoading(true);
         setError(null);
         try {
-            const request = {
-                construction: currentConstruction,
-                details: toApiDetails(details),
-                extras,
-                // В режиме сборки печать одной детали выключена: режимы
-                // взаимоисключающие (то же правило проверяет бэкенд).
-                printSettings: assemblySettings.enabled
-                    ? { ...printSettings, enabled: false }
-                    : printSettings,
-                assemblySettings,
-                workPrice,
-                marginValue,
-                priceList,
-            };
-            const response = await calculatorApi.calculate(request);
+            const response = await calculatorApi.calculate(buildRequest());
             setResult(response);
         } catch (err: any) {
-            setError('Ошибка расчёта: ' + (err.response?.data?.message || err.message));
+            // Текст ошибки уже переведён интерсептором axios: причина отказа
+            // калькулятора приходит в errors.error, заголовок — только запасной.
+            setError('Ошибка расчёта: ' + err.message);
         } finally {
             setLoading(false);
         }
-    }, [currentConstruction, details, extras, printSettings, assemblySettings, workPrice, marginValue, priceList]);
+    }, [buildRequest, details.length]);
+
+    // --- Save the edit as the next version ---
+    // Ошибку не глотаем: модалка сохранения показывает причину, а расчёт
+    // остаётся несохранённым (бэкенд тоже не пишет строку при отказе).
+    const saveVersion = useCallback(async (): Promise<SavedCalculation | null> => {
+        if (!restoredCalculation) return null;
+        const saved = await calculatorApi.iterateCalculation(restoredCalculation.id, buildRequest());
+        applySavedVersion(saved);
+        return saved;
+    }, [restoredCalculation, buildRequest, applySavedVersion]);
 
     // --- Auto-recalculate on parameter changes (debounced 500ms) ---
     // Mirrors the HTML prototype's instant reactive behavior
@@ -418,11 +523,16 @@ export function useCalculator() {
         result,
         loading,
         error,
+        restoredCalculation,
         tierLabels: TIER_LABELS,
         // actions
         loadConstruction,
         reloadConstructs,
         calculate: calculateRef,
+        buildRequest,
+        restoreCalculation,
+        saveVersion,
+        applySavedVersion,
         updateDetail,
         updateDetailOperation,
         addCustomDetail,

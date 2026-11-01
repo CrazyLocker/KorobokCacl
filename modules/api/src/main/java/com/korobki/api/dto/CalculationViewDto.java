@@ -20,6 +20,15 @@ public class CalculationViewDto {
     /** Calculation identifier. */
     private UUID id;
 
+    /** Version number inside the branch, starting at 1. */
+    private Integer version;
+
+    /** Version this one was branched from; null for the root of the tree. */
+    private UUID parentId;
+
+    /** True when the version is marked deleted but kept in the history. */
+    private boolean deleted;
+
     /** Human-readable calculation name. */
     private String name;
 

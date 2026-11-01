@@ -32,7 +32,7 @@ public class PrintCostCalculator {
      */
     public PrintTable getPrintTableById(java.util.UUID id) {
         return printTableRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Print table not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Таблица печати не найдена, id: " + id));
     }
 
     /**

@@ -13,6 +13,21 @@ public class CalculationDto {
     /** Calculation identifier. */
     private UUID id;
 
+    /** Identifier of the first version in the chain. */
+    private UUID rootId;
+
+    /** Version number inside the branch, starting at 1. */
+    private Integer version;
+
+    /** Version this one was made from; null for the tree root. */
+    private UUID parentId;
+
+    /** Identifier of the newest tip of the tree; null when the tree has no live versions. */
+    private UUID latestId;
+
+    /** Number of live versions in the tree. */
+    private Long versionCount;
+
     /** Human-readable calculation name. */
     private String name;
 

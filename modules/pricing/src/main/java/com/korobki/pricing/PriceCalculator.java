@@ -185,7 +185,7 @@ public class PriceCalculator {
         BigDecimal value = config.getX3Coefficients().get(tierLabel);
         if (value == null) {
             throw new IllegalStateException(
-                    "Missing x3 coefficient for tier '" + tierLabel + "' in app.pricing.x3-coefficients");
+                    "Нет коэффициента x3 для тира «" + tierLabel + "» в настройке app.pricing.x3-coefficients");
         }
         return value;
     }
@@ -194,7 +194,7 @@ public class PriceCalculator {
         BigDecimal value = config.getDiscountSteps().get(tierLabel);
         if (value == null) {
             throw new IllegalStateException(
-                    "Missing discount step for tier '" + tierLabel + "' in app.pricing.discount-steps");
+                    "Нет шага скидки для тира «" + tierLabel + "» в настройке app.pricing.discount-steps");
         }
         return value;
     }

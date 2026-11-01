@@ -9,6 +9,7 @@ import type {
     SavedCalculation,
     CalculationSaveRequest,
     CalculationView,
+    CalculationVersion,
     SavedKnife,
     KnifeSaveRequest,
     KnifeOptions,
@@ -18,6 +19,29 @@ import type {
 import { buildKnifeRequest } from '../utils/knifeRequest';
 
 const API_BASE = '/api';
+
+/**
+ * Все сообщения об ошибках в интерфейсе — на русском, поэтому технический
+ * текст axios («Request failed with status code 500», «Network Error»)
+ * заменяется на причину с бэкенда или понятную формулировку.
+ */
+axios.interceptors.response.use(
+    (response) => response,
+    (error: unknown) => {
+        if (axios.isAxiosError<{ message?: string; errors?: Record<string, string> }>(error)) {
+            const data = error.response?.data;
+            const details = data?.errors
+                ? Object.values(data.errors).filter(Boolean).join('; ')
+                : '';
+            error.message = details
+                || data?.message
+                || (error.response
+                    ? `Ошибка сервера (HTTP ${error.response.status})`
+                    : 'Сервер недоступен: проверьте, запущен ли бэкенд');
+        }
+        return Promise.reject(error);
+    },
+);
 
 export const calculatorApi = {
     // === Калькулятор ===
@@ -76,8 +100,16 @@ export const calculatorApi = {
     getCalculation: (id: string): Promise<SavedCalculation> =>
         axios.get(`${API_BASE}/calculations/${id}`).then((res) => res.data),
 
+    // Сохранение правки: новая версия цепочки, метаданные наследуются от родителя.
+    iterateCalculation: (id: string, data: CalculationRequest): Promise<SavedCalculation> =>
+        axios.post(`${API_BASE}/calculations/${id}/iterate`, data).then((res) => res.data),
+
     getCalculationView: (id: string): Promise<CalculationView> =>
         axios.get(`${API_BASE}/calculations/${id}/view`).then((res) => res.data),
+
+    // История версий: вся цепочка расчёта, от новой к старой.
+    getCalculationVersions: (id: string): Promise<CalculationVersion[]> =>
+        axios.get(`${API_BASE}/calculations/${id}/versions`).then((res) => res.data),
 
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),
