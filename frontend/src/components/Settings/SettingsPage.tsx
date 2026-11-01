@@ -9,6 +9,7 @@ import { calculatorApi } from '../../api/calculatorApi';
 import { sortParts } from '../../utils/sortParts';
 import { openCalculationEditor } from '../../navigation';
 import { CalculationViewDrawer } from './CalculationViewDrawer';
+import { CalculationVersions } from './CalculationVersions';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -246,6 +247,15 @@ export const SettingsPage = ({ onNotify }: Props) => {
                             // свободное место забирает колонка «Клиент» (без width).
                             tableLayout="fixed"
                             dataSource={calculations}
+                            expandable={{
+                                // Дерево версий под строкой: раскрывается по клику,
+                                // у одно-версионных расчётов стрелки нет.
+                                columnWidth: 48,
+                                rowExpandable: (record: SavedCalculation) => (record.versionCount ?? 1) > 1,
+                                expandedRowRender: (record: SavedCalculation) => (
+                                    <CalculationVersions rootId={record.id} onOpen={setViewId} />
+                                ),
+                            }}
                             columns={[
                                 {
                                     title: 'Название',

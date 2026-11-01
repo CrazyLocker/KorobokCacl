@@ -1,19 +1,16 @@
 // frontend/src/components/Settings/CalculationViewDrawer.tsx
-import { useEffect, useMemo, useState } from 'react';
-import type { ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import {
     Alert, Button, Descriptions, Drawer, Flex, Grid, Popconfirm, Spin, Statistic, Table, Tag, Tooltip,
-    Tree, Typography,
+    Typography,
 } from 'antd';
 import type { DescriptionsProps, TableColumnsType } from 'antd';
-import type { DataNode } from 'antd/es/tree';
 import type {
     ApiDetail, CalculationRequest, CalculationVersion, CalculationView, Extra, PriceRow,
 } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { normalizeSavedCalculation } from '../../utils/normalizeSavedCalculation';
-import { buildVersionTree } from '../../utils/versionTree';
-import type { VersionNode } from '../../utils/versionTree';
+import { VersionTree } from './VersionTree';
 
 interface Props {
     /** Дровер открыт. */
@@ -230,34 +227,6 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
     },
 ];
 
-/** Заголовок узла дерева версий: номер, время, менеджер, стоимость. */
-const versionTitle = (node: VersionNode): ReactNode => (
-    <Flex
-        gap={10}
-        align="center"
-        style={{
-            textDecoration: node.deleted ? 'line-through' : undefined,
-            opacity: node.deleted ? 0.6 : undefined,
-        }}
-    >
-        <span style={{ minWidth: 34, fontWeight: 500 }}>v{node.version}</span>
-        <span style={MUTED}>{formatDate(node.updatedAt)}</span>
-        <span>{node.managerName || '—'}</span>
-        <span style={{ minWidth: 96, textAlign: 'right' }}>{money(node.totalCost)}</span>
-        {node.deleted && <Tag color="red" style={{ marginInlineEnd: 0 }}>удалена</Tag>}
-        {!node.deleted && node.children.length === 0 && (
-            <Tag color="green" style={{ marginInlineEnd: 0 }}>конец ветки</Tag>
-        )}
-    </Flex>
-);
-
-/** Узел Ant Tree: ветки раскрываются спойлерами, выбор открывает версию. */
-const toTreeNode = (node: VersionNode): DataNode => ({
-    key: node.id,
-    title: versionTitle(node),
-    children: node.children.map(toTreeNode),
-});
-
 /**
  * Дровер «Вид расчёта»: метаданные сохранённого расчёта, сохранённый запрос
  * и результат пересчёта. Только чтение — ни одного поля ввода.
@@ -273,7 +242,6 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: 
     const [versions, setVersions] = useState<CalculationVersion[]>([]);
     const [versionsError, setVersionsError] = useState<string | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     const [reloadToken, setReloadToken] = useState(0);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -290,10 +258,7 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: 
 
         calculatorApi.getCalculationVersions(id)
             .then((data) => {
-                if (cancelled) return;
-                setVersions(data);
-                // Спойлеры открыты по умолчанию: видно сразу всё дерево.
-                setExpandedKeys(data.map((version) => version.id));
+                if (!cancelled) setVersions(data);
             })
             .catch((err: unknown) => {
                 if (!cancelled) setVersionsError(toErrorMessage(err));
@@ -331,9 +296,6 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: 
 
     const { request, error: normalizeError } = normalizeViewRequest(view?.request);
     const result = view?.result ?? null;
-
-    // Дерево версий: ветки видны сразу, удалённые остаются зачёркнутыми.
-    const treeData = useMemo(() => buildVersionTree(versions).map(toTreeNode), [versions]);
 
     const shownVersion = versions.find((version) => version.id === shownId) ?? null;
     const hasChildren = versions.some((version) => version.parentId === shownId);
@@ -494,17 +456,10 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: 
                                     <Typography.Text type="secondary">· дерево</Typography.Text>
                                 </Tooltip>
                             </Flex>
-                            <Tree
-                                blockNode
-                                selectable
-                                treeData={treeData}
-                                expandedKeys={expandedKeys}
-                                selectedKeys={shownId ? [shownId] : []}
-                                onExpand={(keys) => setExpandedKeys(keys.map(String))}
-                                onSelect={(keys) => {
-                                    const next = keys[0];
-                                    if (typeof next === 'string') setSelectedId(next);
-                                }}
+                            <VersionTree
+                                versions={versions}
+                                selectedId={shownId}
+                                onSelect={(next) => setSelectedId(next)}
                             />
                         </Flex>
                     )}
