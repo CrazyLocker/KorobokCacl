@@ -472,7 +472,7 @@ class PrototypeJsonReferenceTest {
         return request.getDetails().stream()
                 .filter(detail -> name.equals(detail.getName()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Detail not found: " + name));
+                .orElseThrow(() -> new IllegalArgumentException("Деталь не найдена: " + name));
     }
 
     /**
@@ -514,7 +514,7 @@ class PrototypeJsonReferenceTest {
             }
             current = current.getParent();
         }
-        throw new IllegalStateException("Project root with 'Паллена 9 Тест.json' not found");
+        throw new IllegalStateException("Не найден корень проекта с файлом «Паллена 9 Тест.json»");
     }
 
     private record ExpectedDetail(
