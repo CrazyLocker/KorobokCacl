@@ -57,7 +57,7 @@ public class PriceListController {
     @PutMapping("/{id}")
     public ResponseEntity<PriceList> updatePriceList(@PathVariable UUID id, @RequestBody PriceList priceList) {
         PriceList existing = priceListRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Price list not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Прайс-лист не найден, id: " + id));
         existing.setConstructId(priceList.getConstructId());
         existing.setPriceData(priceList.getPriceData());
         return ResponseEntity.ok(priceListRepository.save(existing));

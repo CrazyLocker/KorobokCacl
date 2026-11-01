@@ -18,11 +18,11 @@ import java.util.Map;
 public class CalculationRequest {
 
     /** Construction (box type) name. */
-    @NotBlank(message = "Construction name is required")
+    @NotBlank(message = "Укажите конструкцию")
     private String construction;
 
     /** Box details with layout parameters. */
-    @NotEmpty(message = "At least one detail is required")
+    @NotEmpty(message = "Нужна хотя бы одна деталь")
     @Valid
     private List<DetailDto> details;
 
@@ -39,12 +39,12 @@ public class CalculationRequest {
     private AssemblySettingsDto assemblySettings;
 
     /** Work price per detail (rubles). */
-    @NotNull(message = "Work price is required")
-    @DecimalMin(value = "0.0", message = "Work price must be >= 0")
+    @NotNull(message = "Укажите стоимость работы")
+    @DecimalMin(value = "0.0", message = "Стоимость работы не может быть отрицательной")
     private BigDecimal workPrice;
 
     /** Плечо (margin) — надбавка для ветки "+N". Если null, берётся из конфига (30). */
-    @DecimalMin(value = "0.0", message = "Margin value must be >= 0")
+    @DecimalMin(value = "0.0", message = "Наценка не может быть отрицательной")
     private BigDecimal marginValue;
 
     /** User-defined price list: tier label → price (0 = not set). */

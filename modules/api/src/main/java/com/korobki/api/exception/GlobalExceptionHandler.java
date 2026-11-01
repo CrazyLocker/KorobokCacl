@@ -38,7 +38,7 @@ public class GlobalExceptionHandler {
 
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Validation failed",
+                "Проверка данных не пройдена",
                 errors,
                 LocalDateTime.now()
         );
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.NOT_FOUND.value(),
-                "Not found",
+                "Не найдено",
                 Map.of("error", ex.getMessage() != null ? ex.getMessage() : ""),
                 LocalDateTime.now()
         );
@@ -74,7 +74,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Invalid calculation request",
+                "Ошибка в запросе расчёта",
                 Map.of("error", ex.getMessage() != null ? ex.getMessage() : ""),
                 LocalDateTime.now()
         );
@@ -92,7 +92,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleGenericException(Exception ex) {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Internal server error",
+                "Внутренняя ошибка сервера",
                 Map.of("error", ex.getMessage()),
                 LocalDateTime.now()
         );

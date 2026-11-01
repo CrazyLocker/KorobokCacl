@@ -35,6 +35,6 @@ public class OperationService {
      */
     public Operation getOperationById(UUID id) {
         return operationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Operation not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Операция не найдена, id: " + id));
     }
 }

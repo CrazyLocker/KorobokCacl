@@ -26,12 +26,17 @@ interface SaveFormValues {
 
 const apiErrorMessage = (error: unknown): string => {
     if (axios.isAxiosError<{ message?: string; errors?: Record<string, string> }>(error)) {
-        // Бэкенд кладёт причину отказа калькулятора в errors.error.
-        return error.response?.data?.errors?.error
+        // Бэкенд кладёт причину отказа калькулятора в errors.error, а ошибки
+        // валидации полей — в errors.<поле>; технический текст axios не показываем.
+        const details = error.response?.data?.errors;
+        const detail = details ? Object.values(details).join('; ') : '';
+        return detail
             || error.response?.data?.message
-            || error.message;
+            || 'Не удалось сохранить расчёт: сервер недоступен';
     }
-    return error instanceof Error ? error.message : String(error);
+    return error instanceof Error && error.message
+        ? error.message
+        : 'Не удалось сохранить расчёт';
 };
 
 /**

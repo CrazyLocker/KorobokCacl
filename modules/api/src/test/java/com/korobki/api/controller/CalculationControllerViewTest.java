@@ -54,7 +54,7 @@ class CalculationControllerViewTest {
     @Test
     void view_missingCalculation_propagatesNotFound() {
         UUID id = UUID.randomUUID();
-        when(calculationService.view(id)).thenThrow(new NotFoundException("Calculation not found: " + id));
+        when(calculationService.view(id)).thenThrow(new NotFoundException("Расчёт не найден: " + id));
 
         assertThrows(NotFoundException.class, () -> controller.view(id));
     }
@@ -62,11 +62,11 @@ class CalculationControllerViewTest {
     @Test
     void notFoundException_mappedToHttp404() {
         ErrorResponse body = new GlobalExceptionHandler()
-                .handleNotFound(new NotFoundException("Calculation not found: 42"))
+                .handleNotFound(new NotFoundException("Расчёт не найден: 42"))
                 .getBody();
 
         assertNotNull(body);
         assertEquals(HttpStatus.NOT_FOUND.value(), body.getStatus());
-        assertEquals("Calculation not found: 42", body.getErrors().get("error"));
+        assertEquals("Расчёт не найден: 42", body.getErrors().get("error"));
     }
 }

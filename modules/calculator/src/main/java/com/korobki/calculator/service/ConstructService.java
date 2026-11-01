@@ -41,7 +41,7 @@ public class ConstructService {
      */
     public Construct getConstructById(UUID id) {
         return constructRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Construct not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Конструкция не найдена, id: " + id));
     }
 
     /**

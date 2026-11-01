@@ -41,6 +41,7 @@ public class CalculatorService {
      */
     @SuppressWarnings("deprecation") // legacy assembly response fields
     public CalculationResponse calculate(CalculationRequest request) {
+        normalizeModeFlags(request);
         validate(request);
 
         // --- 1. Convert DTOs ---
@@ -194,6 +195,26 @@ public class CalculatorService {
     }
 
     /**
+     * Гасит печать одной детали, когда включена сборка на печатный лист.
+     *
+     * <p>Режимы взаимоисключающие: сборка уже печатает детали на общем листе,
+     * и второй счёт за печать был бы двойным. Раньше такой запрос отвергался
+     * ошибкой, но инженер включает печать и сборку в одном экране (правка
+     * формата/тиража включает флаг печати), поэтому состояние нормализуется
+     * так же, как в «Виде расчёта»: сборка выигрывает, печать выключается.
+     *
+     * @param request входящий запрос расчёта; правится на месте
+     */
+    private void normalizeModeFlags(CalculationRequest request) {
+        if (request.getAssemblySettings() != null
+                && Boolean.TRUE.equals(request.getAssemblySettings().getEnabled())
+                && request.getPrintSettings() != null
+                && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
+            request.getPrintSettings().setEnabled(false);
+        }
+    }
+
+    /**
      * Business-rule validation beyond bean validation:
      * - enabled details must have countOnSheet > 0
      * - price list keys must be valid tier labels
@@ -202,7 +223,6 @@ public class CalculatorService {
      *   detail in the assembly
      * - a detail marked for the assembly must have colsOnSheet >= 1
      *   (null is a legacy payload and means 1 copy per sheet)
-     * - assembly mode and single-detail print are mutually exclusive
      */
     private void validate(CalculationRequest request) {
         if (request.getDetails() != null) {
@@ -211,11 +231,13 @@ public class CalculatorService {
                 if (Boolean.TRUE.equals(d.getEnabled())
                         && (d.getCountOnSheet() == null || d.getCountOnSheet().compareTo(BigDecimal.ZERO) <= 0)) {
                     throw new IllegalArgumentException(
-                            "Detail '" + d.getName() + "' (index " + i + ") is enabled but countOnSheet must be > 0");
+                            "Деталь «" + d.getName() + "» (позиция " + (i + 1)
+                                    + "): у включённой детали количество на листе должно быть больше 0");
                 }
                 if (d.getSheetPrice() != null && d.getSheetPrice().compareTo(BigDecimal.ZERO) < 0) {
                     throw new IllegalArgumentException(
-                            "Detail '" + d.getName() + "' (index " + i + ") sheetPrice must be >= 0");
+                            "Деталь «" + d.getName() + "» (позиция " + (i + 1)
+                                    + "): цена листа не может быть отрицательной");
                 }
 
                 // Assembly sheet: a checked detail must carry at least one copy
@@ -226,8 +248,8 @@ public class CalculatorService {
                         && d.getColsOnSheet() != null
                         && d.getColsOnSheet() < 1) {
                     throw new IllegalArgumentException(
-                            "Detail '" + d.getName() + "' (index " + i
-                                    + ") is in assembly but colsOnSheet must be >= 1");
+                            "Деталь «" + d.getName() + "» (позиция " + (i + 1)
+                                    + "): деталь отмечена «В сборку», поэтому штук на листе должно быть не меньше 1");
                 }
 
                 // Prototype validatePrint(): active printed details must fit
@@ -247,9 +269,9 @@ public class CalculatorService {
                             : 1;
                     if (partsPerSheet > ps.getQuantity()) {
                         throw new IllegalArgumentException(
-                                "Detail '" + d.getName() + "' (index " + i + ") has partsPerSheetOnPrint "
-                                        + partsPerSheet + " greater than print quantity " + ps.getQuantity()
-                                        + "; print calculation is blocked");
+                                "Деталь «" + d.getName() + "» (позиция " + (i + 1) + "): деталей на листе "
+                                        + partsPerSheet + " больше, чем тираж печати " + ps.getQuantity()
+                                        + " — расчёт печати невозможен");
                     }
                 }
             }
@@ -260,7 +282,7 @@ public class CalculatorService {
             for (String key : request.getPriceList().keySet()) {
                 if (!validLabels.contains(key)) {
                     throw new IllegalArgumentException(
-                            "Unknown price list tier '" + key + "'. Valid tiers: " + validLabels);
+                            "Неизвестный тир прайс-листа «" + key + "». Допустимые тиры: " + validLabels);
                 }
             }
         }
@@ -268,35 +290,27 @@ public class CalculatorService {
         if (request.getPrintSettings() != null && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
             PrintSettingsDto ps = request.getPrintSettings();
             if (ps.getFormat() == null) {
-                throw new IllegalArgumentException("Print settings enabled but format is missing");
+                throw new IllegalArgumentException("Печать включена, но не выбран формат печати");
             }
             if (ps.getQuantity() == null || ps.getQuantity() <= 0) {
-                throw new IllegalArgumentException("Print settings enabled but quantity must be > 0");
+                throw new IllegalArgumentException("Печать включена, но тираж должен быть больше 0");
             }
         }
 
         AssemblySettingsDto assembly = request.getAssemblySettings();
         if (assembly != null && Boolean.TRUE.equals(assembly.getEnabled())) {
-            // Печать одной детали и сборка несовместимы: оба режима добавляют
-            // стоимость печати одним и тем же деталям.
-            if (request.getPrintSettings() != null
-                    && Boolean.TRUE.equals(request.getPrintSettings().getEnabled())) {
-                throw new IllegalArgumentException(
-                        "Assembly mode and single-detail print are mutually exclusive: "
-                                + "disable printSettings.enabled or assemblySettings.enabled");
-            }
             if (assembly.getFormat() == null) {
-                throw new IllegalArgumentException("Assembly settings enabled but format is missing");
+                throw new IllegalArgumentException("Сборка включена, но не выбран формат листа");
             }
             if (assembly.getQuantity() == null || assembly.getQuantity() <= 0) {
                 throw new IllegalArgumentException(
-                        "Assembly settings enabled but quantity must be > 0");
+                        "Сборка включена, но тираж детали должен быть больше 0");
             }
             boolean hasAssemblyDetails = request.getDetails() != null
                     && request.getDetails().stream().anyMatch(this::isInAssembly);
             if (!hasAssemblyDetails) {
                 throw new IllegalArgumentException(
-                        "Assembly settings enabled but no enabled detail is marked for assembly");
+                        "Сборка включена, но ни одна деталь не отмечена «В сборку»");
             }
         }
     }

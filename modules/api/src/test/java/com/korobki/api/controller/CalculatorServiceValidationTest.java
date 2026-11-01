@@ -105,7 +105,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("countOnSheet must be > 0"));
+        assertTrue(ex.getMessage().contains("количество на листе должно быть больше 0"));
     }
 
     @Test
@@ -124,7 +124,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("sheetPrice must be >= 0"));
+        assertTrue(ex.getMessage().contains("цена листа не может быть отрицательной"));
     }
 
     @Test
@@ -136,7 +136,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("Unknown price list tier"));
+        assertTrue(ex.getMessage().contains("Неизвестный тир прайс-листа"));
     }
 
     @Test
@@ -160,7 +160,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("quantity must be > 0"));
+        assertTrue(ex.getMessage().contains("тираж должен быть больше 0"));
     }
 
     @Test
@@ -173,7 +173,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("format is missing"));
+        assertTrue(ex.getMessage().contains("не выбран формат"));
     }
 
     @Test
@@ -190,7 +190,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("greater than print quantity"));
+        assertTrue(ex.getMessage().contains("больше, чем тираж печати"));
     }
 
     @Test
@@ -230,8 +230,12 @@ class CalculatorServiceValidationTest {
         assertDoesNotThrow(() -> service.calculate(assemblyRequest()));
     }
 
+    /**
+     * Печать и сборка в одном запросе — не ошибка: сборка выигрывает, печать гасится
+     * (как в живом расчёте и в «Виде расчёта»), поэтому результат равен расчёту без печати.
+     */
     @Test
-    void assemblyWithEnabledPrintSettings_rejected() {
+    void assemblyWithEnabledPrintSettings_printIsSwitchedOff() {
         CalculationRequest request = assemblyRequest();
         com.korobki.api.dto.PrintSettingsDto ps = new com.korobki.api.dto.PrintSettingsDto();
         ps.setEnabled(true);
@@ -239,9 +243,11 @@ class CalculatorServiceValidationTest {
         ps.setQuantity(200);
         request.setPrintSettings(ps);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("mutually exclusive"));
+        CalculationResponse withPrint = service.calculate(request);
+
+        assertFalse(Boolean.TRUE.equals(request.getPrintSettings().getEnabled()));
+        CalculationResponse withoutPrint = service.calculate(assemblyRequest());
+        assertEquals(0, withoutPrint.getTotalCost().compareTo(withPrint.getTotalCost()));
     }
 
     @Test
@@ -263,7 +269,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("format is missing"));
+        assertTrue(ex.getMessage().contains("не выбран формат"));
     }
 
     @Test
@@ -273,7 +279,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("quantity must be > 0"));
+        assertTrue(ex.getMessage().contains("Сборка включена, но тираж детали должен быть больше 0"));
     }
 
     @Test
@@ -283,7 +289,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("colsOnSheet must be >= 1"));
+        assertTrue(ex.getMessage().contains("штук на листе должно быть не меньше 1"));
     }
 
     @Test
@@ -301,7 +307,7 @@ class CalculatorServiceValidationTest {
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
-        assertTrue(ex.getMessage().contains("no enabled detail is marked for assembly"));
+        assertTrue(ex.getMessage().contains("ни одна деталь не отмечена «В сборку»"));
     }
 
     @Test

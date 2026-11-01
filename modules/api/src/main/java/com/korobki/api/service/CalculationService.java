@@ -87,7 +87,7 @@ public class CalculationService {
     @Transactional
     public CalculationDto iterate(UUID id, CalculationRequest request) {
         Calculation parent = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Calculation not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
 
         // Пересчёт до вставки: расчёт, который не считается, не сохраняется.
         CalculationResponse result = calculateOrFail(request);
@@ -123,7 +123,7 @@ public class CalculationService {
      */
     public CalculationDto get(UUID id) {
         Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Calculation not found: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Расчёт не найден: " + id));
         return toDto(calculation);
     }
 
@@ -146,7 +146,7 @@ public class CalculationService {
     @Transactional(readOnly = true)
     public CalculationViewDto view(UUID id) {
         Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Calculation not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
 
         CalculationViewDto view = new CalculationViewDto();
         view.setId(calculation.getId());
@@ -344,7 +344,7 @@ public class CalculationService {
     @Transactional
     public void delete(UUID id) {
         Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Calculation not found: " + id));
+                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
         calculationRepository.deleteById(rootIdOf(calculation));
     }
 

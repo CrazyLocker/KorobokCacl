@@ -98,12 +98,12 @@ class CalculationServiceTest {
     @Test
     void save_calculatorRejectsRequest_doesNotPersist() {
         when(calculatorService.calculate(any()))
-                .thenThrow(new IllegalArgumentException("Print settings enabled but format is missing"));
+                .thenThrow(new IllegalArgumentException("Печать включена, но не выбран формат печати"));
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.save(validRequest()));
 
-        assertEquals("Print settings enabled but format is missing", ex.getMessage());
+        assertEquals("Печать включена, но не выбран формат печати", ex.getMessage());
         verify(repository, never()).save(any());
     }
 
