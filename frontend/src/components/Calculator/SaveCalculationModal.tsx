@@ -1,7 +1,6 @@
 // frontend/src/components/Calculator/SaveCalculationModal.tsx
 import { useState } from 'react';
 import { Alert, Button, Flex, Form, Input, Modal } from 'antd';
-import axios from 'axios';
 import { calculatorApi } from '../../api/calculatorApi';
 import type { CalculationRequest, SavedCalculation } from '../../types';
 import type { RestoredCalculation } from '../../hooks/useCalculator';
@@ -24,20 +23,9 @@ interface SaveFormValues {
     managerName: string;
 }
 
-const apiErrorMessage = (error: unknown): string => {
-    if (axios.isAxiosError<{ message?: string; errors?: Record<string, string> }>(error)) {
-        // Бэкенд кладёт причину отказа калькулятора в errors.error, а ошибки
-        // валидации полей — в errors.<поле>; технический текст axios не показываем.
-        const details = error.response?.data?.errors;
-        const detail = details ? Object.values(details).join('; ') : '';
-        return detail
-            || error.response?.data?.message
-            || 'Не удалось сохранить расчёт: сервер недоступен';
-    }
-    return error instanceof Error && error.message
-        ? error.message
-        : 'Не удалось сохранить расчёт';
-};
+/** Текст ошибки уже переведён интерсептором axios (см. api/calculatorApi.ts). */
+const apiErrorMessage = (error: unknown): string =>
+    error instanceof Error && error.message ? error.message : 'Не удалось сохранить расчёт';
 
 /**
  * Сохранение расчёта: Ant Design Modal + Form.

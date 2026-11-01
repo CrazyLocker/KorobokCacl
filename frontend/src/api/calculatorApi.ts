@@ -19,6 +19,29 @@ import { buildKnifeRequest } from '../utils/knifeRequest';
 
 const API_BASE = '/api';
 
+/**
+ * Все сообщения об ошибках в интерфейсе — на русском, поэтому технический
+ * текст axios («Request failed with status code 500», «Network Error»)
+ * заменяется на причину с бэкенда или понятную формулировку.
+ */
+axios.interceptors.response.use(
+    (response) => response,
+    (error: unknown) => {
+        if (axios.isAxiosError<{ message?: string; errors?: Record<string, string> }>(error)) {
+            const data = error.response?.data;
+            const details = data?.errors
+                ? Object.values(data.errors).filter(Boolean).join('; ')
+                : '';
+            error.message = details
+                || data?.message
+                || (error.response
+                    ? `Ошибка сервера (HTTP ${error.response.status})`
+                    : 'Сервер недоступен: проверьте, запущен ли бэкенд');
+        }
+        return Promise.reject(error);
+    },
+);
+
 export const calculatorApi = {
     // === Калькулятор ===
     calculate: (data: CalculationRequest): Promise<CalculationResponse> =>

@@ -43,11 +43,9 @@ const toElements = (result: KnifeResult): KnifeElement[] =>
     result.elements ??
     (result.details ?? []).map((d) => ({ ...d, hasTransform: false }));
 
-/** Текст ошибки из axios/Error без использования `any`. */
-const errorText = (err: unknown): string => {
-    const e = err as { response?: { data?: { message?: string } }; message?: string };
-    return e?.response?.data?.message || e?.message || String(err);
-};
+/** Текст ошибки: интерсептор axios уже перевёл ответ сервера на русский. */
+const errorText = (err: unknown): string =>
+    err instanceof Error && err.message ? err.message : 'Неизвестная ошибка';
 
 /**
  * Страница "Расчет ножа": загрузка SVG → длина линий в мм → стоимость (длина × 3 + 500).

@@ -305,7 +305,9 @@ export function useCalculator() {
             const response = await calculatorApi.calculate(buildRequest());
             setResult(response);
         } catch (err: any) {
-            setError('Ошибка расчёта: ' + (err.response?.data?.message || err.message));
+            // Текст ошибки уже переведён интерсептором axios: причина отказа
+            // калькулятора приходит в errors.error, заголовок — только запасной.
+            setError('Ошибка расчёта: ' + err.message);
         } finally {
             setLoading(false);
         }
