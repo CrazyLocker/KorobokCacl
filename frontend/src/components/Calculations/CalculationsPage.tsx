@@ -51,13 +51,44 @@ export const CalculationsPage = ({ onNotify }: Props) => {
     // Версия, из которой создаётся заказ; null — модалка закрыта.
     const [orderSource, setOrderSource] = useState<CalculationVersion | null>(null);
 
+    // Версии грузим сразу для всех расчётов: дерево должно показывать всю
+    // историю без лишнего клика, а кнопка «Заказ» живёт на узле версии.
+    const loadVersions = useCallback((tree: CustomerTree[]) => {
+        const calculations = tree.flatMap((customer) => customer.calculations);
+        const customerKeys = tree.map((customer) => `customer-${customer.id}`);
+
+        if (calculations.length === 0) {
+            setVersionsByCalculation({});
+            setExpandedKeys([]);
+            return;
+        }
+
+        Promise.all(calculations.map((calculation) => calculatorApi
+            .getCalculationVersions(calculation.id)
+            .then((versions) => [calculation.id, versions] as const)
+            .catch(() => [calculation.id, [] as CalculationVersion[]] as const)))
+            .then((entries) => {
+                setVersionsByCalculation(Object.fromEntries(entries));
+                // Раскрываем клиентов и те расчёты, где версий больше одной.
+                setExpandedKeys([
+                    ...customerKeys,
+                    ...calculations
+                        .filter((calculation) => (calculation.versionCount ?? 1) > 1)
+                        .map((calculation) => `calculation-${calculation.id}`),
+                ]);
+            });
+    }, []);
+
     const loadTree = useCallback(() => {
         setLoading(true);
         calculatorApi.getCalculationTree()
-            .then(setCustomers)
+            .then((tree) => {
+                setCustomers(tree);
+                loadVersions(tree);
+            })
             .catch((err: Error) => onNotify('Ошибка загрузки расчётов: ' + err.message, 'error'))
             .finally(() => setLoading(false));
-    }, [onNotify]);
+    }, [loadVersions, onNotify]);
 
     useEffect(() => {
         loadTree();
@@ -111,25 +142,6 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         });
     };
 
-    // Перечитать загруженные деревья версий: после полного удаления ветки
-    // кэш содержит исчезнувшие строки, а у удалённого целиком расчёта
-    // сервер ответит 404 — такой список просто выкидываем.
-    const refreshVersions = () => {
-        Object.keys(versionsByCalculation).forEach((calculationId) => {
-            calculatorApi.getCalculationVersions(calculationId)
-                .then((versions) => setVersionsByCalculation((previous) => ({
-                    ...previous,
-                    [calculationId]: versions,
-                })))
-                .catch(() => setVersionsByCalculation((previous) => {
-                    const next = { ...previous };
-                    delete next[calculationId];
-                    return next;
-                }));
-        });
-        loadTree();
-    };
-
     // Полное удаление ветки: версия и все её подветки стираются из базы.
     // Это необратимо, поэтому подтверждение отдельное и с явным текстом.
     const handlePurgeVersion = (version: CalculationVersion) => {
@@ -145,7 +157,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 try {
                     await calculatorApi.purgeCalculation(version.id);
                     onNotify(`Ветка v${version.version} удалена полностью`, 'success');
-                    refreshVersions();
+                    loadTree();
                 } catch (err) {
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
@@ -153,7 +165,8 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         });
     };
 
-    const titleCell = (record: CalculationTreeRow) => {        const version = record.version;
+    const titleCell = (record: CalculationTreeRow) => {
+        const version = record.version;
         const struck = record.kind === 'version' && version?.deleted === true;
 
         return (
