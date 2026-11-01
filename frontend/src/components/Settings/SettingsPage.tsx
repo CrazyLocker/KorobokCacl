@@ -1,42 +1,20 @@
 // frontend/src/components/Settings/SettingsPage.tsx
-import { useEffect, useState } from 'react';
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
-import {
-    App as AntdApp, Button, Card, Flex, Spin, Table, Tabs, Tag, Tooltip, Typography, Upload,
-} from 'antd';
-import type { SavedCalculation } from '../../types';
+import { Button, Card, Flex, Typography, Upload } from 'antd';
 import { calculatorApi } from '../../api/calculatorApi';
 import { sortParts } from '../../utils/sortParts';
-import { openCalculationEditor } from '../../navigation';
-import { CalculationViewDrawer } from './CalculationViewDrawer';
-import { CalculationVersions } from './CalculationVersions';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
 
-type TabValue = 'calculations' | 'import';
-
-const STATUS_LABELS: Record<SavedCalculation['status'], string> = {
-    draft: 'Черновик',
-    ready: 'Готов',
-    sent: 'Отправлен',
-    in_work: 'В работе',
-    closed: 'Закрыт',
-};
-
-const STATUS_COLORS: Record<SavedCalculation['status'], string> = {
-    draft: 'default',
-    ready: 'processing',
-    sent: 'warning',
-    in_work: 'success',
-    closed: 'red',
-};
-
+/**
+ * Настройки: служебный обмен данными (импорт / экспорт JSON).
+ *
+ * <p>Список сохранённых расчётов живёт на отдельной странице «Сохранённые
+ * расчёты» — здесь остаются только выгрузки справочников и расчётов.
+ */
 export const SettingsPage = ({ onNotify }: Props) => {
-    const { modal } = AntdApp.useApp();
-    const [activeTab, setActiveTab] = useState<TabValue>('calculations');
-
     // --- Импорт/экспорт JSON ---
     const handleImportFile = async (file: File | undefined, endpoint: string, label: string) => {
         if (!file) return;
@@ -55,22 +33,6 @@ export const SettingsPage = ({ onNotify }: Props) => {
         }
     };
 
-    const handleExportCalculations = async () => {
-        try {
-            const data = await calculatorApi.listCalculations();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `calculations-${new Date().toISOString().slice(0, 10)}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            onNotify('Экспорт расчётов выполнен', 'success');
-        } catch (err: any) {
-            onNotify('Ошибка экспорта: ' + err.message, 'error');
-        }
-    };
-
     const downloadJson = (data: unknown, filename: string) => {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -79,6 +41,16 @@ export const SettingsPage = ({ onNotify }: Props) => {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleExportCalculations = async () => {
+        try {
+            const data = await calculatorApi.listCalculations();
+            downloadJson(data, `calculations-${new Date().toISOString().slice(0, 10)}.json`);
+            onNotify('Экспорт расчётов выполнен', 'success');
+        } catch (err: any) {
+            onNotify('Ошибка экспорта: ' + err.message, 'error');
+        }
     };
 
     // Экспорт конструкций: {название: {description, parts: [{name, perSheet, pricePerSheet}]}}
@@ -141,46 +113,6 @@ export const SettingsPage = ({ onNotify }: Props) => {
         }
     };
 
-    // --- Список расчётов ---
-    const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
-    const [loading, setLoading] = useState(false);
-    // Открытый «Вид расчёта»: id выбранного расчёта, null — дровер закрыт.
-    const [viewId, setViewId] = useState<string | null>(null);
-
-    const loadCalculations = () => {
-        setLoading(true);
-        calculatorApi.listCalculations()
-            .then(setCalculations)
-            .catch((err) => onNotify('Ошибка загрузки расчётов: ' + err.message, 'error'))
-            .finally(() => setLoading(false));
-    };
-
-    useEffect(() => {
-        loadCalculations();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Удаление расчёта: подтверждение через modal.confirm (App.useApp).
-    // Версии не стираются — помечаются удалёнными, чтобы история осталась.
-    const handleDeleteCalculation = (id: string) => {
-        modal.confirm({
-            title: 'Удаление расчёта',
-            content: 'Пометить расчёт удалённым? Версии останутся в истории зачёркнутыми.',
-            okText: 'Удалить',
-            okButtonProps: { danger: true },
-            cancelText: 'Отмена',
-            onOk: async () => {
-                try {
-                    await calculatorApi.deleteCalculation(id);
-                    setCalculations((prev) => prev.filter((c) => c.id !== id));
-                    onNotify('Расчёт помечен удалённым', 'success');
-                } catch (err: any) {
-                    onNotify('Ошибка удаления: ' + err.message, 'error');
-                }
-            },
-        });
-    };
-
     return (
         <div style={{ flex: 1, minWidth: 0 }}>
             {/* Top bar */}
@@ -194,307 +126,122 @@ export const SettingsPage = ({ onNotify }: Props) => {
                 }}
                 styles={{ body: { padding: '16px 24px' } }}
             >
-                <Typography.Title level={5} style={{ fontSize: 18, margin: 0 }}>
-                    Настройки
-                </Typography.Title>
+                <Flex vertical gap={2}>
+                    <Typography.Title level={5} style={{ fontSize: 18, margin: 0 }}>
+                        Настройки
+                    </Typography.Title>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        Обмен данными: справочники, прайсы и расчёты в формате JSON
+                    </Typography.Text>
+                </Flex>
             </Card>
 
-            {/* Tabs */}
-            <div style={{ marginBottom: 16 }}>
-                <Tabs
-                    activeKey={activeTab}
-                    onChange={(key) => setActiveTab(key as TabValue)}
-                    items={[
-                        { key: 'calculations', label: 'Расчёты' },
-                        { key: 'import', label: 'Импорт / экспорт' },
-                    ]}
-                />
-            </div>
-
-            {/* Tab: Расчёты */}
-            {activeTab === 'calculations' && (
+            <Flex vertical>
+                {/* Конструкции */}
                 <Card
-                    style={{
-                        borderRadius: 12,
-                        border: '1px solid #e8eaed',
-                        overflow: 'hidden',
-                        boxShadow: 'none',
-                    }}
-                    styles={{ body: { padding: 0 } }}
+                    size="small"
+                    style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                    styles={{ body: { padding: '12px 16px' } }}
                 >
-                    <Flex justify="space-between" align="center" style={{ padding: 16, borderBottom: '1px solid #e8eaed' }}>
-                        <Typography.Text strong style={{ fontSize: 14 }}>
-                            Сохранённые расчёты
-                        </Typography.Text>
-                        <Button size="small" type="text" onClick={loadCalculations} style={{ fontSize: 12 }}>
-                            Обновить
-                        </Button>
-                    </Flex>
-                    {loading ? (
-                        <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
-                            <Spin size="large" />
-                        </div>
-                    ) : calculations.length === 0 ? (
-                        <Typography.Text style={{ display: 'block', padding: 24, fontSize: 13, color: '#9aa0a6' }}>
-                            Нет сохранённых расчётов. Сохраните расчёт на странице калькулятора.
-                        </Typography.Text>
-                    ) : (
-                        <Table
-                            rowKey="id"
-                            size="small"
-                            pagination={false}
-                            // fixed layout: «Название» держит ровно 30ch, остальное
-                            // свободное место забирает колонка «Клиент» (без width).
-                            tableLayout="fixed"
-                            dataSource={calculations}
-                            expandable={{
-                                // Дерево версий под строкой: раскрывается по клику,
-                                // у одно-версионных расчётов стрелки нет.
-                                columnWidth: 48,
-                                rowExpandable: (record: SavedCalculation) => (record.versionCount ?? 1) > 1,
-                                expandedRowRender: (record: SavedCalculation) => (
-                                    <CalculationVersions rootId={record.id} onOpen={setViewId} />
-                                ),
-                            }}
-                            columns={[
-                                {
-                                    title: 'Название',
-                                    dataIndex: 'name',
-                                    key: 'name',
-                                    width: '30ch',
-                                    render: (name: string) => (
-                                        <span
-                                            style={{
-                                                fontSize: 13,
-                                                whiteSpace: 'normal',
-                                                wordBreak: 'break-word',
-                                            }}
-                                        >
-                                            {name}
-                                        </span>
-                                    ),
-                                },
-                                {
-                                    title: 'Клиент',
-                                    dataIndex: 'clientName',
-                                    key: 'clientName',
-                                    render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                                },
-                                {
-                                    title: 'Менеджер',
-                                    dataIndex: 'managerName',
-                                    key: 'managerName',
-                                    width: 160,
-                                    render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                                },
-                                {
-                                    // Последняя ветка дерева: полная история — в «Виде расчёта».
-                                    title: 'Версия',
-                                    dataIndex: 'version',
-                                    key: 'version',
-                                    width: 110,
-                                    render: (version: number | undefined, c: SavedCalculation) => (
-                                        <Flex gap={4} align="center">
-                                            <Tag
-                                                color={version && version > 1 ? 'blue' : 'default'}
-                                                style={{ fontSize: 11, height: 22, lineHeight: '20px', marginInlineEnd: 0 }}
-                                            >
-                                                v{version ?? 1}
-                                            </Tag>
-                                            {c.versionCount && c.versionCount > 1 && (
-                                                <Tooltip title={`Версий в дереве: ${c.versionCount}`}>
-                                                    <span style={{ fontSize: 11, color: '#5f6368' }}>
-                                                        · {c.versionCount}
-                                                    </span>
-                                                </Tooltip>
-                                            )}
-                                        </Flex>
-                                    ),
-                                },
-                                {
-                                    title: 'Статус',
-                                    dataIndex: 'status',
-                                    key: 'status',
-                                    width: 110,
-                                    render: (_: unknown, c: SavedCalculation) => (
-                                        <Tag
-                                            color={STATUS_COLORS[c.status] || 'default'}
-                                            style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
-                                        >
-                                            {STATUS_LABELS[c.status] || c.status}
-                                        </Tag>
-                                    ),
-                                },
-                                {
-                                    title: 'Создан',
-                                    dataIndex: 'createdAt',
-                                    key: 'createdAt',
-                                    width: 170,
-                                    render: (v: string) => (
-                                        <span style={{ fontSize: 12, color: '#5f6368' }}>
-                                            {new Date(v).toLocaleString('ru-RU')}
-                                        </span>
-                                    ),
-                                },
-                                {
-                                    title: '',
-                                    key: 'actions',
-                                    width: 250,
-                                    align: 'right',
-                                    render: (_: unknown, c: SavedCalculation) => (
-                                        <Flex justify="flex-end" gap={4}>
-                                            <Button
-                                                size="small"
-                                                type="text"
-                                                onClick={() => setViewId(c.id)}
-                                                style={{ fontSize: 11 }}
-                                            >
-                                                Открыть
-                                            </Button>
-                                            <Button
-                                                size="small"
-                                                type="text"
-                                                onClick={() => openCalculationEditor(c.latestId ?? c.id)}
-                                                style={{ fontSize: 11 }}
-                                            >
-                                                Редактировать
-                                            </Button>
-                                            <Button
-                                                size="small"
-                                                type="text"
-                                                danger
-                                                onClick={() => handleDeleteCalculation(c.id)}
-                                                style={{ fontSize: 11 }}
-                                            >
-                                                Удалить
-                                            </Button>
-                                        </Flex>
-                                    ),
-                                },
-                            ]}
-                        />
-                    )}
-                </Card>
-            )}
-
-            {/* Tab: Импорт / экспорт */}
-            {activeTab === 'import' && (
-                <Flex vertical>
-                    {/* Конструкции */}
-                    <Card
-                        size="small"
-                        style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
-                        styles={{ body: { padding: '12px 16px' } }}
-                    >
-                        <Flex justify="space-between" align="center">
-                            <Typography.Text strong>Конструкции</Typography.Text>
-                            <Flex gap={8}>
-                                <Upload
-                                    accept=".json,application/json"
-                                    showUploadList={false}
-                                    beforeUpload={(file) => {
-                                        handleImportFile(file, 'import-constructs', 'Конструкции');
-                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
-                                    }}
-                                >
-                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
-                                </Upload>
-                                <Button
-                                    type="primary"
-                                    icon={<DownloadOutlined />}
-                                    onClick={handleExportConstructs}
-                                >
-                                    Сохранить
-                                </Button>
-                            </Flex>
-                        </Flex>
-                    </Card>
-                    {/* Прайс коробок */}
-                    <Card
-                        size="small"
-                        style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
-                        styles={{ body: { padding: '12px 16px' } }}
-                    >
-                        <Flex justify="space-between" align="center">
-                            <Typography.Text strong>Прайс коробок</Typography.Text>
-                            <Flex gap={8}>
-                                <Upload
-                                    accept=".json,application/json"
-                                    showUploadList={false}
-                                    beforeUpload={(file) => {
-                                        handleImportFile(file, 'import-price-lists', 'Прайс коробок');
-                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
-                                    }}
-                                >
-                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
-                                </Upload>
-                                <Button
-                                    type="primary"
-                                    icon={<DownloadOutlined />}
-                                    onClick={handleExportPriceLists}
-                                >
-                                    Сохранить
-                                </Button>
-                            </Flex>
-                        </Flex>
-                    </Card>
-                    {/* Прайс печати */}
-                    <Card
-                        size="small"
-                        style={{ borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
-                        styles={{ body: { padding: '12px 16px' } }}
-                    >
-                        <Flex justify="space-between" align="center">
-                            <Typography.Text strong>Прайс печати</Typography.Text>
-                            <Flex gap={8}>
-                                <Upload
-                                    accept=".json,application/json"
-                                    showUploadList={false}
-                                    beforeUpload={(file) => {
-                                        handleImportFile(file, 'import-print-tables', 'Прайс печати');
-                                        return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
-                                    }}
-                                >
-                                    <Button icon={<UploadOutlined />}>Загрузить</Button>
-                                </Upload>
-                                <Button
-                                    type="primary"
-                                    icon={<DownloadOutlined />}
-                                    onClick={handleExportPrintTables}
-                                >
-                                    Сохранить
-                                </Button>
-                            </Flex>
-                        </Flex>
-                    </Card>
-
-                    {/* Все расчёты */}
-                    <Card
-                        size="small"
-                        style={{ borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
-                        styles={{ body: { padding: '12px 16px' } }}
-                    >
-                        <Flex justify="space-between" align="center">
-                            <Typography.Text strong>Все расчёты</Typography.Text>
+                    <Flex justify="space-between" align="center">
+                        <Typography.Text strong>Конструкции</Typography.Text>
+                        <Flex gap={8}>
+                            <Upload
+                                accept=".json,application/json"
+                                showUploadList={false}
+                                beforeUpload={(file) => {
+                                    handleImportFile(file, 'import-constructs', 'Конструкции');
+                                    return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                }}
+                            >
+                                <Button icon={<UploadOutlined />}>Загрузить</Button>
+                            </Upload>
                             <Button
                                 type="primary"
                                 icon={<DownloadOutlined />}
-                                onClick={handleExportCalculations}
+                                onClick={handleExportConstructs}
                             >
                                 Сохранить
                             </Button>
                         </Flex>
-                    </Card>
-                </Flex>
-            )}
-
-            <CalculationViewDrawer
-                open={!!viewId}
-                id={viewId}
-                onClose={() => setViewId(null)}
-                onEdit={openCalculationEditor}
-                onChanged={loadCalculations}
-            />
+                    </Flex>
+                </Card>
+                {/* Прайс коробок */}
+                <Card
+                    size="small"
+                    style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                    styles={{ body: { padding: '12px 16px' } }}
+                >
+                    <Flex justify="space-between" align="center">
+                        <Typography.Text strong>Прайс коробок</Typography.Text>
+                        <Flex gap={8}>
+                            <Upload
+                                accept=".json,application/json"
+                                showUploadList={false}
+                                beforeUpload={(file) => {
+                                    handleImportFile(file, 'import-price-lists', 'Прайс коробок');
+                                    return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                }}
+                            >
+                                <Button icon={<UploadOutlined />}>Загрузить</Button>
+                            </Upload>
+                            <Button
+                                type="primary"
+                                icon={<DownloadOutlined />}
+                                onClick={handleExportPriceLists}
+                            >
+                                Сохранить
+                            </Button>
+                        </Flex>
+                    </Flex>
+                </Card>
+                {/* Прайс печати */}
+                <Card
+                    size="small"
+                    style={{ marginBottom: 12, borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                    styles={{ body: { padding: '12px 16px' } }}
+                >
+                    <Flex justify="space-between" align="center">
+                        <Typography.Text strong>Прайс печати</Typography.Text>
+                        <Flex gap={8}>
+                            <Upload
+                                accept=".json,application/json"
+                                showUploadList={false}
+                                beforeUpload={(file) => {
+                                    handleImportFile(file, 'import-print-tables', 'Прайс печати');
+                                    return false; // отменяем авто-загрузку antd — импорт делает handleImportFile
+                                }}
+                            >
+                                <Button icon={<UploadOutlined />}>Загрузить</Button>
+                            </Upload>
+                            <Button
+                                type="primary"
+                                icon={<DownloadOutlined />}
+                                onClick={handleExportPrintTables}
+                            >
+                                Сохранить
+                            </Button>
+                        </Flex>
+                    </Flex>
+                </Card>
+                {/* Все расчёты */}
+                <Card
+                    size="small"
+                    style={{ borderRadius: 12, border: '1px solid #e8eaed', boxShadow: 'none' }}
+                    styles={{ body: { padding: '12px 16px' } }}
+                >
+                    <Flex justify="space-between" align="center">
+                        <Typography.Text strong>Все расчёты</Typography.Text>
+                        <Button
+                            type="primary"
+                            icon={<DownloadOutlined />}
+                            onClick={handleExportCalculations}
+                        >
+                            Сохранить
+                        </Button>
+                    </Flex>
+                </Card>
+            </Flex>
         </div>
     );
 };

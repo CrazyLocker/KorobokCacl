@@ -8,6 +8,7 @@ export type PageType =
     | 'cliche'
     | 'congrev'
     | 'silkscreen'
+    | 'calculations'
     | 'references'
     | 'settings';
 
@@ -19,6 +20,7 @@ export const PAGE_PATHS: Record<PageType, string> = {
     cliche: '/cliche',
     congrev: '/congrev',
     silkscreen: '/silkscreen',
+    calculations: '/calculations',
     references: '/references',
     settings: '/settings',
 };
@@ -36,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
     { key: 'cliche', label: 'Расчет клише', dev: true },
     { key: 'congrev', label: 'Расчет конгрев', dev: true },
     { key: 'silkscreen', label: 'Расчет шелкография', dev: true },
+    { key: 'calculations', label: 'Сохранённые расчёты' },
     { key: 'references', label: 'Справочники' },
     { key: 'settings', label: 'Настройки' },
 ];
