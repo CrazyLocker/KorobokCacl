@@ -10,7 +10,9 @@ import com.korobki.calculator.service.PrintCostCalculator;
 import com.korobki.core.config.PricingConfig;
 import com.korobki.persistence.entity.Calculation;
 import com.korobki.persistence.entity.PrintTable;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import com.korobki.persistence.repository.PrintTableRepository;
 import com.korobki.pricing.PriceCalculator;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,7 +54,8 @@ class CalculationServiceViewTest {
     void setUp() {
         repository = mock(CalculationRepository.class);
         calculatorService = mock(CalculatorService.class);
-        service = new CalculationService(repository, new ObjectMapper(), calculatorService);
+        service = new CalculationService(repository, mock(CustomerRepository.class),
+                mock(CalculationOrderRepository.class), new ObjectMapper(), calculatorService);
     }
 
     /** One enabled detail with a material price; no print settings at all. */
@@ -231,8 +234,8 @@ class CalculationServiceViewTest {
         state.put("assemblySettings", Map.of("enabled", true, "format", 1, "quantity", 50));
         Calculation calculation = storedCalculation(state);
 
-        CalculationService realService =
-                new CalculationService(repository, new ObjectMapper(), realCalculatorService());
+        CalculationService realService = new CalculationService(repository, mock(CustomerRepository.class),
+                mock(CalculationOrderRepository.class), new ObjectMapper(), realCalculatorService());
 
         CalculationViewDto view = realService.view(calculation.getId());
 

@@ -152,6 +152,10 @@ export interface SavedCalculation {
     versionCount?: number;
     name: string;
     clientName: string;
+    // Клиент справочника; null у расчётов, сохранённых до его появления.
+    customerId?: string | null;
+    // Заказ, в который входит расчёт; null — расчёт ещё не привязан к заказу.
+    orderId?: string | null;
     managerName: string;
     status: 'draft' | 'ready' | 'sent' | 'in_work' | 'closed';
     calculation: CalculationRequest;
@@ -162,9 +166,93 @@ export interface SavedCalculation {
 // Запрос на сохранение расчёта
 export interface CalculationSaveRequest {
     name: string;
-    clientName: string;
+    // Клиент справочника; можно не передавать, тогда бэкенд найдёт/создаст его
+    // по clientName.
+    customerId?: string | null;
+    clientName?: string;
+    // Заказ клиента; null — сохранить расчёт без заказа.
+    orderId?: string | null;
     managerName: string;
     calculation: CalculationRequest;
+}
+
+// Клиент справочника
+export interface Customer {
+    id: string;
+    name: string;
+    inn?: string | null;
+    contact?: string | null;
+    active: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Запрос на создание/правку клиента
+export interface CustomerSaveRequest {
+    name: string;
+    inn?: string | null;
+    contact?: string | null;
+    active?: boolean;
+}
+
+// Заказ клиента: сделка, объединяющая расчёты
+export interface CalculationOrder {
+    id: string;
+    customerId: string;
+    customerName: string;
+    number: string;
+    orderDate: string;
+    status: SavedCalculation['status'];
+    comment?: string | null;
+    // Сколько живых расчётов в заказе.
+    calculationCount: number;
+    // Сумма последних версий расчётов; null — считать нечего.
+    totalCost: number | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Запрос на создание/правку заказа
+export interface CalculationOrderSaveRequest {
+    customerId: string;
+    // Пусто — бэкенд сгенерирует номер вида 2026-001.
+    number?: string | null;
+    orderDate?: string | null;
+    status?: SavedCalculation['status'];
+    comment?: string | null;
+}
+
+// Расчёт в дереве «Клиент → Заказ → Расчёт»
+export interface CalculationTree {
+    id: string;
+    customerId: string | null;
+    orderId: string | null;
+    name: string;
+    managerName: string;
+    latestId: string;
+    version: number;
+    versionCount: number;
+    totalCost: number | null;
+    updatedAt: string;
+}
+
+// Узел заказа в дереве расчётов
+export interface OrderTree {
+    id: string;
+    number: string;
+    orderDate: string;
+    status: SavedCalculation['status'];
+    totalCost: number | null;
+    calculations: CalculationTree[];
+}
+
+// Узел клиента в дереве расчётов
+export interface CustomerTree {
+    id: string | null;
+    name: string;
+    orders: OrderTree[];
+    // Расчёты клиента, ещё не привязанные к заказу.
+    withoutOrder: CalculationTree[];
 }
 
 // Вид расчёта (read-only): метаданные, сохранённый запрос и результат

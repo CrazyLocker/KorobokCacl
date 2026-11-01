@@ -5,7 +5,9 @@ import com.korobki.api.controller.CalculatorService;
 import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +32,8 @@ class CalculationServiceVersionsTest {
     @BeforeEach
     void setUp() {
         repository = mock(CalculationRepository.class);
-        service = new CalculationService(repository, new ObjectMapper(), mock(CalculatorService.class));
+        service = new CalculationService(repository, mock(CustomerRepository.class),
+                mock(CalculationOrderRepository.class), new ObjectMapper(), mock(CalculatorService.class));
         rootId = UUID.randomUUID();
     }
 

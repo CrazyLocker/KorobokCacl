@@ -7,7 +7,10 @@ import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.entity.Customer;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -35,14 +38,26 @@ import static org.mockito.Mockito.when;
 class CalculationServiceIterateTest {
 
     private CalculationRepository repository;
+    private CustomerRepository customerRepository;
+    private CalculationOrderRepository orderRepository;
     private CalculatorService calculatorService;
     private CalculationService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(CalculationRepository.class);
+        customerRepository = mock(CustomerRepository.class);
+        orderRepository = mock(CalculationOrderRepository.class);
         calculatorService = mock(CalculatorService.class);
-        service = new CalculationService(repository, new ObjectMapper(), calculatorService);
+
+        Customer customer = new Customer();
+        customer.setId(UUID.randomUUID());
+        customer.setName("ООО Ромашка");
+        when(customerRepository.findByNameIgnoreCase(any())).thenReturn(Optional.of(customer));
+        when(customerRepository.findById(any())).thenReturn(Optional.of(customer));
+
+        service = new CalculationService(
+                repository, customerRepository, orderRepository, new ObjectMapper(), calculatorService);
     }
 
     private Calculation parent(int version) {

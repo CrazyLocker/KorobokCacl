@@ -32,9 +32,21 @@ public class Calculation {
     @Column(nullable = false)
     private String name;
 
-    /** Client the calculation was made for. */
+    /**
+     * Client name kept for rows saved before the customers reference book.
+     * New calculations also fill {@link #customerId}; when it is set, the
+     * customer's current name wins over this snapshot.
+     */
     @Column(name = "client_name", nullable = false)
     private String clientName;
+
+    /** Client reference the calculation was made for; null for legacy rows. */
+    @Column(name = "customer_id")
+    private UUID customerId;
+
+    /** Order (deal) the calculation belongs to; null for "no order yet". */
+    @Column(name = "order_id")
+    private UUID orderId;
 
     /** Manager who created the calculation. */
     @Column(name = "manager_name", nullable = false)

@@ -5,6 +5,7 @@ import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
+import com.korobki.api.dto.CustomerTreeDto;
 import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -60,6 +61,20 @@ public class CalculationController {
     @GetMapping("/list")
     public ResponseEntity<List<CalculationDto>> list() {
         return ResponseEntity.ok(calculationService.list());
+    }
+
+    /**
+     * Returns the customer → order → calculation tree for the list screen.
+     *
+     * <p>Calculations without an order are grouped in {@code withoutOrder} of
+     * their client; rows saved before the reference book existed fall into a
+     * bucket with a null client id.
+     *
+     * @return clients with their orders and calculations
+     */
+    @GetMapping("/tree")
+    public ResponseEntity<List<CustomerTreeDto>> tree() {
+        return ResponseEntity.ok(calculationService.tree());
     }
 
     /**

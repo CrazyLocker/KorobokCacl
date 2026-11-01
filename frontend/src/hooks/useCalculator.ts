@@ -55,6 +55,10 @@ export interface RestoredCalculation {
     clientName: string;
     managerName: string;
     version?: number;
+    /** Клиент справочника: у наследующих версий берётся из родителя. */
+    customerId?: string | null;
+    /** Заказ, заведённый для этого расчёта. */
+    orderId?: string | null;
 }
 
 /** Prototype normDetailName: case, ё and whitespace insensitive. */
@@ -142,6 +146,8 @@ export function useCalculator() {
             clientName: saved.clientName,
             managerName: saved.managerName,
             version: saved.version,
+            customerId: saved.customerId ?? null,
+            orderId: saved.orderId ?? null,
         });
         isRestoredRef.current = true;
     }, []);
@@ -155,6 +161,8 @@ export function useCalculator() {
             clientName: saved.clientName,
             managerName: saved.managerName,
             version: saved.version,
+            customerId: saved.customerId ?? null,
+            orderId: saved.orderId ?? null,
         });
         isRestoredRef.current = true;
     }, []);

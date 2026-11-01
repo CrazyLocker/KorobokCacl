@@ -45,6 +45,7 @@ public class SecurityConfig {
                     "/api/knife/**",
                     "/api/references/**",
                     "/api/orders/**",
+                    "/api/customers/**",
                     "/api/calculations/**",
                     "/api/doc*/**",
                     "/swagger-ui/**",

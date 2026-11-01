@@ -7,10 +7,17 @@ import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
+import com.korobki.api.dto.CalculationTreeDto;
+import com.korobki.api.dto.CustomerTreeDto;
+import com.korobki.api.dto.OrderTreeDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.entity.CalculationOrder;
+import com.korobki.persistence.entity.Customer;
 import com.korobki.persistence.repository.CalculationChainSummary;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +32,7 @@ import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,6 +62,8 @@ import java.util.UUID;
 public class CalculationService {
 
     private final CalculationRepository calculationRepository;
+    private final CustomerRepository customerRepository;
+    private final CalculationOrderRepository orderRepository;
     private final ObjectMapper objectMapper;
     private final CalculatorService calculatorService;
 
@@ -71,9 +81,13 @@ public class CalculationService {
     @Transactional
     public CalculationDto save(CalculationSaveRequest request) {
         CalculationResponse result = calculateOrFail(request.getCalculation());
+        Customer customer = resolveCustomer(request.getCustomerId(), request.getClientName());
+        CalculationOrder order = resolveOrder(request.getOrderId(), customer);
 
         Calculation calculation = new Calculation();
-        applyMetadata(calculation, request.getName(), request.getClientName(), request.getManagerName());
+        applyMetadata(calculation, request.getName(), customer.getName(), request.getManagerName());
+        calculation.setCustomerId(customer.getId());
+        calculation.setOrderId(order != null ? order.getId() : null);
         calculation.setStatus("draft");
         calculation.setVersion(1);
         calculation.setCalculationState(convertToMap(request.getCalculation()));
@@ -116,6 +130,8 @@ public class CalculationService {
 
         Calculation next = new Calculation();
         applyMetadata(next, parent.getName(), parent.getClientName(), parent.getManagerName());
+        next.setCustomerId(parent.getCustomerId());
+        next.setOrderId(parent.getOrderId());
         next.setStatus(parent.getStatus() != null ? parent.getStatus() : "draft");
         next.setRootId(rootIdOf(parent));
         next.setParentId(parent.getId());
@@ -217,6 +233,145 @@ public class CalculationService {
     public CalculationViewDto view(UUID id) {
         Calculation calculation = find(id);
         return toView(calculation);
+    }
+
+    /**
+     * Builds the customer → order → calculation tree for the list screen.
+     *
+     * <p>Calculations without an order are returned in {@code withoutOrder} of
+     * their client; rows saved before the reference book existed fall into a
+     * bucket with a null customer id. Orders without calculations are still
+     * returned, so an empty deal stays visible.
+     *
+     * @return clients with their orders and calculations
+     */
+    @Transactional(readOnly = true)
+    public List<CustomerTreeDto> tree() {
+        Map<UUID, CalculationTreeDto> trees = treesByRoot();
+
+        List<Customer> customers = customerRepository.findAllByOrderByActiveDescNameAsc();
+        List<CalculationOrder> orders = orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc();
+
+        Map<UUID, CustomerTreeDto> byCustomer = new LinkedHashMap<>();
+        Map<UUID, OrderTreeDto> orderNodes = new HashMap<>();
+
+        for (Customer customer : customers) {
+            CustomerTreeDto node = new CustomerTreeDto();
+            node.setId(customer.getId());
+            node.setName(customer.getName());
+            byCustomer.put(customer.getId(), node);
+        }
+
+        CustomerTreeDto legacy = new CustomerTreeDto();
+        legacy.setName("Без клиента");
+
+        for (CalculationTreeDto calculation : trees.values()) {
+            CustomerTreeDto customerNode;
+            if (calculation.getCustomerId() == null) {
+                customerNode = legacy;
+            } else {
+                customerNode = byCustomer.computeIfAbsent(calculation.getCustomerId(), id -> {
+                    CustomerTreeDto fallback = new CustomerTreeDto();
+                    fallback.setId(id);
+                    fallback.setName("Клиент удалён");
+                    return fallback;
+                });
+            }
+
+            if (calculation.getOrderId() == null) {
+                customerNode.getWithoutOrder().add(calculation);
+                continue;
+            }
+            OrderTreeDto orderNode = orderNodes.computeIfAbsent(calculation.getOrderId(), id -> {
+                OrderTreeDto created = new OrderTreeDto();
+                created.setId(id);
+                return created;
+            });
+            orderNode.getCalculations().add(calculation);
+            if (!customerNode.getOrders().contains(orderNode)) {
+                customerNode.getOrders().add(orderNode);
+            }
+        }
+
+        // Заказы без расчётов: узел всё равно должен быть виден.
+        for (CalculationOrder order : orders) {
+            OrderTreeDto node = orderNodes.computeIfAbsent(order.getId(), id -> {
+                OrderTreeDto created = new OrderTreeDto();
+                created.setId(id);
+                return created;
+            });
+            node.setNumber(order.getNumber());
+            node.setOrderDate(order.getOrderDate());
+            node.setStatus(order.getStatus());
+            node.setTotalCost(sumCosts(node.getCalculations()));
+
+            CustomerTreeDto customerNode = byCustomer.get(order.getCustomerId());
+            if (customerNode != null && !customerNode.getOrders().contains(node)) {
+                customerNode.getOrders().add(node);
+            } else if (customerNode == null) {
+                // Клиент заказа исчез из справочника — показываем узел отдельно.
+                CustomerTreeDto orphan = byCustomer.computeIfAbsent(order.getCustomerId(), id -> {
+                    CustomerTreeDto created = new CustomerTreeDto();
+                    created.setId(id);
+                    created.setName("Клиент удалён");
+                    return created;
+                });
+                if (!orphan.getOrders().contains(node)) {
+                    orphan.getOrders().add(node);
+                }
+            }
+        }
+
+        for (CustomerTreeDto customer : byCustomer.values()) {
+            customer.getOrders().sort(Comparator
+                    .comparing(OrderTreeDto::getOrderDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                    .thenComparing(OrderTreeDto::getNumber, Comparator.nullsLast(Comparator.naturalOrder())));
+            customer.getWithoutOrder().sort(Comparator
+                    .comparing(CalculationTreeDto::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+        }
+
+        List<CustomerTreeDto> result = new ArrayList<>(byCustomer.values());
+        if (!legacy.getWithoutOrder().isEmpty()) {
+            result.add(legacy);
+        }
+        return result;
+    }
+
+    /**
+     * Groups every live calculation tree, keyed by its root id.
+     *
+     * <p>One query loads the live versions; the tree statistics are computed in
+     * memory, which is cheap for a reference book of this size and avoids a
+     * query per client.
+     *
+     * @return tree node per live calculation
+     */
+    @Transactional(readOnly = true)
+    public Map<UUID, CalculationTreeDto> treesByRoot() {
+        List<Calculation> live = calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc();
+        Map<UUID, List<Calculation>> byRoot = new LinkedHashMap<>();
+        for (Calculation version : live) {
+            byRoot.computeIfAbsent(rootIdOf(version), key -> new ArrayList<>()).add(version);
+        }
+
+        Map<UUID, CalculationTreeDto> trees = new LinkedHashMap<>();
+        byRoot.forEach((rootId, chain) -> trees.put(rootId, toTreeDto(rootId, chain)));
+        return trees;
+    }
+
+    /**
+     * Returns the live calculations of one order, newest change first.
+     *
+     * @param orderId order identifier
+     * @return calculations of the order
+     */
+    @Transactional(readOnly = true)
+    public List<CalculationTreeDto> treesByOrder(UUID orderId) {
+        return treesByRoot().values().stream()
+                .filter(tree -> orderId.equals(tree.getOrderId()))
+                .sorted(Comparator.comparing(CalculationTreeDto::getUpdatedAt,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
     }
 
     /**
@@ -578,11 +733,117 @@ public class CalculationService {
         dto.setParentId(calculation.getParentId());
         dto.setName(calculation.getName());
         dto.setClientName(calculation.getClientName());
+        dto.setCustomerId(calculation.getCustomerId());
+        dto.setOrderId(calculation.getOrderId());
         dto.setManagerName(calculation.getManagerName());
         dto.setStatus(calculation.getStatus());
         dto.setCalculation(calculation.getCalculationState());
         dto.setCreatedAt(calculation.getCreatedAt());
         dto.setUpdatedAt(calculation.getUpdatedAt());
         return dto;
+    }
+
+    /**
+     * Builds the list node of one calculation tree.
+     *
+     * @param rootId identifier of the first version
+     * @param chain  live versions of the tree
+     * @return tree node with the statistics of its newest version
+     */
+    private CalculationTreeDto toTreeDto(UUID rootId, List<Calculation> chain) {
+        Calculation root = chain.stream()
+                .filter(version -> version.getId().equals(rootId))
+                .findFirst()
+                .orElse(chain.get(0));
+        UUID latestId = latestIdOf(chain);
+        Calculation latest = chain.stream()
+                .filter(version -> version.getId().equals(latestId))
+                .findFirst()
+                .orElse(root);
+
+        CalculationTreeDto dto = new CalculationTreeDto();
+        dto.setId(root.getId());
+        dto.setCustomerId(root.getCustomerId());
+        dto.setOrderId(root.getOrderId());
+        dto.setName(root.getName());
+        dto.setManagerName(root.getManagerName());
+        dto.setLatestId(latestId);
+        dto.setVersion(chain.stream().mapToInt(this::versionOf).max().orElse(1));
+        dto.setVersionCount((long) chain.size());
+        dto.setTotalCost(totalCostOf(latest.getCalculationResult()));
+        dto.setUpdatedAt(chain.stream()
+                .map(Calculation::getUpdatedAt)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null));
+        return dto;
+    }
+
+    /**
+     * Sums the costs of the calculations; null when none of them is priced.
+     *
+     * @param calculations trees of one order
+     * @return order total, or null when empty
+     */
+    private BigDecimal sumCosts(List<CalculationTreeDto> calculations) {
+        BigDecimal total = null;
+        for (CalculationTreeDto calculation : calculations) {
+            if (calculation.getTotalCost() == null) {
+                continue;
+            }
+            total = total == null ? calculation.getTotalCost() : total.add(calculation.getTotalCost());
+        }
+        return total;
+    }
+
+    /**
+     * Resolves the client of a save request.
+     *
+     * <p>An explicit id wins; otherwise the name from older clients of the API
+     * is matched case-insensitively and created on the fly when unknown, so the
+     * reference book fills itself from the existing workflow.
+     *
+     * @param customerId explicit client id, may be null
+     * @param clientName client name from the legacy request field
+     * @return the stored client
+     * @throws NotFoundException        when the id points at nothing
+     * @throws IllegalArgumentException when neither id nor name is given
+     */
+    private Customer resolveCustomer(UUID customerId, String clientName) {
+        if (customerId != null) {
+            return customerRepository.findById(customerId)
+                    .orElseThrow(() -> new NotFoundException("Клиент не найден: " + customerId));
+        }
+        if (clientName == null || clientName.isBlank()) {
+            throw new IllegalArgumentException("Укажите клиента");
+        }
+        String name = clientName.trim();
+        return customerRepository.findByNameIgnoreCase(name)
+                .orElseGet(() -> {
+                    Customer created = new Customer();
+                    created.setName(name);
+                    return customerRepository.save(created);
+                });
+    }
+
+    /**
+     * Resolves the order of a save request and checks it belongs to the client.
+     *
+     * @param orderId  explicit order id, may be null for "no order yet"
+     * @param customer resolved client of the calculation
+     * @return the stored order, or null
+     * @throws NotFoundException        when the order does not exist
+     * @throws IllegalArgumentException when the order belongs to another client
+     */
+    private CalculationOrder resolveOrder(UUID orderId, Customer customer) {
+        if (orderId == null) {
+            return null;
+        }
+        CalculationOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new NotFoundException("Заказ не найден: " + orderId));
+        if (!order.getCustomerId().equals(customer.getId())) {
+            throw new IllegalArgumentException("Заказ принадлежит другому клиенту");
+        }
+        return order;
     }
 }

@@ -4,12 +4,13 @@ import { Badge, Card, Tabs, Typography } from 'antd';
 import { ConstructionsTab } from './ConstructionsTab';
 import { PriceListTab } from './PriceListTab';
 import { PrintTablesTab } from './PrintTablesTab';
+import { CustomersTab } from './CustomersTab';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
 
-type TabValue = 'constructions' | 'prices' | 'print';
+type TabValue = 'constructions' | 'prices' | 'print' | 'customers';
 
 export const ReferencesPage = ({ onNotify }: Props) => {
     const [activeTab, setActiveTab] = useState<TabValue>('constructions');
@@ -29,6 +30,11 @@ export const ReferencesPage = ({ onNotify }: Props) => {
             key: 'print',
             label: 'Таблица печати',
             children: <PrintTablesTab onNotify={onNotify} />,
+        },
+        {
+            key: 'customers',
+            label: 'Клиенты',
+            children: <CustomersTab onNotify={onNotify} />,
         },
     ];
 

@@ -1,65 +1,90 @@
 // frontend/src/components/Calculations/CalculationsPage.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntdApp } from 'antd';
 import {
-    Button, Card, Flex, Spin, Table, Tag, Tooltip, Typography,
+    Button, Card, Flex, Spin, Table, Tag, Typography,
 } from 'antd';
-import type { SavedCalculation } from '../../types';
+import type { CalculationTree, CalculationVersion, CustomerTree } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { openCalculationEditor } from '../../navigation';
+import { buildCalculationTreeRows, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
-import { CalculationVersions } from '../Settings/CalculationVersions';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-    draft: 'Черновик',
-    ready: 'Готов',
-    sent: 'Отправлен',
-    in_work: 'В работе',
-    closed: 'Закрыт',
-};
+const MONEY = new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
 
-const STATUS_COLORS: Record<string, string> = {
-    draft: 'default',
-    ready: 'processing',
-    sent: 'warning',
-    in_work: 'success',
-    closed: 'red',
-};
+const money = (value?: number | null): string =>
+    value == null ? '—' : `${MONEY.format(value)} ₽`;
+
+const formatDate = (value?: string | null): string =>
+    value ? new Date(value).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    }) : '—';
 
 /**
- * Страница «Сохранённые расчёты»: все расчёты с историей версий.
+ * Страница «Сохранённые расчёты»: дерево клиентов, заказов и расчётов.
  *
- * <p>Каждая строка — расчёт-корень, под ней раскрывается дерево версий:
- * клик по версии открывает её в «Виде расчёта», оттуда же «Редактировать эту
- * версию» создаёт подветку от выбранной.
+ * <p>Раскрытие расчёта подгружает его версии; клик по версии открывает её в
+ * «Виде расчёта», откуда можно создать подветку от выбранной версии.
  */
 export const CalculationsPage = ({ onNotify }: Props) => {
     const { modal } = AntdApp.useApp();
-    const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
+    const [customers, setCustomers] = useState<CustomerTree[]>([]);
+    const [versionsByCalculation, setVersionsByCalculation] = useState<
+        Record<string, CalculationVersion[]>
+    >({});
     const [loading, setLoading] = useState(false);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     // Открытый «Вид расчёта»: id выбранной версии, null — дровер закрыт.
     const [viewId, setViewId] = useState<string | null>(null);
 
-    const loadCalculations = () => {
+    const loadTree = useCallback(() => {
         setLoading(true);
-        calculatorApi.listCalculations()
-            .then(setCalculations)
+        calculatorApi.getCalculationTree()
+            .then(setCustomers)
             .catch((err: Error) => onNotify('Ошибка загрузки расчётов: ' + err.message, 'error'))
             .finally(() => setLoading(false));
-    };
+    }, [onNotify]);
 
     useEffect(() => {
-        loadCalculations();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        loadTree();
+    }, [loadTree]);
+
+    const rows = useMemo(
+        () => buildCalculationTreeRows(customers, versionsByCalculation),
+        [customers, versionsByCalculation],
+    );
+
+    /** Раскрытие расчёта подгружает его версии (один раз на расчёт). */
+    const handleExpand = (expanded: boolean, record: CalculationTreeRow) => {
+        setExpandedKeys((previous) => expanded
+            ? [...previous, record.key]
+            : previous.filter((key) => key !== record.key));
+
+        if (!expanded || record.kind !== 'calculation' || !record.calculation) return;
+        if (versionsByCalculation[record.calculation.id]) return;
+
+        calculatorApi.getCalculationVersions(record.calculation.id)
+            .then((versions) => setVersionsByCalculation((previous) => ({
+                ...previous,
+                [record.calculation!.id]: versions,
+            })))
+            .catch((err: Error) => onNotify('Ошибка загрузки версий: ' + err.message, 'error'));
+    };
 
     // Удаление расчёта: подтверждение через modal.confirm (App.useApp).
     // Версии не стираются — помечаются удалёнными, чтобы история осталась.
-    const handleDeleteCalculation = (id: string) => {
+    const handleDeleteCalculation = (calculation: CalculationTree) => {
         modal.confirm({
             title: 'Удаление расчёта',
             content: 'Пометить расчёт удалённым? Версии останутся в истории зачёркнутыми.',
@@ -68,14 +93,95 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             cancelText: 'Отмена',
             onOk: async () => {
                 try {
-                    await calculatorApi.deleteCalculation(id);
-                    setCalculations((prev) => prev.filter((c) => c.id !== id));
+                    await calculatorApi.deleteCalculation(calculation.id);
+                    setVersionsByCalculation((previous) => {
+                        const next = { ...previous };
+                        delete next[calculation.id];
+                        return next;
+                    });
                     onNotify('Расчёт помечен удалённым', 'success');
+                    loadTree();
                 } catch (err) {
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
         });
+    };
+
+    const titleCell = (record: CalculationTreeRow) => {
+        const version = record.version;
+        const struck = record.kind === 'version' && version?.deleted === true;
+
+        return (
+            <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                <span
+                    style={{
+                        fontSize: record.kind === 'calculation' ? 13 : 13,
+                        fontWeight: record.kind === 'customer' ? 600 : 400,
+                        textDecoration: struck ? 'line-through' : undefined,
+                        color: struck ? '#9aa0a6' : undefined,
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word',
+                    }}
+                >
+                    {record.title}
+                </span>
+                {record.kind === 'calculation' && record.calculation && (
+                    <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
+                        v{record.calculation.version}
+                    </Tag>
+                )}
+                {record.kind === 'version' && version && !version.deleted
+                    && version.latest && (
+                    <Tag color="blue" style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                        кончик
+                    </Tag>
+                )}
+                {record.kind === 'version' && version?.deleted && (
+                    <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                        удалена
+                    </Tag>
+                )}
+            </Flex>
+        );
+    };
+
+    const actions = (record: CalculationTreeRow) => {
+        if (record.kind === 'version' && record.version) {
+            return (
+                <Button size="small" type="text" onClick={() => setViewId(record.version!.id)}
+                    style={{ fontSize: 11 }}>
+                    Открыть
+                </Button>
+            );
+        }
+        if (record.kind !== 'calculation' || !record.calculation) return null;
+
+        return (
+            <Flex justify="flex-end" gap={4}>
+                <Button size="small" type="text" onClick={() => setViewId(record.calculation!.id)}
+                    style={{ fontSize: 11 }}>
+                    Открыть
+                </Button>
+                <Button
+                    size="small"
+                    type="text"
+                    onClick={() => openCalculationEditor(record.calculation!.latestId ?? record.calculation!.id)}
+                    style={{ fontSize: 11 }}
+                >
+                    Редактировать
+                </Button>
+                <Button
+                    size="small"
+                    type="text"
+                    danger
+                    onClick={() => handleDeleteCalculation(record.calculation!)}
+                    style={{ fontSize: 11 }}
+                >
+                    Удалить
+                </Button>
+            </Flex>
+        );
     };
 
     return (
@@ -96,10 +202,10 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                             Сохранённые расчёты
                         </Typography.Title>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            Разверните расчёт, чтобы увидеть дерево версий
+                            Клиент → заказ → расчёт. Раскройте расчёт, чтобы увидеть дерево версий.
                         </Typography.Text>
                     </Flex>
-                    <Button size="small" type="text" onClick={loadCalculations} style={{ fontSize: 12 }}>
+                    <Button size="small" type="text" onClick={loadTree} style={{ fontSize: 12 }}>
                         Обновить
                     </Button>
                 </Flex>
@@ -118,106 +224,53 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                     <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
                         <Spin size="large" />
                     </div>
-                ) : calculations.length === 0 ? (
+                ) : rows.length === 0 ? (
                     <Typography.Text style={{ display: 'block', padding: 24, fontSize: 13, color: '#9aa0a6' }}>
                         Нет сохранённых расчётов. Сохраните расчёт на странице калькулятора.
                     </Typography.Text>
                 ) : (
-                    <Table
-                        rowKey="id"
+                    <Table<CalculationTreeRow>
+                        rowKey="key"
                         size="small"
                         pagination={false}
-                        // fixed layout: «Название» держит ровно 30ch, остальное
-                        // свободное место забирает колонка «Клиент» (без width).
                         tableLayout="fixed"
-                        dataSource={calculations}
+                        dataSource={rows}
                         expandable={{
-                            // Дерево версий под строкой: раскрывается по клику,
-                            // у одно-версионных расчётов стрелки нет.
-                            columnWidth: 48,
-                            rowExpandable: (record: SavedCalculation) => (record.versionCount ?? 1) > 1,
-                            expandedRowRender: (record: SavedCalculation) => (
-                                <CalculationVersions rootId={record.id} onOpen={setViewId} />
-                            ),
+                            // Дерево держим раскрытым вручную: клик подгружает
+                            // версии расчёта и разворачивает только эту ветку.
+                            expandedRowKeys: expandedKeys,
+                            onExpand: handleExpand,
+                            indentSize: 18,
                         }}
                         columns={[
                             {
-                                title: 'Название',
-                                dataIndex: 'name',
-                                key: 'name',
-                                width: '30ch',
-                                render: (name: string) => (
-                                    <span
-                                        style={{
-                                            fontSize: 13,
-                                            whiteSpace: 'normal',
-                                            wordBreak: 'break-word',
-                                        }}
-                                    >
-                                        {name}
+                                title: 'Клиент / заказ / расчёт',
+                                dataIndex: 'title',
+                                key: 'title',
+                                render: (_: unknown, record: CalculationTreeRow) => titleCell(record),
+                            },
+                            {
+                                title: 'Себестоимость',
+                                dataIndex: 'cost',
+                                key: 'cost',
+                                width: 140,
+                                align: 'right',
+                                render: (cost: number | null | undefined, record: CalculationTreeRow) => (
+                                    <span style={{
+                                        fontSize: 12,
+                                        color: record.kind === 'version' ? '#5f6368' : '#202124',
+                                    }}>
+                                        {money(cost)}
                                     </span>
                                 ),
                             },
                             {
-                                title: 'Клиент',
-                                dataIndex: 'clientName',
-                                key: 'clientName',
-                                render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                            },
-                            {
-                                title: 'Менеджер',
-                                dataIndex: 'managerName',
-                                key: 'managerName',
-                                width: 160,
-                                render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                            },
-                            {
-                                // Последняя ветка дерева: полная история — в раскрытой строке.
-                                title: 'Версия',
-                                dataIndex: 'version',
-                                key: 'version',
-                                width: 110,
-                                render: (version: number | undefined, c: SavedCalculation) => (
-                                    <Flex gap={4} align="center">
-                                        <Tag
-                                            color={version && version > 1 ? 'blue' : 'default'}
-                                            style={{ fontSize: 11, height: 22, lineHeight: '20px', marginInlineEnd: 0 }}
-                                        >
-                                            v{version ?? 1}
-                                        </Tag>
-                                        {c.versionCount && c.versionCount > 1 && (
-                                            <Tooltip title={`Версий в дереве: ${c.versionCount}`}>
-                                                <span style={{ fontSize: 11, color: '#5f6368' }}>
-                                                    · {c.versionCount}
-                                                </span>
-                                            </Tooltip>
-                                        )}
-                                    </Flex>
-                                ),
-                            },
-                            {
-                                title: 'Статус',
-                                dataIndex: 'status',
-                                key: 'status',
-                                width: 110,
-                                render: (_: unknown, c: SavedCalculation) => (
-                                    <Tag
-                                        color={STATUS_COLORS[c.status] || 'default'}
-                                        style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
-                                    >
-                                        {STATUS_LABELS[c.status] || c.status}
-                                    </Tag>
-                                ),
-                            },
-                            {
-                                title: 'Создан',
-                                dataIndex: 'createdAt',
-                                key: 'createdAt',
-                                width: 170,
-                                render: (v: string) => (
-                                    <span style={{ fontSize: 12, color: '#5f6368' }}>
-                                        {new Date(v).toLocaleString('ru-RU')}
-                                    </span>
+                                title: 'Обновлён',
+                                dataIndex: 'updatedAt',
+                                key: 'updatedAt',
+                                width: 150,
+                                render: (value: string | null | undefined) => (
+                                    <span style={{ fontSize: 11, color: '#5f6368' }}>{formatDate(value)}</span>
                                 ),
                             },
                             {
@@ -225,35 +278,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 key: 'actions',
                                 width: 250,
                                 align: 'right',
-                                render: (_: unknown, c: SavedCalculation) => (
-                                    <Flex justify="flex-end" gap={4}>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            onClick={() => setViewId(c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Открыть
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            onClick={() => openCalculationEditor(c.latestId ?? c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Редактировать
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            danger
-                                            onClick={() => handleDeleteCalculation(c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Удалить
-                                        </Button>
-                                    </Flex>
-                                ),
+                                render: (_: unknown, record: CalculationTreeRow) => actions(record),
                             },
                         ]}
                     />
@@ -265,8 +290,13 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 id={viewId}
                 onClose={() => setViewId(null)}
                 onEdit={openCalculationEditor}
-                onChanged={loadCalculations}
+                onChanged={() => {
+                    // Правка меняет дерево и закэшированные версии — сбрасываем кэш.
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
             />
         </div>
     );
 };
+

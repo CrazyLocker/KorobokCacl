@@ -2,9 +2,10 @@ package com.korobki.persistence.repository;
 
 import com.korobki.persistence.entity.Calculation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -46,4 +47,29 @@ public interface CalculationRepository extends JpaRepository<Calculation, UUID> 
             ORDER BY MAX(c.updatedAt) DESC
             """)
     List<CalculationChainSummary> findChainSummary();
+
+    /**
+     * Returns every live version of every calculation.
+     *
+     * <p>Used by the customer/order tree: the whole reference is small, and
+     * grouping in memory beats a query per order.
+     *
+     * @return live versions, most recently updated first
+     */
+    List<Calculation> findByDeletedAtIsNullOrderByUpdatedAtDesc();
+
+    /**
+     * Copies a renamed client into every stored calculation of that client.
+     *
+     * <p>Calculations keep a denormalized client name so a snapshot still shows
+     * who the deal was for; without this update a renamed client would keep the
+     * old name in the list and in the view.
+     *
+     * @param customerId client identifier
+     * @param name       new client name
+     * @return number of updated calculations
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Calculation c SET c.clientName = :name WHERE c.customerId = :customerId")
+    int renameCustomerCalculations(@Param("customerId") UUID customerId, @Param("name") String name);
 }
