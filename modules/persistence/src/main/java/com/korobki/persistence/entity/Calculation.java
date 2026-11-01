@@ -56,9 +56,23 @@ public class Calculation {
     @Column(name = "root_id")
     private UUID rootId;
 
-    /** Version number inside the chain, starting at 1. */
+    /**
+     * Version this one was branched from.
+     * Null for the first version of a chain: the tree is rooted at it.
+     */
+    @Column(name = "parent_id")
+    private UUID parentId;
+
+    /** Version number inside the branch, starting at 1 (parent + 1). */
     @Column(nullable = false)
     private Integer version = 1;
+
+    /**
+     * Soft-delete timestamp: the version is gone from the working tree but its
+     * history is kept for the agreement with the client.
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 
     /**
      * Calculation result computed when this version was saved (JSON snapshot).

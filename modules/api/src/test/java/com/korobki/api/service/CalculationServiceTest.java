@@ -7,11 +7,13 @@ import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.repository.CalculationChainSummary;
 import com.korobki.persistence.repository.CalculationRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -54,6 +56,20 @@ class CalculationServiceTest {
         when(calculatorService.calculate(any())).thenReturn(response);
     }
 
+    /** Версия дерева: id, дерево, номер, родитель. */
+    private Calculation version(UUID id, UUID rootId, int number, UUID parentId) {
+        Calculation calculation = new Calculation();
+        calculation.setId(id);
+        calculation.setRootId(rootId);
+        calculation.setVersion(number);
+        calculation.setParentId(parentId);
+        calculation.setName("Расчёт " + number);
+        calculation.setClientName("Клиент");
+        calculation.setManagerName("Менеджер");
+        calculation.setStatus("draft");
+        return calculation;
+    }
+
     @Test
     void save_persistsAllFields() {
         stubCalculator();
@@ -75,7 +91,7 @@ class CalculationServiceTest {
     }
 
     @Test
-    void save_opensVersionChainAndStoresResultSnapshot() {
+    void save_opensVersionTreeAndStoresResultSnapshot() {
         stubCalculator();
         when(repository.save(any())).thenAnswer(inv -> {
             Calculation c = inv.getArgument(0);
@@ -88,9 +104,10 @@ class CalculationServiceTest {
         CalculationDto dto = service.save(validRequest());
 
         assertEquals(1, dto.getVersion());
-        assertEquals(dto.getId(), dto.getRootId(), "первая версия открывает цепочку");
+        assertEquals(dto.getId(), dto.getRootId(), "первая версия открывает дерево");
 
         Calculation saved = captureSaved();
+        assertNull(saved.getParentId(), "у корня дерева нет родителя");
         assertNotNull(saved.getCalculationResult(), "снапшот результата обязателен");
         assertTrue(saved.getCalculationResult().containsKey("totalCost"));
     }
@@ -115,31 +132,43 @@ class CalculationServiceTest {
     }
 
     @Test
-    void list_returnsLatestVersionOfEveryChain() {
-        Calculation calculation = new Calculation();
-        calculation.setId(UUID.randomUUID());
-        calculation.setRootId(calculation.getId());
-        calculation.setVersion(2);
-        calculation.setName("Расчёт 2");
-        calculation.setClientName("Клиент");
-        calculation.setManagerName("Менеджер");
-        calculation.setStatus("draft");
-        when(repository.findAllHeads()).thenReturn(List.of(calculation));
+    void list_returnsOneRowPerTreeWithNewestTip() {
+        UUID rootId = UUID.randomUUID();
+        UUID tipId = UUID.randomUUID();
+        Calculation root = version(rootId, rootId, 1, null);
+        Calculation tip = version(tipId, rootId, 2, rootId);
+
+        CalculationChainSummary summary = mock(CalculationChainSummary.class);
+        when(summary.getRootId()).thenReturn(rootId);
+        when(summary.getVersion()).thenReturn(2);
+        when(summary.getVersionCount()).thenReturn(2L);
+        when(summary.getLastUpdated()).thenReturn(LocalDateTime.of(2026, 11, 1, 10, 0));
+
+        when(repository.findChainSummary()).thenReturn(List.of(summary));
+        when(repository.findAllById(List.of(rootId))).thenReturn(List.of(root));
+        when(repository.findByRootIdOrderByVersionAsc(rootId)).thenReturn(List.of(root, tip));
 
         List<CalculationDto> result = service.list();
 
         assertEquals(1, result.size());
-        assertEquals("Расчёт 2", result.get(0).getName());
+        assertEquals(rootId, result.get(0).getId(), "строка списка указывает на корень дерева");
         assertEquals(2, result.get(0).getVersion());
+        assertEquals(2L, result.get(0).getVersionCount());
+        assertEquals(tipId, result.get(0).getLatestId(), "редактировать продолжают самую свежую ветку");
+        assertEquals(LocalDateTime.of(2026, 11, 1, 10, 0), result.get(0).getUpdatedAt());
+    }
+
+    @Test
+    void list_withoutTree_returnsEmptyList() {
+        when(repository.findChainSummary()).thenReturn(List.of());
+
+        assertTrue(service.list().isEmpty());
+        verify(repository, never()).findAllById(any());
     }
 
     @Test
     void get_existingId_returnsDto() {
-        Calculation calculation = new Calculation();
-        calculation.setId(UUID.randomUUID());
-        calculation.setName("Расчёт 3");
-        calculation.setClientName("Клиент");
-        calculation.setManagerName("Менеджер");
+        Calculation calculation = version(UUID.randomUUID(), UUID.randomUUID(), 3, null);
         calculation.setStatus("ready");
         when(repository.findById(calculation.getId())).thenReturn(Optional.of(calculation));
 
@@ -149,25 +178,36 @@ class CalculationServiceTest {
     }
 
     @Test
-    void get_missingId_throws() {
+    void get_missingId_throwsNotFound() {
         UUID id = UUID.randomUUID();
         when(repository.findById(id)).thenReturn(Optional.empty());
 
-        assertThrows(IllegalArgumentException.class, () -> service.get(id));
+        assertThrows(NotFoundException.class, () -> service.get(id));
     }
 
     @Test
-    void delete_removesWholeChainThroughRoot() {
+    void delete_marksVersionAndItsSubtreeDeleted() {
         UUID rootId = UUID.randomUUID();
-        Calculation version = new Calculation();
-        version.setId(UUID.randomUUID());
-        version.setRootId(rootId);
-        version.setVersion(3);
-        when(repository.findById(version.getId())).thenReturn(Optional.of(version));
+        UUID secondId = UUID.randomUUID();
+        UUID thirdId = UUID.randomUUID();
+        UUID otherBranchId = UUID.randomUUID();
 
-        service.delete(version.getId());
+        Calculation root = version(rootId, rootId, 1, null);
+        Calculation second = version(secondId, rootId, 2, rootId);
+        Calculation third = version(thirdId, rootId, 3, secondId);
+        Calculation otherBranch = version(otherBranchId, rootId, 2, rootId);
 
-        verify(repository).deleteById(rootId);
+        when(repository.findById(secondId)).thenReturn(Optional.of(second));
+        when(repository.findByRootIdOrderByVersionAsc(rootId))
+                .thenReturn(List.of(root, second, otherBranch, third));
+
+        service.delete(secondId);
+
+        assertNotNull(second.getDeletedAt(), "удаляемая версия помечается удалённой");
+        assertNotNull(third.getDeletedAt(), "подветка удаляется вместе с родителем");
+        assertNull(root.getDeletedAt(), "корень остаётся живым");
+        assertNull(otherBranch.getDeletedAt(), "соседняя ветка не затронута");
+        verify(repository, never()).deleteById(any());
     }
 
     @Test
@@ -176,6 +216,5 @@ class CalculationServiceTest {
         when(repository.findById(id)).thenReturn(Optional.empty());
 
         assertThrows(NotFoundException.class, () -> service.delete(id));
-        verify(repository, never()).deleteById(any());
     }
 }

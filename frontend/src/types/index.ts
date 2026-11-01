@@ -142,10 +142,14 @@ export interface Operation {
 // Сохранённый расчёт коробки
 export interface SavedCalculation {
     id: string;
-    // Первая версия цепочки: у всех версий одного расчёта rootId одинаков.
+    // Первая версия дерева: у всех версий одного расчёта rootId одинаков.
     rootId?: string;
-    // Номер версии в цепочке, начиная с 1.
+    // Номер версии в ветке, начиная с 1.
     version?: number;
+    // Идентификатор самой свежей ветки: с неё продолжают работу из списка.
+    latestId?: string;
+    // Сколько живых версий в дереве.
+    versionCount?: number;
     name: string;
     clientName: string;
     managerName: string;
@@ -167,8 +171,12 @@ export interface CalculationSaveRequest {
 // пересчёта, который считает бэкенд из сохранённого state.
 export interface CalculationView {
     id: string;
-    // Номер версии в цепочке расчёта.
+    // Номер версии в ветке расчёта.
     version?: number;
+    // Версия, из которой сделана эта; null у корня дерева.
+    parentId?: string | null;
+    // Версия помечена удалённой, но осталась в истории.
+    deleted?: boolean;
     name: string;
     clientName: string;
     managerName: string;
@@ -182,19 +190,23 @@ export interface CalculationView {
     viewError?: string | null;
 }
 
-// Одна версия цепочки сохранённого расчёта (история правок).
+// Одна версия дерева сохранённого расчёта (история правок).
 export interface CalculationVersion {
     // Идентификатор версии: по нему открывается её состояние.
     id: string;
-    // Номер версии в цепочке, начиная с 1.
+    // Номер версии в ветке, начиная с 1 (родитель + 1).
     version: number;
+    // Версия, из которой сделана эта; null у корня дерева.
+    parentId: string | null;
+    // Версия помечена удалённой, но осталась в истории.
+    deleted: boolean;
     name: string;
     clientName: string;
     managerName: string;
     status: SavedCalculation['status'];
     // Себестоимость из снапшота версии; null у записей до появления снапшотов.
     totalCost: number | null;
-    // Признак последней версии цепочки.
+    // Признак конца ветки: у версии нет детей.
     latest: boolean;
     createdAt: string;
     updatedAt: string;

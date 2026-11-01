@@ -74,10 +74,14 @@ public class CalculationController {
     }
 
     /**
-     * Returns the whole version chain of a saved calculation, newest first.
+     * Returns the version tree of a saved calculation, parents before children.
      *
-     * @param id identifier of any version of the chain
-     * @return versions of the chain
+     * <p>The response is flat: every entry carries {@code parentId}, so the
+     * client can render the tree with its branches. Deleted versions stay in
+     * the response marked {@code deleted}.
+     *
+     * @param id identifier of any version of the tree
+     * @return versions of the tree
      */
     @GetMapping("/{id}/versions")
     public ResponseEntity<List<CalculationVersionDto>> versions(@PathVariable UUID id) {
@@ -97,9 +101,12 @@ public class CalculationController {
     }
 
     /**
-     * Deletes a saved calculation.
+     * Marks a version and its subtree as deleted.
      *
-     * @param id calculation identifier
+     * <p>Nothing is removed: the history is kept for the agreement with the
+     * client and the tree shows the version struck through.
+     *
+     * @param id version to delete together with its descendants
      * @return empty response
      */
     @DeleteMapping("/{id}")

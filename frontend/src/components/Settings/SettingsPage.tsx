@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import {
-    App as AntdApp, Button, Card, Flex, Spin, Table, Tabs, Tag, Typography, Upload,
+    App as AntdApp, Button, Card, Flex, Spin, Table, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
@@ -159,11 +159,12 @@ export const SettingsPage = ({ onNotify }: Props) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Удаление расчёта: подтверждение через modal.confirm (App.useApp)
+    // Удаление расчёта: подтверждение через modal.confirm (App.useApp).
+    // Версии не стираются — помечаются удалёнными, чтобы история осталась.
     const handleDeleteCalculation = (id: string) => {
         modal.confirm({
             title: 'Удаление расчёта',
-            content: 'Удалить расчёт?',
+            content: 'Пометить расчёт удалённым? Версии останутся в истории зачёркнутыми.',
             okText: 'Удалить',
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
@@ -171,7 +172,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                 try {
                     await calculatorApi.deleteCalculation(id);
                     setCalculations((prev) => prev.filter((c) => c.id !== id));
-                    onNotify('Расчёт удалён', 'success');
+                    onNotify('Расчёт помечен удалённым', 'success');
                 } catch (err: any) {
                     onNotify('Ошибка удаления: ' + err.message, 'error');
                 }
@@ -277,18 +278,27 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                     render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
                                 },
                                 {
-                                    // Номер последней версии: полная история — в «Виде расчёта».
+                                    // Последняя ветка дерева: полная история — в «Виде расчёта».
                                     title: 'Версия',
                                     dataIndex: 'version',
                                     key: 'version',
-                                    width: 90,
-                                    render: (version: number | undefined) => (
-                                        <Tag
-                                            color={version && version > 1 ? 'blue' : 'default'}
-                                            style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
-                                        >
-                                            v{version ?? 1}
-                                        </Tag>
+                                    width: 110,
+                                    render: (version: number | undefined, c: SavedCalculation) => (
+                                        <Flex gap={4} align="center">
+                                            <Tag
+                                                color={version && version > 1 ? 'blue' : 'default'}
+                                                style={{ fontSize: 11, height: 22, lineHeight: '20px', marginInlineEnd: 0 }}
+                                            >
+                                                v{version ?? 1}
+                                            </Tag>
+                                            {c.versionCount && c.versionCount > 1 && (
+                                                <Tooltip title={`Версий в дереве: ${c.versionCount}`}>
+                                                    <span style={{ fontSize: 11, color: '#5f6368' }}>
+                                                        · {c.versionCount}
+                                                    </span>
+                                                </Tooltip>
+                                            )}
+                                        </Flex>
                                     ),
                                 },
                                 {
@@ -334,7 +344,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                                             <Button
                                                 size="small"
                                                 type="text"
-                                                onClick={() => openCalculationEditor(c.id)}
+                                                onClick={() => openCalculationEditor(c.latestId ?? c.id)}
                                                 style={{ fontSize: 11 }}
                                             >
                                                 Редактировать
@@ -473,6 +483,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                 id={viewId}
                 onClose={() => setViewId(null)}
                 onEdit={openCalculationEditor}
+                onChanged={loadCalculations}
             />
         </div>
     );

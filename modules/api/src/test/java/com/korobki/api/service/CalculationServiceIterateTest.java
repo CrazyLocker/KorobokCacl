@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,9 +27,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Проверяет сохранение итерации: правка создаёт следующую версию цепочки,
- * метаданные наследуются от родителя, родительская строка не меняется,
- * а расчёт, который не считается, не сохраняется.
+ * Проверяет сохранение итерации: правка создаёт ребёнка той версии, из которой
+ * её открыли, поэтому дерево ветвится, а не вытягивается в одну линию.
+ * Метаданные наследуются от родителя, родительская строка не меняется, а
+ * расчёт, который не считается, не сохраняется.
  */
 class CalculationServiceIterateTest {
 
@@ -77,24 +79,35 @@ class CalculationServiceIterateTest {
     }
 
     @Test
-    void iterate_createsNextVersionOfSameChain() {
+    void iterate_createsChildOfEditedVersion() {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
-        when(repository.findTopByRootIdOrderByVersionDesc(parent.getRootId()))
-                .thenReturn(Optional.of(parent));
 
         CalculationDto dto = service.iterate(parent.getId(), editedRequest());
 
         assertEquals(2, dto.getVersion());
         assertEquals(parent.getRootId(), dto.getRootId());
+
+        Calculation saved = captureSaved();
+        assertEquals(parent.getId(), saved.getParentId(), "новая версия цепляется за редактируемую");
+    }
+
+    @Test
+    void iterate_fromOldVersion_branchesUnderItInsteadOfAppending() {
+        stubCalculatorAndSave();
+        Calculation third = parent(3);
+
+        CalculationDto dto = service.iterate(third.getId(), editedRequest());
+
+        assertEquals(4, dto.getVersion(), "номер равен глубине ветки: родитель + 1");
+        assertEquals(third.getId(), captureSaved().getParentId(),
+                "правка версии 3 из пяти даёт подветку версии 3, а не версию 6 в конце");
     }
 
     @Test
     void iterate_inheritsMetadataFromParent() {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
-        when(repository.findTopByRootIdOrderByVersionDesc(parent.getRootId()))
-                .thenReturn(Optional.of(parent));
 
         CalculationDto dto = service.iterate(parent.getId(), editedRequest());
 
@@ -105,34 +118,26 @@ class CalculationServiceIterateTest {
     }
 
     @Test
-    void iterate_usesHeadVersionWhenEditingAnOldVersion() {
-        stubCalculatorAndSave();
-        Calculation first = parent(1);
-        Calculation head = new Calculation();
-        head.setId(UUID.randomUUID());
-        head.setRootId(first.getRootId());
-        head.setVersion(4);
-        when(repository.findTopByRootIdOrderByVersionDesc(first.getRootId()))
-                .thenReturn(Optional.of(head));
+    void iterate_deletedVersion_isRejected() {
+        Calculation deleted = parent(2);
+        deleted.setDeletedAt(LocalDateTime.now());
 
-        CalculationDto dto = service.iterate(first.getId(), editedRequest());
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.iterate(deleted.getId(), editedRequest()));
 
-        assertEquals(5, dto.getVersion(), "номер берётся по голове цепочки, а не по родителю");
+        assertEquals("Версия помечена удалённой — её нельзя редактировать", ex.getMessage());
+        verify(repository, never()).save(any());
+        verify(calculatorService, never()).calculate(any());
     }
 
     @Test
     void iterate_storesRequestAndResultSnapshot() {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
-        when(repository.findTopByRootIdOrderByVersionDesc(parent.getRootId()))
-                .thenReturn(Optional.of(parent));
 
         service.iterate(parent.getId(), editedRequest());
 
-        ArgumentCaptor<Calculation> captor = ArgumentCaptor.forClass(Calculation.class);
-        verify(repository).save(captor.capture());
-        Calculation saved = captor.getValue();
-
+        Calculation saved = captureSaved();
         assertNotNull(saved.getCalculationState());
         assertEquals("Этне 2 (шубер)", saved.getCalculationState().get("construction"));
         assertNotNull(saved.getCalculationResult());
@@ -158,5 +163,11 @@ class CalculationServiceIterateTest {
 
         assertThrows(NotFoundException.class, () -> service.iterate(id, editedRequest()));
         verify(calculatorService, never()).calculate(any());
+    }
+
+    private Calculation captureSaved() {
+        ArgumentCaptor<Calculation> captor = ArgumentCaptor.forClass(Calculation.class);
+        verify(repository).save(captor.capture());
+        return captor.getValue();
     }
 }

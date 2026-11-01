@@ -19,8 +19,14 @@ public class CalculationVersionDto {
     /** Version identifier; the version is opened by this id. */
     private UUID id;
 
-    /** Version number inside the chain, starting at 1. */
+    /** Version number inside the branch, starting at 1. */
     private Integer version;
+
+    /** Version this one was branched from; null for the root of the tree. */
+    private UUID parentId;
+
+    /** True when the version is marked deleted but kept in the history. */
+    private boolean deleted;
 
     /** Calculation name at that version. */
     private String name;

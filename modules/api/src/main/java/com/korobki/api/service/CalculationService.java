@@ -9,6 +9,7 @@ import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.repository.CalculationChainSummary;
 import com.korobki.persistence.repository.CalculationRepository;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,17 +18,32 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Service for saving and retrieving calculations.
  *
- * <p>A saved calculation is a version chain: the first save opens the chain
- * ({@code rootId} = own id, {@code version} = 1) and every edit appends a new
- * row with the next version number. History is never overwritten, so an old
- * version can still be opened and recalculated.
+ * <p>A saved calculation is a version tree: the first save opens it
+ * ({@code rootId} = own id, {@code version} = 1, no parent) and every edit adds
+ * a child of the version being edited. The number of a version is the depth of
+ * its branch ({@code parent.version + 1}), so two branches grown from the same
+ * version both continue with the same number — the tree shows where each one
+ * came from.
+ *
+ * <p>Deletion is soft: a deleted version and its subtree are struck through in
+ * the history but stay in the database, because the agreement with the client
+ * may need the whole chain of changes.
  *
  * <p>The request snapshot is stored next to the result snapshot computed at
  * save time: the stored numbers are what the manager saw, while the snapshot
@@ -42,7 +58,7 @@ public class CalculationService {
     private final CalculatorService calculatorService;
 
     /**
-     * Saves a new calculation as the first version of a new chain.
+     * Saves a new calculation as the root of a new version tree.
      *
      * <p>The result is computed before the insert: a calculation the calculator
      * rejects is not stored at all, so the database never keeps a state that
@@ -63,7 +79,7 @@ public class CalculationService {
         calculation.setCalculationState(convertToMap(request.getCalculation()));
         calculation.setCalculationResult(convertToMap(result));
 
-        // root_id = собственный id: первая версия открывает цепочку.
+        // root_id = собственный id: первая версия открывает дерево.
         // Первичный ключ генерируется при вставке, поэтому поле проставляется
         // сразу после save(). Сущность управляемая — UPDATE уходит при коммите.
         Calculation saved = calculationRepository.save(calculation);
@@ -74,22 +90,26 @@ public class CalculationService {
     }
 
     /**
-     * Saves an edited calculation as the next version of its chain.
+     * Saves an edited calculation as a child of the version it was opened from.
      *
-     * <p>The metadata (name, client, manager, status) is inherited from the
-     * parent: an iteration changes the calculation itself, not its attribution.
-     * The parent version stays untouched.
+     * <p>Editing version 3 of 5 does not append version 6 at the end of the
+     * list: the new version becomes a branch under version 3, so the tree keeps
+     * the shape of the work. The metadata (name, client, manager, status) is
+     * inherited from the parent, and the parent version stays untouched.
      *
-     * @param id      identifier of any version of the chain
+     * @param id      identifier of the version being edited
      * @param request edited calculation request
      * @return the saved version
      * @throws NotFoundException        if the calculation does not exist
-     * @throws IllegalArgumentException if the calculator rejects the request
+     * @throws IllegalArgumentException if the version is deleted or the
+     *                                  calculator rejects the request
      */
     @Transactional
     public CalculationDto iterate(UUID id, CalculationRequest request) {
-        Calculation parent = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
+        Calculation parent = find(id);
+        if (parent.getDeletedAt() != null) {
+            throw new IllegalArgumentException("Версия помечена удалённой — её нельзя редактировать");
+        }
 
         // Пересчёт до вставки: расчёт, который не считается, не сохраняется.
         CalculationResponse result = calculateOrFail(request);
@@ -98,7 +118,8 @@ public class CalculationService {
         applyMetadata(next, parent.getName(), parent.getClientName(), parent.getManagerName());
         next.setStatus(parent.getStatus() != null ? parent.getStatus() : "draft");
         next.setRootId(rootIdOf(parent));
-        next.setVersion(nextVersion(parent));
+        next.setParentId(parent.getId());
+        next.setVersion(versionOf(parent) + 1);
         next.setCalculationState(convertToMap(request));
         next.setCalculationResult(convertToMap(result));
 
@@ -106,40 +127,62 @@ public class CalculationService {
     }
 
     /**
-     * Lists the latest version of every calculation, most recently updated first.
+     * Lists every live calculation once, most recently updated first.
+     *
+     * <p>The row points at the tree root, while {@code latestId} points at the
+     * newest tip: the list screen continues the main line of work, not the
+     * original version. A tree whose versions are all deleted disappears from
+     * the list but stays in the database.
      *
      * @return list of saved calculations
      */
+    @Transactional(readOnly = true)
     public List<CalculationDto> list() {
-        return calculationRepository.findAllHeads().stream()
-                .map(this::toDto)
-                .toList();
+        List<CalculationChainSummary> summary = calculationRepository.findChainSummary();
+        if (summary.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, Calculation> roots = new HashMap<>();
+        calculationRepository.findAllById(summary.stream().map(CalculationChainSummary::getRootId).toList())
+                .forEach(root -> roots.put(root.getId(), root));
+
+        List<CalculationDto> result = new ArrayList<>(summary.size());
+        for (CalculationChainSummary row : summary) {
+            Calculation root = roots.get(row.getRootId());
+            if (root == null) {
+                continue;
+            }
+            List<Calculation> chain = calculationRepository.findByRootIdOrderByVersionAsc(row.getRootId());
+            result.add(toListDto(root, row, latestIdOf(chain)));
+        }
+        return result;
     }
 
     /**
-     * Lists the versions of a calculation, newest first.
+     * Returns the version tree of a calculation as a flat list, oldest first.
      *
      * <p>The chain is resolved through the root id, so any version id can be
-     * passed: the UI opens the history from the row it already knows. The
-     * total cost comes from the stored result snapshot, hence versions saved
-     * before snapshots existed have {@code totalCost == null} and are shown
-     * without a price.
+     * passed: the UI opens the history from the row it already knows. The tree
+     * is rebuilt by the client from {@code parentId}. The total cost comes from
+     * the stored result snapshot, hence versions saved before snapshots
+     * existed have {@code totalCost == null} and are shown without a price.
      *
-     * @param id identifier of any version of the chain
-     * @return versions of the chain, newest first
+     * @param id identifier of any version of the tree
+     * @return versions of the tree, parents before children
      * @throws NotFoundException if the calculation does not exist
      */
     @Transactional(readOnly = true)
     public List<CalculationVersionDto> versions(UUID id) {
-        Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
-
+        Calculation calculation = find(id);
         List<Calculation> chain = calculationRepository
-                .findByRootIdOrderByVersionDesc(rootIdOf(calculation));
-        int latestVersion = chain.isEmpty() ? 0 : versionOf(chain.get(0));
+                .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
+
+        Set<UUID> parents = new HashSet<>();
+        chain.stream().map(Calculation::getParentId).filter(Objects::nonNull).forEach(parents::add);
 
         return chain.stream()
-                .map(version -> toVersionDto(version, versionOf(version) == latestVersion))
+                .map(version -> toVersionDto(version, !parents.contains(version.getId())))
                 .toList();
     }
 
@@ -148,12 +191,10 @@ public class CalculationService {
      *
      * @param id calculation identifier
      * @return the calculation
-     * @throws IllegalArgumentException if not found
+     * @throws NotFoundException if not found
      */
     public CalculationDto get(UUID id) {
-        Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Расчёт не найден: " + id));
-        return toDto(calculation);
+        return toDto(find(id));
     }
 
     /**
@@ -174,58 +215,50 @@ public class CalculationService {
      */
     @Transactional(readOnly = true)
     public CalculationViewDto view(UUID id) {
-        Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
+        Calculation calculation = find(id);
+        return toView(calculation);
+    }
 
-        CalculationViewDto view = new CalculationViewDto();
-        view.setId(calculation.getId());
-        view.setName(calculation.getName());
-        view.setClientName(calculation.getClientName());
-        view.setManagerName(calculation.getManagerName());
-        view.setStatus(calculation.getStatus());
-        view.setVersion(calculation.getVersion());
-        view.setCreatedAt(calculation.getCreatedAt());
-        view.setUpdatedAt(calculation.getUpdatedAt());
+    /**
+     * Marks a version and its whole subtree as deleted.
+     *
+     * <p>Nothing is removed from the database: the history of changes is kept
+     * for the agreement with the client, and the tree shows deleted versions
+     * struck through. Deleting the root hides the whole calculation from the
+     * list, deleting a branch leaves the rest of the tree alive.
+     *
+     * @param id version to delete together with its descendants
+     * @throws NotFoundException if the calculation does not exist
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Calculation calculation = find(id);
+        List<Calculation> chain = calculationRepository
+                .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
 
-        Map<String, Object> state = calculation.getCalculationState();
-        if (state == null || state.isEmpty()) {
-            view.setViewError("Сохранённый расчёт пуст: нет входных данных");
-            return view;
+        Map<UUID, List<Calculation>> childrenByParent = new HashMap<>();
+        for (Calculation version : chain) {
+            if (version.getParentId() != null) {
+                childrenByParent.computeIfAbsent(version.getParentId(), key -> new ArrayList<>()).add(version);
+            }
         }
 
-        CalculationRequest request;
-        try {
-            request = objectMapper.convertValue(state, CalculationRequest.class);
-        } catch (IllegalArgumentException ex) {
-            view.setViewError("Не удалось разобрать сохранённый расчёт: " + describe(ex));
-            return view;
-        }
-        if (request == null) {
-            view.setViewError("Не удалось разобрать сохранённый расчёт: пустой запрос");
-            return view;
-        }
-        normalizeModeFlags(request);
-        view.setRequest(request);
-
-        String incomplete = findIncomplete(request);
-        if (incomplete != null) {
-            view.setViewError("Не удалось пересчитать: " + incomplete);
-            return view;
+        Set<UUID> subtree = new HashSet<>();
+        Deque<UUID> pending = new ArrayDeque<>();
+        pending.add(id);
+        while (!pending.isEmpty()) {
+            UUID current = pending.poll();
+            if (!subtree.add(current)) {
+                continue;
+            }
+            childrenByParent.getOrDefault(current, List.of())
+                    .forEach(child -> pending.add(child.getId()));
         }
 
-        CalculationResponse snapshot = readSnapshot(calculation.getCalculationResult());
-        if (snapshot != null) {
-            view.setResult(snapshot);
-            return view;
-        }
-
-        try {
-            view.setResult(calculatorService.calculate(request));
-        } catch (RuntimeException ex) {
-            view.setResult(null);
-            view.setViewError("Не удалось пересчитать: " + describe(ex));
-        }
-        return view;
+        LocalDateTime now = LocalDateTime.now();
+        chain.stream()
+                .filter(version -> subtree.contains(version.getId()) && version.getDeletedAt() == null)
+                .forEach(version -> version.setDeletedAt(now));
     }
 
     /**
@@ -309,6 +342,18 @@ public class CalculationService {
     }
 
     /**
+     * Loads a version or fails with the REST error the controller maps to 404.
+     *
+     * @param id calculation identifier
+     * @return the stored version
+     * @throws NotFoundException if the calculation does not exist
+     */
+    private Calculation find(UUID id) {
+        return calculationRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
+    }
+
+    /**
      * Copies the attribution fields into an entity.
      *
      * @param calculation entity to fill
@@ -323,9 +368,9 @@ public class CalculationService {
     }
 
     /**
-     * Returns the chain identifier of a version.
+     * Returns the tree identifier of a version.
      *
-     * @param calculation any version of the chain
+     * @param calculation any version of the tree
      * @return root identifier; the own id for rows saved before versioning
      */
     private UUID rootIdOf(Calculation calculation) {
@@ -333,21 +378,30 @@ public class CalculationService {
     }
 
     /**
-     * Returns the number of the next version of a chain.
+     * Finds the newest tip of a live tree.
      *
-     * <p>The latest version is looked up in the database rather than taken from
-     * the parent, because an older version can be edited too.
+     * <p>A tree may have several tips after branching, so the list row points
+     * at the tip that changed last — that is the line the manager was working
+     * on.
      *
-     * @param parent version the iteration starts from
-     * @return next free version number
+     * @param chain versions of one tree, oldest first
+     * @return identifier of the newest live tip, or null when everything is
+     *         deleted
      */
-    private int nextVersion(Calculation parent) {
-        int parentVersion = parent.getVersion() != null ? parent.getVersion() : 1;
-        int headVersion = calculationRepository
-                .findTopByRootIdOrderByVersionDesc(rootIdOf(parent))
-                .map(head -> head.getVersion() != null ? head.getVersion() : 1)
-                .orElse(parentVersion);
-        return Math.max(headVersion, parentVersion) + 1;
+    private UUID latestIdOf(List<Calculation> chain) {
+        Set<UUID> parentsOfLive = new HashSet<>();
+        for (Calculation version : chain) {
+            if (version.getDeletedAt() == null && version.getParentId() != null) {
+                parentsOfLive.add(version.getParentId());
+            }
+        }
+        return chain.stream()
+                .filter(version -> version.getDeletedAt() == null)
+                .filter(version -> !parentsOfLive.contains(version.getId()))
+                .max(Comparator.comparing(Calculation::getUpdatedAt,
+                        Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(Calculation::getId)
+                .orElse(null);
     }
 
     /**
@@ -359,22 +413,6 @@ public class CalculationService {
     private String describe(RuntimeException ex) {
         String message = ex.getMessage();
         return message == null || message.isBlank() ? ex.getClass().getSimpleName() : message;
-    }
-
-    /**
-     * Deletes a calculation with its whole version chain.
-     *
-     * <p>Only the first version is deleted: the foreign key cascades to every
-     * later version, so history never outlives the calculation it belongs to.
-     *
-     * @param id identifier of any version of the chain
-     * @throws NotFoundException if the calculation does not exist
-     */
-    @Transactional
-    public void delete(UUID id) {
-        Calculation calculation = calculationRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Расчёт не найден: " + id));
-        calculationRepository.deleteById(rootIdOf(calculation));
     }
 
     /**
@@ -391,13 +429,15 @@ public class CalculationService {
      * Maps a calculation entity to a history entry.
      *
      * @param calculation version to map
-     * @param latest      whether this version is the head of the chain
+     * @param latest      whether the version is a tip of the tree
      * @return version DTO
      */
     private CalculationVersionDto toVersionDto(Calculation calculation, boolean latest) {
         CalculationVersionDto dto = new CalculationVersionDto();
         dto.setId(calculation.getId());
         dto.setVersion(versionOf(calculation));
+        dto.setParentId(calculation.getParentId());
+        dto.setDeleted(calculation.getDeletedAt() != null);
         dto.setName(calculation.getName());
         dto.setClientName(calculation.getClientName());
         dto.setManagerName(calculation.getManagerName());
@@ -448,6 +488,83 @@ public class CalculationService {
     }
 
     /**
+     * Builds the view of a stored version.
+     *
+     * @param calculation stored version
+     * @return read-only view; {@code viewError} explains what cannot be shown
+     */
+    private CalculationViewDto toView(Calculation calculation) {
+        CalculationViewDto view = new CalculationViewDto();
+        view.setId(calculation.getId());
+        view.setName(calculation.getName());
+        view.setClientName(calculation.getClientName());
+        view.setManagerName(calculation.getManagerName());
+        view.setStatus(calculation.getStatus());
+        view.setVersion(calculation.getVersion());
+        view.setParentId(calculation.getParentId());
+        view.setDeleted(calculation.getDeletedAt() != null);
+        view.setCreatedAt(calculation.getCreatedAt());
+        view.setUpdatedAt(calculation.getUpdatedAt());
+
+        Map<String, Object> state = calculation.getCalculationState();
+        if (state == null || state.isEmpty()) {
+            view.setViewError("Сохранённый расчёт пуст: нет входных данных");
+            return view;
+        }
+
+        CalculationRequest request;
+        try {
+            request = objectMapper.convertValue(state, CalculationRequest.class);
+        } catch (IllegalArgumentException ex) {
+            view.setViewError("Не удалось разобрать сохранённый расчёт: " + describe(ex));
+            return view;
+        }
+        if (request == null) {
+            view.setViewError("Не удалось разобрать сохранённый расчёт: пустой запрос");
+            return view;
+        }
+        normalizeModeFlags(request);
+        view.setRequest(request);
+
+        String incomplete = findIncomplete(request);
+        if (incomplete != null) {
+            view.setViewError("Не удалось пересчитать: " + incomplete);
+            return view;
+        }
+
+        CalculationResponse snapshot = readSnapshot(calculation.getCalculationResult());
+        if (snapshot != null) {
+            view.setResult(snapshot);
+            return view;
+        }
+
+        try {
+            view.setResult(calculatorService.calculate(request));
+        } catch (RuntimeException ex) {
+            view.setResult(null);
+            view.setViewError("Не удалось пересчитать: " + describe(ex));
+        }
+        return view;
+    }
+
+    /**
+     * Maps the tree root and its statistics to a list row.
+     *
+     * @param root     root version of the tree
+     * @param summary  aggregated numbers of the tree
+     * @param latestId newest tip of the tree
+     * @return calculation DTO
+     */
+    private CalculationDto toListDto(Calculation root, CalculationChainSummary summary, UUID latestId) {
+        CalculationDto dto = toDto(root);
+        dto.setVersion(summary.getVersion());
+        dto.setVersionCount(summary.getVersionCount());
+        dto.setLatestId(latestId);
+        dto.setUpdatedAt(summary.getLastUpdated());
+        return dto;
+    }
+
+    /**
      * Maps a calculation entity to its DTO.
      *
      * @param calculation entity to map
@@ -457,7 +574,8 @@ public class CalculationService {
         CalculationDto dto = new CalculationDto();
         dto.setId(calculation.getId());
         dto.setRootId(calculation.getRootId());
-        dto.setVersion(calculation.getVersion());
+        dto.setVersion(versionOf(calculation));
+        dto.setParentId(calculation.getParentId());
         dto.setName(calculation.getName());
         dto.setClientName(calculation.getClientName());
         dto.setManagerName(calculation.getManagerName());

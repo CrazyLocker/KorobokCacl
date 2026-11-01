@@ -4,8 +4,8 @@ import com.korobki.persistence.entity.Calculation;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -14,34 +14,36 @@ import java.util.UUID;
 public interface CalculationRepository extends JpaRepository<Calculation, UUID> {
 
     /**
-     * Returns one row per version chain: the latest version of each root.
+     * Returns the whole version tree of a calculation, oldest branch first.
      *
-     * <p>The list screen shows calculations, not their history, so older
-     * versions of an edited calculation stay in the database but are not listed.
+     * <p>The chain is resolved through the root id, so any version id can be
+     * passed. The service rebuilds the tree from {@code parentId}: versions are
+     * branches, not a single line.
      *
-     * @return latest version of every chain, most recently updated first
+     * @param rootId identifier of the first version
+     * @return every version of the calculation, oldest first
+     */
+    List<Calculation> findByRootIdOrderByVersionAsc(UUID rootId);
+
+    /**
+     * Returns one summary row per live calculation.
+     *
+     * <p>The list screen shows calculations, not their history, and a tree may
+     * have several tips, so the row carries the deepest version number and the
+     * number of versions instead of pointing at a single "head".
+     *
+     * @return live calculations with their tree statistics, most recently
+     *         updated first
      */
     @Query("""
-            SELECT c FROM Calculation c
-            WHERE c.version = (
-                SELECT MAX(c2.version) FROM Calculation c2 WHERE c2.rootId = c.rootId)
-            ORDER BY c.updatedAt DESC
+            SELECT c.rootId AS rootId,
+                   MAX(c.version) AS version,
+                   COUNT(c) AS versionCount,
+                   MAX(c.updatedAt) AS lastUpdated
+            FROM Calculation c
+            WHERE c.deletedAt IS NULL
+            GROUP BY c.rootId
+            ORDER BY MAX(c.updatedAt) DESC
             """)
-    List<Calculation> findAllHeads();
-
-    /**
-     * Returns every version of a chain, newest first.
-     *
-     * @param rootId identifier of the first version
-     * @return versions of the chain, newest first
-     */
-    List<Calculation> findByRootIdOrderByVersionDesc(UUID rootId);
-
-    /**
-     * Returns the latest version of a chain.
-     *
-     * @param rootId identifier of the first version
-     * @return latest version, if the chain exists
-     */
-    Optional<Calculation> findTopByRootIdOrderByVersionDesc(UUID rootId);
+    List<CalculationChainSummary> findChainSummary();
 }
