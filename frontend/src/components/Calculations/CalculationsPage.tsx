@@ -111,8 +111,49 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         });
     };
 
-    const titleCell = (record: CalculationTreeRow) => {
-        const version = record.version;
+    // Перечитать загруженные деревья версий: после полного удаления ветки
+    // кэш содержит исчезнувшие строки, а у удалённого целиком расчёта
+    // сервер ответит 404 — такой список просто выкидываем.
+    const refreshVersions = () => {
+        Object.keys(versionsByCalculation).forEach((calculationId) => {
+            calculatorApi.getCalculationVersions(calculationId)
+                .then((versions) => setVersionsByCalculation((previous) => ({
+                    ...previous,
+                    [calculationId]: versions,
+                })))
+                .catch(() => setVersionsByCalculation((previous) => {
+                    const next = { ...previous };
+                    delete next[calculationId];
+                    return next;
+                }));
+        });
+        loadTree();
+    };
+
+    // Полное удаление ветки: версия и все её подветки стираются из базы.
+    // Это необратимо, поэтому подтверждение отдельное и с явным текстом.
+    const handlePurgeVersion = (version: CalculationVersion) => {
+        modal.confirm({
+            title: `Полное удаление ветки v${version.version}`,
+            content: 'Версия и все её подветки будут удалены из базы без возможности '
+                + 'восстановления. Ветку, из которой вырос заказ, удалить нельзя — '
+                + 'сначала удалите заказ.',
+            okText: 'Удалить навсегда',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.purgeCalculation(version.id);
+                    onNotify(`Ветка v${version.version} удалена полностью`, 'success');
+                    refreshVersions();
+                } catch (err) {
+                    onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
+                }
+            },
+        });
+    };
+
+    const titleCell = (record: CalculationTreeRow) => {        const version = record.version;
         const struck = record.kind === 'version' && version?.deleted === true;
 
         return (
@@ -172,6 +213,15 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         style={{ fontSize: 11 }}
                     >
                         Заказ
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={() => handlePurgeVersion(record.version!)}
+                        style={{ fontSize: 11 }}
+                    >
+                        Удалить навсегда
                     </Button>
                 </Flex>
             );

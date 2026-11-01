@@ -420,7 +420,60 @@ public class CalculationService {
         Calculation calculation = find(id);
         List<Calculation> chain = calculationRepository
                 .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
+        Set<UUID> subtree = subtreeOf(chain, id);
 
+        LocalDateTime now = LocalDateTime.now();
+        chain.stream()
+                .filter(version -> subtree.contains(version.getId()) && version.getDeletedAt() == null)
+                .forEach(version -> version.setDeletedAt(now));
+    }
+
+    /**
+     * Removes a version and its whole subtree from the database for good.
+     *
+     * <p>Soft delete keeps the history for the agreement with the client, so
+     * this is the explicit "erase" action for branches that were created by
+     * mistake: the rows are gone, the tree shrinks, and no trace stays in the
+     * version history.
+     *
+     * <p>Orders are business documents and survive their calculation, so a
+     * branch that an order grew from is not erased: the request is rejected
+     * with the numbers of the orders, they have to be dealt with first.
+     * Children are removed by the foreign key cascade of {@code parent_id}.
+     *
+     * @param id version to erase together with its descendants
+     * @throws NotFoundException        if the calculation does not exist
+     * @throws IllegalArgumentException if an order grew from the subtree
+     */
+    @Transactional
+    public void purge(UUID id) {
+        Calculation calculation = find(id);
+        List<Calculation> chain = calculationRepository
+                .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
+        Set<UUID> subtree = subtreeOf(chain, id);
+
+        List<CalculationOrder> orders = orderRepository.findBySourceCalculationIdIn(subtree);
+        if (!orders.isEmpty()) {
+            String numbers = orders.stream()
+                    .map(CalculationOrder::getNumber)
+                    .sorted()
+                    .collect(Collectors.joining(", "));
+            throw new IllegalArgumentException(
+                    "Ветку нельзя удалить полностью: из неё создан заказ " + numbers
+                            + ". Сначала удалите заказ или оставьте ветку в истории");
+        }
+
+        calculationRepository.deleteById(id);
+    }
+
+    /**
+     * Collects a version and all its descendants inside one tree.
+     *
+     * @param chain all versions of the tree, ordered by version
+     * @param id    version to start from
+     * @return identifiers of the version and everything below it
+     */
+    private Set<UUID> subtreeOf(List<Calculation> chain, UUID id) {
         Map<UUID, List<Calculation>> childrenByParent = new HashMap<>();
         for (Calculation version : chain) {
             if (version.getParentId() != null) {
@@ -439,11 +492,7 @@ public class CalculationService {
             childrenByParent.getOrDefault(current, List.of())
                     .forEach(child -> pending.add(child.getId()));
         }
-
-        LocalDateTime now = LocalDateTime.now();
-        chain.stream()
-                .filter(version -> subtree.contains(version.getId()) && version.getDeletedAt() == null)
-                .forEach(version -> version.setDeletedAt(now));
+        return subtree;
     }
 
     /**

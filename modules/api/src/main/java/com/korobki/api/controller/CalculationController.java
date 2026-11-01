@@ -132,4 +132,21 @@ public class CalculationController {
         calculationService.delete(id);
         return ResponseEntity.ok().build();
     }
+
+    /**
+     * Erases a version and its subtree from the database.
+     *
+     * <p>This is the explicit "remove for good" action for branches that were
+     * created by mistake: unlike {@link #delete(UUID)} nothing stays in the
+     * history. A branch an order grew from is protected — the request fails
+     * with the numbers of those orders.
+     *
+     * @param id version to erase together with its descendants
+     * @return empty response
+     */
+    @DeleteMapping("/{id}/purge")
+    public ResponseEntity<Void> purge(@PathVariable UUID id) {
+        calculationService.purge(id);
+        return ResponseEntity.ok().build();
+    }
 }

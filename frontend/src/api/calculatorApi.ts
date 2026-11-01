@@ -145,6 +145,10 @@ export const calculatorApi = {
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),
 
+    // Полное удаление ветки: строки исчезают из базы, история их не хранит.
+    purgeCalculation: (id: string): Promise<void> =>
+        axios.delete(`${API_BASE}/calculations/${id}/purge`).then(() => {}),
+
     // === Сохранённые ножи ===
     saveKnife: (data: KnifeSaveRequest): Promise<SavedKnife> =>
         axios.post(`${API_BASE}/knife/save`, data).then((res) => res.data),
