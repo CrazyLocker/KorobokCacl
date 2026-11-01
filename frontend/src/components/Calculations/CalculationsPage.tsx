@@ -131,6 +131,11 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         v{record.calculation.version}
                     </Tag>
                 )}
+                {record.kind === 'calculation' && record.calculation?.orderSinceVersion != null && (
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        в заказе с v{record.calculation.orderSinceVersion}
+                    </Typography.Text>
+                )}
                 {record.kind === 'version' && version && !version.deleted
                     && version.latest && (
                     <Tag color="blue" style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>

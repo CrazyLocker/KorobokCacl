@@ -29,8 +29,24 @@ const formatDate = (value: string): string => {
     return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('ru-RU');
 };
 
-/** Заголовок узла: номер, время правки, менеджер, себестоимость. */
-const versionTitle = (node: VersionNode): ReactNode => (
+/**
+ * Метка о заказе рядом с версией, которая его изменила: «в заказе № …» —
+ * версия завела расчёт в заказ, «без заказа» — вывела из него.
+ */
+const orderTag = (node: VersionNode, parentOrderId: string | null): ReactNode => {
+    if (node.orderId === parentOrderId) return null;
+    if (!node.orderId) {
+        return <Tag style={{ marginInlineEnd: 0 }}>без заказа</Tag>;
+    }
+    return (
+        <Tag color="blue" style={{ marginInlineEnd: 0 }}>
+            {node.orderNumber ? `в заказе № ${node.orderNumber}` : 'в заказе'}
+        </Tag>
+    );
+};
+
+/** Заголовок узла: номер, время правки, менеджер, себестоимость, заказ. */
+const versionTitle = (node: VersionNode, parentOrderId: string | null): ReactNode => (
     <Flex
         gap={10}
         align="center"
@@ -43,6 +59,7 @@ const versionTitle = (node: VersionNode): ReactNode => (
         <span style={MUTED}>{formatDate(node.updatedAt)}</span>
         <span>{node.managerName || '—'}</span>
         <span style={{ minWidth: 96, textAlign: 'right' }}>{money(node.totalCost)}</span>
+        {orderTag(node, parentOrderId)}
         {node.deleted && <Tag color="red" style={{ marginInlineEnd: 0 }}>удалена</Tag>}
         {!node.deleted && node.children.length === 0 && (
             <Tag color="green" style={{ marginInlineEnd: 0 }}>конец ветки</Tag>
@@ -50,10 +67,10 @@ const versionTitle = (node: VersionNode): ReactNode => (
     </Flex>
 );
 
-const toTreeNode = (node: VersionNode): DataNode => ({
+const toTreeNode = (node: VersionNode, parentOrderId: string | null): DataNode => ({
     key: node.id,
-    title: versionTitle(node),
-    children: node.children.map(toTreeNode),
+    title: versionTitle(node, parentOrderId),
+    children: node.children.map((child) => toTreeNode(child, node.orderId ?? null)),
 });
 
 /**
@@ -73,7 +90,10 @@ export const VersionTree = ({ versions, selectedId, onSelect }: Props) => {
         });
     }, [versions]);
 
-    const treeData = useMemo(() => buildVersionTree(versions).map(toTreeNode), [versions]);
+    const treeData = useMemo(
+        () => buildVersionTree(versions).map((node) => toTreeNode(node, null)),
+        [versions],
+    );
 
     return (
         <Tree

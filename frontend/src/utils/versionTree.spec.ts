@@ -17,6 +17,8 @@ const version = (patch: Partial<CalculationVersion> = {}): CalculationVersion =>
         status: 'draft',
         totalCost: 100,
         latest: true,
+        orderId: null,
+        orderNumber: null,
         createdAt: `2026-10-0${Math.min(seq, 9)}T10:00:0${seq % 10}Z`,
         updatedAt: `2026-10-0${Math.min(seq, 9)}T10:00:0${seq % 10}Z`,
         ...patch,

@@ -34,6 +34,12 @@ public class CalculationTreeDto {
     /** Number of live versions in the tree. */
     private Long versionCount;
 
+    /**
+     * Version the calculation entered its current order with; null when it has
+     * no order yet. Shown as «в заказе с vN» in the tree.
+     */
+    private Integer orderSinceVersion;
+
     /** Cost of the newest version; null when it has no stored snapshot. */
     private BigDecimal totalCost;
 

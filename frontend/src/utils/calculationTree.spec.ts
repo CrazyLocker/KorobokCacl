@@ -51,6 +51,8 @@ const version = (id: string, number: number): CalculationVersion => ({
     status: 'draft',
     totalCost: 50,
     latest: true,
+    orderId: 'order-1',
+    orderNumber: '2026-001',
     createdAt: '2026-11-01T10:00:00Z',
     updatedAt: '2026-11-01T10:00:00Z',
 });

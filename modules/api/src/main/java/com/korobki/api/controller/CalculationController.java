@@ -40,17 +40,24 @@ public class CalculationController {
      * Saves an edited calculation as the next version of its chain.
      *
      * <p>Metadata (name, client, manager) is inherited from the parent version,
-     * so the body carries only the calculation itself.
+     * so the body carries only the calculation itself. The order, however, is a
+     * decision of the moment: {@code orderId} moves the new version into
+     * another order, {@code detachOrder} takes it out of any order, and with
+     * neither the parent order is inherited.
      *
-     * @param id      identifier of the version being edited
-     * @param request edited calculation request
+     * @param id          identifier of the version being edited
+     * @param request     edited calculation request
+     * @param orderId     order to move the new version into, may be null
+     * @param detachOrder true to leave the version without an order
      * @return the saved version
      */
     @PostMapping("/{id}/iterate")
     public ResponseEntity<CalculationDto> iterate(
             @PathVariable UUID id,
-            @Valid @RequestBody CalculationRequest request) {
-        return ResponseEntity.ok(calculationService.iterate(id, request));
+            @Valid @RequestBody CalculationRequest request,
+            @RequestParam(required = false) UUID orderId,
+            @RequestParam(defaultValue = "false") boolean detachOrder) {
+        return ResponseEntity.ok(calculationService.iterate(id, request, orderId, detachOrder));
     }
 
     /**

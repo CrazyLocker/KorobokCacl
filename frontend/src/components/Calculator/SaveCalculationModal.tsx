@@ -62,6 +62,7 @@ export const SaveCalculationModal = ({
     const [orderDraft, setOrderDraft] = useState('');
     const [creatingOrder, setCreatingOrder] = useState(false);
     const clientName = Form.useWatch('clientName', form) ?? '';
+    const selectedOrderId = Form.useWatch('orderId', form) ?? null;
 
     useEffect(() => {
         if (!open) return;
@@ -83,22 +84,33 @@ export const SaveCalculationModal = ({
         .filter((customer) => customer.active)
         .map((customer) => ({ value: customer.name }));
 
+    /**
+     * Клиент, чьи заказы предлагаются. При правке сохранённого расчёта клиент
+     * уже известен по customerId — даже если его имя ещё не подгрузилось.
+     */
+    const activeCustomerId = matchedCustomer?.id ?? restored?.customerId ?? null;
+
     const orderOptions = orders
-        .filter((order) => matchedCustomer && order.customerId === matchedCustomer.id)
+        .filter((order) => activeCustomerId && order.customerId === activeCustomerId)
         .map((order) => ({
             value: order.id,
             label: `№ ${order.number} · ${new Date(order.orderDate).toLocaleDateString('ru-RU')}`,
         }));
 
+    /** Заказ, в котором расчёт числится сейчас (у редактируемой версии). */
+    const currentOrderNumber = restored?.orderId
+        ? orders.find((order) => order.id === restored.orderId)?.number ?? null
+        : null;
+
     const createOrder = async () => {
-        if (!matchedCustomer) {
+        if (!activeCustomerId) {
             onNotify('Сначала укажите клиента из справочника', 'error');
             return;
         }
         setCreatingOrder(true);
         try {
             const created = await calculatorApi.createOrder({
-                customerId: matchedCustomer.id,
+                customerId: activeCustomerId,
                 number: orderDraft.trim() || null,
             });
             setOrders((previous) => [created, ...previous]);
@@ -151,9 +163,19 @@ export const SaveCalculationModal = ({
     const handleSaveVersion = async () => {
         if (!restored) return;
 
+        // Перенос в заказ — событие версии: старые версии остаются как были,
+        // новая фиксирует, что работа продолжилась уже в другом заказе.
+        const chosenOrderId = selectedOrderId ?? null;
+        const order =
+            chosenOrderId === (restored.orderId ?? null)
+                ? {}
+                : chosenOrderId
+                    ? { orderId: chosenOrderId }
+                    : { detachOrder: true };
+
         setSaving(true);
         try {
-            const saved = await calculatorApi.iterateCalculation(restored.id, toRequest());
+            const saved = await calculatorApi.iterateCalculation(restored.id, toRequest(), order);
             onNotify(
                 saved.version ? `Сохранена версия ${saved.version}` : 'Сохранена новая версия',
                 'success',
@@ -208,7 +230,8 @@ export const SaveCalculationModal = ({
                     style={{ marginBottom: 16 }}
                     message="Расчёт открыт на правку"
                     description={'Название, клиент и менеджер наследуются от версии, которую редактируете. '
-                        + 'Изменённые значения применяются только при сохранении как нового расчёта.'}
+                        + 'Заказ можно сменить — это создаст новую версию. '
+                        + 'Остальные изменённые значения применяются только при сохранении как нового расчёта.'}
                 />
             )}
             <Form<SaveFormValues>
@@ -244,16 +267,21 @@ export const SaveCalculationModal = ({
                 <Form.Item
                     label="Заказ"
                     name="orderId"
-                    tooltip={matchedCustomer
+                    extra={restored
+                        ? (currentOrderNumber
+                            ? `Сейчас расчёт в заказе № ${currentOrderNumber}. Перенос создаст новую версию — старые останутся без изменений.`
+                            : 'Сейчас расчёт без заказа. Выбор заказа создаст новую версию — в истории будет видно, с какой версии он в заказе.')
+                        : undefined}
+                    tooltip={activeCustomerId
                         ? 'Заказы выбранного клиента'
                         : 'Сначала укажите клиента из справочника, чтобы выбрать его заказ'}
                 >
                     <Select
                         allowClear
-                        placeholder={matchedCustomer ? 'Без заказа' : 'Сначала укажите клиента'}
-                        disabled={!matchedCustomer}
+                        placeholder={activeCustomerId ? 'Без заказа' : 'Сначала укажите клиента'}
+                        disabled={!activeCustomerId}
                         options={orderOptions}
-                        notFoundContent={matchedCustomer ? 'У клиента пока нет заказов' : null}
+                        notFoundContent={activeCustomerId ? 'У клиента пока нет заказов' : null}
                         popupRender={(menu) => (
                             <>
                                 {menu}
@@ -269,7 +297,7 @@ export const SaveCalculationModal = ({
                                         type="primary"
                                         icon={<PlusOutlined />}
                                         loading={creatingOrder}
-                                        disabled={!matchedCustomer}
+                                        disabled={!activeCustomerId}
                                         onClick={() => void createOrder()}
                                     >
                                         Создать

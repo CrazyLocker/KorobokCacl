@@ -234,6 +234,9 @@ export interface CalculationTree {
     versionCount: number;
     totalCost: number | null;
     updatedAt: string;
+    // Версия, с которой расчёт числится в текущем заказе (перенос в заказ тоже
+    // создаёт версию); null — расчёт без заказа.
+    orderSinceVersion?: number | null;
 }
 
 // Узел заказа в дереве расчётов
@@ -296,6 +299,10 @@ export interface CalculationVersion {
     totalCost: number | null;
     // Признак конца ветки: у версии нет детей.
     latest: boolean;
+    // Заказ, в котором числится версия; null — расчёт без заказа.
+    orderId: string | null;
+    // Номер заказа для показа в истории; null, если заказа нет.
+    orderNumber: string | null;
     createdAt: string;
     updatedAt: string;
 }

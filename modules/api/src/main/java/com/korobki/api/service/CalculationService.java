@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 
@@ -119,7 +120,7 @@ public class CalculationService {
      *                                  calculator rejects the request
      */
     @Transactional
-    public CalculationDto iterate(UUID id, CalculationRequest request) {
+    public CalculationDto iterate(UUID id, CalculationRequest request, UUID orderId, boolean detachOrder) {
         Calculation parent = find(id);
         if (parent.getDeletedAt() != null) {
             throw new IllegalArgumentException("Версия помечена удалённой — её нельзя редактировать");
@@ -139,7 +140,43 @@ public class CalculationService {
         next.setCalculationState(convertToMap(request));
         next.setCalculationResult(convertToMap(result));
 
+        // Перенос в заказ — событие версии: старые версии остаются без заказа,
+        // новая фиксирует, что работа продолжилась уже в заказе.
+        applyOrderTarget(next, parent, orderId, detachOrder);
+
         return toDto(calculationRepository.save(next));
+    }
+
+    /**
+     * Moves the new version into another order (or out of any order).
+     *
+     * <p>The order is stored per version, so a transfer is visible in the
+     * history: version 3 is «without order», version 4 is «in order 2026-001».
+     *
+     * @param next        version being created
+     * @param parent      version it branches from
+     * @param orderId     target order, or null to keep the parent order
+     * @param detachOrder true to explicitly clear the order
+     * @throws NotFoundException        when the order does not exist
+     * @throws IllegalArgumentException when the order belongs to another client
+     */
+    private void applyOrderTarget(Calculation next, Calculation parent, UUID orderId, boolean detachOrder) {
+        if (detachOrder) {
+            next.setOrderId(null);
+            return;
+        }
+        if (orderId == null || orderId.equals(parent.getOrderId())) {
+            return;
+        }
+        Customer customer = parent.getCustomerId() == null
+                ? null
+                : customerRepository.findById(parent.getCustomerId()).orElse(null);
+        if (customer == null) {
+            throw new IllegalArgumentException("У расчёта не указан клиент — сначала выберите клиента");
+        }
+        CalculationOrder order = resolveOrder(orderId, customer);
+        next.setOrderId(order != null ? order.getId() : null);
+        next.setCustomerId(customer.getId());
     }
 
     /**
@@ -193,13 +230,36 @@ public class CalculationService {
         Calculation calculation = find(id);
         List<Calculation> chain = calculationRepository
                 .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
+        Map<UUID, CalculationOrder> orders = ordersOf(chain);
 
         Set<UUID> parents = new HashSet<>();
         chain.stream().map(Calculation::getParentId).filter(Objects::nonNull).forEach(parents::add);
 
         return chain.stream()
-                .map(version -> toVersionDto(version, !parents.contains(version.getId())))
+                .map(version -> toVersionDto(version, !parents.contains(version.getId()), orders))
                 .toList();
+    }
+
+    /**
+     * Loads the orders referenced by the versions of one tree.
+     *
+     * <p>One query per tree instead of one per version: the tree screen shows
+     * the order number next to the version that entered the order.
+     *
+     * @param chain versions of one tree
+     * @return orders keyed by id
+     */
+    private Map<UUID, CalculationOrder> ordersOf(List<Calculation> chain) {
+        Set<UUID> orderIds = chain.stream()
+                .map(Calculation::getOrderId)
+                .filter(Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+        if (orderIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, CalculationOrder> orders = new HashMap<>();
+        orderRepository.findAllById(orderIds).forEach(order -> orders.put(order.getId(), order));
+        return orders;
     }
 
     /**
@@ -585,9 +645,11 @@ public class CalculationService {
      *
      * @param calculation version to map
      * @param latest      whether the version is a tip of the tree
+     * @param orders      orders referenced by the tree, keyed by id
      * @return version DTO
      */
-    private CalculationVersionDto toVersionDto(Calculation calculation, boolean latest) {
+    private CalculationVersionDto toVersionDto(Calculation calculation, boolean latest,
+                                               Map<UUID, CalculationOrder> orders) {
         CalculationVersionDto dto = new CalculationVersionDto();
         dto.setId(calculation.getId());
         dto.setVersion(versionOf(calculation));
@@ -598,6 +660,9 @@ public class CalculationService {
         dto.setManagerName(calculation.getManagerName());
         dto.setStatus(calculation.getStatus());
         dto.setTotalCost(totalCostOf(calculation.getCalculationResult()));
+        dto.setOrderId(calculation.getOrderId());
+        CalculationOrder order = calculation.getOrderId() == null ? null : orders.get(calculation.getOrderId());
+        dto.setOrderNumber(order != null ? order.getNumber() : null);
         dto.setLatest(latest);
         dto.setCreatedAt(calculation.getCreatedAt());
         dto.setUpdatedAt(calculation.getUpdatedAt());
@@ -763,8 +828,11 @@ public class CalculationService {
 
         CalculationTreeDto dto = new CalculationTreeDto();
         dto.setId(root.getId());
-        dto.setCustomerId(root.getCustomerId());
-        dto.setOrderId(root.getOrderId());
+        dto.setCustomerId(latest.getCustomerId() != null ? latest.getCustomerId() : root.getCustomerId());
+        // Заказ берётся у свежей ветки: перенос в заказ — событие версии,
+        // поэтому расчёт числится в заказе, начиная с той версии, где его завели.
+        dto.setOrderId(latest.getOrderId());
+        dto.setOrderSinceVersion(orderSinceVersion(chain, latest.getOrderId()));
         dto.setName(root.getName());
         dto.setManagerName(root.getManagerName());
         dto.setLatestId(latestId);
@@ -777,6 +845,27 @@ public class CalculationService {
                 .max(Comparator.naturalOrder())
                 .orElse(null));
         return dto;
+    }
+
+    /**
+     * Returns the version the calculation entered the given order with.
+     *
+     * <p>The order is stored per version, so «в заказе с v3» is the earliest
+     * version of the live chain that already carries this order.
+     *
+     * @param chain   live versions of the tree
+     * @param orderId current order of the tree, may be null
+     * @return version number, or null when the calculation has no order
+     */
+    private Integer orderSinceVersion(List<Calculation> chain, UUID orderId) {
+        if (orderId == null) {
+            return null;
+        }
+        OptionalInt first = chain.stream()
+                .filter(version -> orderId.equals(version.getOrderId()))
+                .mapToInt(this::versionOf)
+                .min();
+        return first.isPresent() ? first.getAsInt() : null;
     }
 
     /**

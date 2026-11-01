@@ -43,6 +43,12 @@ public class CalculationVersionDto {
     /** Total cost stored with the version; null for versions saved before snapshots. */
     private BigDecimal totalCost;
 
+    /** Order the version belongs to; null while the calculation is without an order. */
+    private UUID orderId;
+
+    /** Human-readable order number for the tree, e.g. {@code 2026-001}. */
+    private String orderNumber;
+
     /** True for the latest version of the chain. */
     private boolean latest;
 
