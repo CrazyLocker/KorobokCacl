@@ -33,12 +33,12 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
     { key: 'calculator', label: 'Расчет коробки' },
+    { key: 'calculations', label: 'Сохранённые расчёты' },
     { key: 'layout', label: 'Раскладка' },
     { key: 'knife', label: 'Расчет ножа' },
     { key: 'cliche', label: 'Расчет клише', dev: true },
     { key: 'congrev', label: 'Расчет конгрев', dev: true },
     { key: 'silkscreen', label: 'Расчет шелкография', dev: true },
-    { key: 'calculations', label: 'Сохранённые расчёты' },
     { key: 'references', label: 'Справочники' },
     { key: 'settings', label: 'Настройки' },
 ];
