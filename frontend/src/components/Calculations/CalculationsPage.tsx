@@ -23,14 +23,25 @@ const MONEY = new Intl.NumberFormat('ru-RU', {
 const money = (value?: number | null): string =>
     value == null ? '—' : `${MONEY.format(value)} ₽`;
 
-const formatDate = (value?: string | null): string =>
-    value ? new Date(value).toLocaleString('ru-RU', {
+const formatDate = (value?: string | null): string => {
+    if (!value) return '—';
+
+    // Дата заказа приходит как yyyy-mm-dd — без времени. `new Date` читает её
+    // как UTC-полночь и при выводе сдвигает на часовой пояс (04:00 в Самаре),
+    // поэтому такие значения печатаем как дату, без часов и минут.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-');
+        return `${day}.${month}.${year.slice(2)}`;
+    }
+
+    return new Date(value).toLocaleString('ru-RU', {
         day: '2-digit',
         month: '2-digit',
         year: '2-digit',
         hour: '2-digit',
         minute: '2-digit',
-    }) : '—';
+    });
+};
 
 /**
  * Страница «Сохранённые расчёты»: дерево клиентов, заказов и расчётов.
