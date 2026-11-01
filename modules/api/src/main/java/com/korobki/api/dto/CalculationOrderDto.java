@@ -7,7 +7,12 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/** Client order (a deal that groups calculations). */
+/**
+ * Client order: a deal that grows from one calculation version.
+ *
+ * <p>The client picked a variant, so the order points at that version. The rest
+ * of the versions stay in the calculation tree untouched.
+ */
 @Data
 public class CalculationOrderDto {
 
@@ -32,10 +37,22 @@ public class CalculationOrderDto {
     /** Free-form note about the deal. */
     private String comment;
 
-    /** Number of live calculations in the order. */
-    private Long calculationCount;
+    /** Version the order grew from. */
+    private UUID sourceCalculationId;
 
-    /** Sum of the newest version cost of every calculation, null when empty. */
+    /** Number of the source version, e.g. 3 for v3. */
+    private Integer sourceVersion;
+
+    /** Calculation name at the source version. */
+    private String sourceCalculationName;
+
+    /** Last modification of the source version. */
+    private LocalDateTime sourceCalculationUpdatedAt;
+
+    /** Newest tip of the source tree, used by "Редактировать". */
+    private UUID sourceCalculationLatestId;
+
+    /** Cost of the source version; null when it has no stored snapshot. */
     private BigDecimal totalCost;
 
     /** Creation timestamp. */

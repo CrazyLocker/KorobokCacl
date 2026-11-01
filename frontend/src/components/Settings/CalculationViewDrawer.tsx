@@ -21,6 +21,8 @@ interface Props {
     onClose: () => void;
     /** Переход к правке расчёта; без обработчика кнопка не показывается. */
     onEdit?: (id: string) => void;
+    /** Создать заказ из версии; без обработчика кнопка не показывается. */
+    onCreateOrder?: (version: CalculationVersion) => void;
     /** Дерево изменилось (версия помечена удалённой) — списку пора обновиться. */
     onChanged?: () => void;
 }
@@ -236,7 +238,9 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
  * правку — сохранение добавит подветку именно от неё. Удалённая версия остаётся
  * в дереве зачёркнутой: история нужна при согласовании с заказчиком.
  */
-export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: Props) => {
+export const CalculationViewDrawer = ({
+    open, id, onClose, onEdit, onCreateOrder, onChanged,
+}: Props) => {
     const screens = Grid.useBreakpoint();
     const [view, setView] = useState<CalculationView | null>(null);
     const [versions, setVersions] = useState<CalculationVersion[]>([]);
@@ -460,6 +464,7 @@ export const CalculationViewDrawer = ({ open, id, onClose, onEdit, onChanged }: 
                                 versions={versions}
                                 selectedId={shownId}
                                 onSelect={(next) => setSelectedId(next)}
+                                onCreateOrder={onCreateOrder}
                             />
                         </Flex>
                     )}

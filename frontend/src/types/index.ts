@@ -154,8 +154,6 @@ export interface SavedCalculation {
     clientName: string;
     // Клиент справочника; null у расчётов, сохранённых до его появления.
     customerId?: string | null;
-    // Заказ, в который входит расчёт; null — расчёт ещё не привязан к заказу.
-    orderId?: string | null;
     managerName: string;
     status: 'draft' | 'ready' | 'sent' | 'in_work' | 'closed';
     calculation: CalculationRequest;
@@ -170,8 +168,6 @@ export interface CalculationSaveRequest {
     // по clientName.
     customerId?: string | null;
     clientName?: string;
-    // Заказ клиента; null — сохранить расчёт без заказа.
-    orderId?: string | null;
     managerName: string;
     calculation: CalculationRequest;
 }
@@ -195,7 +191,7 @@ export interface CustomerSaveRequest {
     active?: boolean;
 }
 
-// Заказ клиента: сделка, объединяющая расчёты
+// Заказ клиента: сделка, выросшая из одной версии расчёта
 export interface CalculationOrder {
     id: string;
     customerId: string;
@@ -204,9 +200,15 @@ export interface CalculationOrder {
     orderDate: string;
     status: SavedCalculation['status'];
     comment?: string | null;
-    // Сколько живых расчётов в заказе.
-    calculationCount: number;
-    // Сумма последних версий расчётов; null — считать нечего.
+    // Версия, из которой вырос заказ; остальные версии остаются в дереве.
+    sourceCalculationId: string | null;
+    // Номер этой версии, например 3 для v3.
+    sourceVersion: number | null;
+    sourceCalculationName: string | null;
+    sourceCalculationUpdatedAt: string | null;
+    // Свежая ветка расчёта-источника: с неё продолжают работу.
+    sourceCalculationLatestId: string | null;
+    // Стоимость версии-источника; null — снапшота нет.
     totalCost: number | null;
     createdAt: string;
     updatedAt: string;
@@ -214,7 +216,8 @@ export interface CalculationOrder {
 
 // Запрос на создание/правку заказа
 export interface CalculationOrderSaveRequest {
-    customerId: string;
+    // Версия, из которой создаётся заказ; клиент берётся у неё.
+    sourceCalculationId: string;
     // Пусто — бэкенд сгенерирует номер вида 2026-001.
     number?: string | null;
     orderDate?: string | null;
@@ -222,11 +225,10 @@ export interface CalculationOrderSaveRequest {
     comment?: string | null;
 }
 
-// Расчёт в дереве «Клиент → Заказ → Расчёт»
+// Расчёт в дереве «Клиент → Заказы/Расчёты»
 export interface CalculationTree {
     id: string;
     customerId: string | null;
-    orderId: string | null;
     name: string;
     managerName: string;
     latestId: string;
@@ -234,28 +236,32 @@ export interface CalculationTree {
     versionCount: number;
     totalCost: number | null;
     updatedAt: string;
-    // Версия, с которой расчёт числится в текущем заказе (перенос в заказ тоже
-    // создаёт версию); null — расчёт без заказа.
-    orderSinceVersion?: number | null;
 }
 
 // Узел заказа в дереве расчётов
 export interface OrderTree {
     id: string;
+    customerId: string | null;
     number: string;
     orderDate: string;
     status: SavedCalculation['status'];
     totalCost: number | null;
-    calculations: CalculationTree[];
+    // Версия, из которой вырос заказ.
+    sourceCalculationId: string | null;
+    sourceVersion: number | null;
+    sourceCalculationName: string | null;
+    sourceCalculationUpdatedAt: string | null;
+    sourceCalculationLatestId: string | null;
 }
 
 // Узел клиента в дереве расчётов
 export interface CustomerTree {
     id: string | null;
     name: string;
+    // Заказы клиента; заказ растёт из версии, но не забирает расчёт из дерева.
     orders: OrderTree[];
-    // Расчёты клиента, ещё не привязанные к заказу.
-    withoutOrder: CalculationTree[];
+    // Все живые расчёты клиента, включая те, из которых уже сделан заказ.
+    calculations: CalculationTree[];
 }
 
 // Вид расчёта (read-only): метаданные, сохранённый запрос и результат
@@ -281,6 +287,12 @@ export interface CalculationView {
     viewError?: string | null;
 }
 
+// Заказ, выросший из версии расчёта: показывает, какой вариант ушёл клиенту.
+export interface CalculationVersionOrder {
+    id: string;
+    number: string;
+}
+
 // Одна версия дерева сохранённого расчёта (история правок).
 export interface CalculationVersion {
     // Идентификатор версии: по нему открывается её состояние.
@@ -299,10 +311,8 @@ export interface CalculationVersion {
     totalCost: number | null;
     // Признак конца ветки: у версии нет детей.
     latest: boolean;
-    // Заказ, в котором числится версия; null — расчёт без заказа.
-    orderId: string | null;
-    // Номер заказа для показа в истории; null, если заказа нет.
-    orderNumber: string | null;
+    // Заказы, выросшие из этой версии: из одного варианта их может быть несколько.
+    orders: CalculationVersionOrder[];
     createdAt: string;
     updatedAt: string;
 }

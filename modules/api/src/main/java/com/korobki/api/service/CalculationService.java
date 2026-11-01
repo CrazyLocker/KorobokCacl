@@ -8,6 +8,7 @@ import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.dto.CalculationTreeDto;
+import com.korobki.api.dto.CalculationVersionOrderDto;
 import com.korobki.api.dto.CustomerTreeDto;
 import com.korobki.api.dto.OrderTreeDto;
 import com.korobki.api.exception.NotFoundException;
@@ -36,9 +37,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service for saving and retrieving calculations.
@@ -83,12 +84,10 @@ public class CalculationService {
     public CalculationDto save(CalculationSaveRequest request) {
         CalculationResponse result = calculateOrFail(request.getCalculation());
         Customer customer = resolveCustomer(request.getCustomerId(), request.getClientName());
-        CalculationOrder order = resolveOrder(request.getOrderId(), customer);
 
         Calculation calculation = new Calculation();
         applyMetadata(calculation, request.getName(), customer.getName(), request.getManagerName());
         calculation.setCustomerId(customer.getId());
-        calculation.setOrderId(order != null ? order.getId() : null);
         calculation.setStatus("draft");
         calculation.setVersion(1);
         calculation.setCalculationState(convertToMap(request.getCalculation()));
@@ -120,7 +119,7 @@ public class CalculationService {
      *                                  calculator rejects the request
      */
     @Transactional
-    public CalculationDto iterate(UUID id, CalculationRequest request, UUID orderId, boolean detachOrder) {
+    public CalculationDto iterate(UUID id, CalculationRequest request) {
         Calculation parent = find(id);
         if (parent.getDeletedAt() != null) {
             throw new IllegalArgumentException("Версия помечена удалённой — её нельзя редактировать");
@@ -132,7 +131,6 @@ public class CalculationService {
         Calculation next = new Calculation();
         applyMetadata(next, parent.getName(), parent.getClientName(), parent.getManagerName());
         next.setCustomerId(parent.getCustomerId());
-        next.setOrderId(parent.getOrderId());
         next.setStatus(parent.getStatus() != null ? parent.getStatus() : "draft");
         next.setRootId(rootIdOf(parent));
         next.setParentId(parent.getId());
@@ -140,43 +138,7 @@ public class CalculationService {
         next.setCalculationState(convertToMap(request));
         next.setCalculationResult(convertToMap(result));
 
-        // Перенос в заказ — событие версии: старые версии остаются без заказа,
-        // новая фиксирует, что работа продолжилась уже в заказе.
-        applyOrderTarget(next, parent, orderId, detachOrder);
-
         return toDto(calculationRepository.save(next));
-    }
-
-    /**
-     * Moves the new version into another order (or out of any order).
-     *
-     * <p>The order is stored per version, so a transfer is visible in the
-     * history: version 3 is «without order», version 4 is «in order 2026-001».
-     *
-     * @param next        version being created
-     * @param parent      version it branches from
-     * @param orderId     target order, or null to keep the parent order
-     * @param detachOrder true to explicitly clear the order
-     * @throws NotFoundException        when the order does not exist
-     * @throws IllegalArgumentException when the order belongs to another client
-     */
-    private void applyOrderTarget(Calculation next, Calculation parent, UUID orderId, boolean detachOrder) {
-        if (detachOrder) {
-            next.setOrderId(null);
-            return;
-        }
-        if (orderId == null || orderId.equals(parent.getOrderId())) {
-            return;
-        }
-        Customer customer = parent.getCustomerId() == null
-                ? null
-                : customerRepository.findById(parent.getCustomerId()).orElse(null);
-        if (customer == null) {
-            throw new IllegalArgumentException("У расчёта не указан клиент — сначала выберите клиента");
-        }
-        CalculationOrder order = resolveOrder(orderId, customer);
-        next.setOrderId(order != null ? order.getId() : null);
-        next.setCustomerId(customer.getId());
     }
 
     /**
@@ -230,36 +192,45 @@ public class CalculationService {
         Calculation calculation = find(id);
         List<Calculation> chain = calculationRepository
                 .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
-        Map<UUID, CalculationOrder> orders = ordersOf(chain);
+        Map<UUID, List<CalculationVersionOrderDto>> orders = ordersBySourceVersion(chain);
 
         Set<UUID> parents = new HashSet<>();
         chain.stream().map(Calculation::getParentId).filter(Objects::nonNull).forEach(parents::add);
 
         return chain.stream()
-                .map(version -> toVersionDto(version, !parents.contains(version.getId()), orders))
+                .map(version -> toVersionDto(
+                        version,
+                        !parents.contains(version.getId()),
+                        orders.getOrDefault(version.getId(), List.of())))
                 .toList();
     }
 
     /**
-     * Loads the orders referenced by the versions of one tree.
+     * Collects the orders that grew from the versions of one tree.
      *
-     * <p>One query per tree instead of one per version: the tree screen shows
-     * the order number next to the version that entered the order.
+     * <p>One query for the whole tree: each version shows the orders placed from
+     * it, so the manager can see which variant the client actually bought.
      *
      * @param chain versions of one tree
-     * @return orders keyed by id
+     * @return orders grouped by the version they grew from
      */
-    private Map<UUID, CalculationOrder> ordersOf(List<Calculation> chain) {
-        Set<UUID> orderIds = chain.stream()
-                .map(Calculation::getOrderId)
-                .filter(Objects::nonNull)
-                .collect(java.util.stream.Collectors.toSet());
-        if (orderIds.isEmpty()) {
+    private Map<UUID, List<CalculationVersionOrderDto>> ordersBySourceVersion(List<Calculation> chain) {
+        if (chain.isEmpty()) {
             return Map.of();
         }
-        Map<UUID, CalculationOrder> orders = new HashMap<>();
-        orderRepository.findAllById(orderIds).forEach(order -> orders.put(order.getId(), order));
-        return orders;
+        List<UUID> versionIds = chain.stream().map(Calculation::getId).toList();
+        Map<UUID, List<CalculationVersionOrderDto>> byVersion = new HashMap<>();
+        for (CalculationOrder order : orderRepository.findBySourceCalculationIdIn(versionIds)) {
+            if (order.getSourceCalculationId() == null) {
+                continue;
+            }
+            byVersion.computeIfAbsent(order.getSourceCalculationId(), key -> new ArrayList<>())
+                    .add(new CalculationVersionOrderDto(order.getId(), order.getNumber()));
+        }
+        byVersion.values().forEach(orders -> orders.sort(
+                Comparator.comparing(CalculationVersionOrderDto::getNumber,
+                        Comparator.nullsLast(Comparator.naturalOrder()))));
+        return byVersion;
     }
 
     /**
@@ -296,12 +267,13 @@ public class CalculationService {
     }
 
     /**
-     * Builds the customer → order → calculation tree for the list screen.
+     * Builds the customer → order/calculation tree for the list screen.
      *
-     * <p>Calculations without an order are returned in {@code withoutOrder} of
-     * their client; rows saved before the reference book existed fall into a
-     * bucket with a null customer id. Orders without calculations are still
-     * returned, so an empty deal stays visible.
+     * <p>Orders are not containers of calculations anymore: an order grows from
+     * one version, so it is listed next to the client with the version it came
+     * from, while every calculation tree stays in the client's own list. Rows
+     * saved before the reference book existed fall into a bucket with a null
+     * customer id.
      *
      * @return clients with their orders and calculations
      */
@@ -313,8 +285,6 @@ public class CalculationService {
         List<CalculationOrder> orders = orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc();
 
         Map<UUID, CustomerTreeDto> byCustomer = new LinkedHashMap<>();
-        Map<UUID, OrderTreeDto> orderNodes = new HashMap<>();
-
         for (Customer customer : customers) {
             CustomerTreeDto node = new CustomerTreeDto();
             node.setId(customer.getId());
@@ -326,75 +296,90 @@ public class CalculationService {
         legacy.setName("Без клиента");
 
         for (CalculationTreeDto calculation : trees.values()) {
-            CustomerTreeDto customerNode;
-            if (calculation.getCustomerId() == null) {
-                customerNode = legacy;
-            } else {
-                customerNode = byCustomer.computeIfAbsent(calculation.getCustomerId(), id -> {
-                    CustomerTreeDto fallback = new CustomerTreeDto();
-                    fallback.setId(id);
-                    fallback.setName("Клиент удалён");
-                    return fallback;
-                });
-            }
-
-            if (calculation.getOrderId() == null) {
-                customerNode.getWithoutOrder().add(calculation);
-                continue;
-            }
-            OrderTreeDto orderNode = orderNodes.computeIfAbsent(calculation.getOrderId(), id -> {
-                OrderTreeDto created = new OrderTreeDto();
-                created.setId(id);
-                return created;
-            });
-            orderNode.getCalculations().add(calculation);
-            if (!customerNode.getOrders().contains(orderNode)) {
-                customerNode.getOrders().add(orderNode);
-            }
+            customerNode(byCustomer, legacy, calculation.getCustomerId())
+                    .getCalculations().add(calculation);
         }
 
-        // Заказы без расчётов: узел всё равно должен быть виден.
+        Map<UUID, Calculation> sources = sourceVersions(orders);
         for (CalculationOrder order : orders) {
-            OrderTreeDto node = orderNodes.computeIfAbsent(order.getId(), id -> {
-                OrderTreeDto created = new OrderTreeDto();
-                created.setId(id);
-                return created;
-            });
+            OrderTreeDto node = new OrderTreeDto();
+            node.setId(order.getId());
             node.setNumber(order.getNumber());
             node.setOrderDate(order.getOrderDate());
             node.setStatus(order.getStatus());
-            node.setTotalCost(sumCosts(node.getCalculations()));
+            node.setCustomerId(order.getCustomerId());
 
-            CustomerTreeDto customerNode = byCustomer.get(order.getCustomerId());
-            if (customerNode != null && !customerNode.getOrders().contains(node)) {
-                customerNode.getOrders().add(node);
-            } else if (customerNode == null) {
-                // Клиент заказа исчез из справочника — показываем узел отдельно.
-                CustomerTreeDto orphan = byCustomer.computeIfAbsent(order.getCustomerId(), id -> {
-                    CustomerTreeDto created = new CustomerTreeDto();
-                    created.setId(id);
-                    created.setName("Клиент удалён");
-                    return created;
-                });
-                if (!orphan.getOrders().contains(node)) {
-                    orphan.getOrders().add(node);
-                }
+            Calculation source = order.getSourceCalculationId() == null
+                    ? null
+                    : sources.get(order.getSourceCalculationId());
+            if (source != null) {
+                node.setSourceCalculationId(source.getId());
+                node.setSourceVersion(versionOf(source));
+                node.setSourceCalculationName(source.getName());
+                node.setSourceCalculationUpdatedAt(source.getUpdatedAt());
+                CalculationTreeDto tree = trees.get(rootIdOf(source));
+                node.setSourceCalculationLatestId(tree != null ? tree.getLatestId() : source.getId());
+                BigDecimal snapshot = totalCostOf(source.getCalculationResult());
+                node.setTotalCost(snapshot != null ? snapshot : (tree != null ? tree.getTotalCost() : null));
             }
+
+            customerNode(byCustomer, legacy, order.getCustomerId()).getOrders().add(node);
         }
 
         for (CustomerTreeDto customer : byCustomer.values()) {
             customer.getOrders().sort(Comparator
                     .comparing(OrderTreeDto::getOrderDate, Comparator.nullsLast(Comparator.reverseOrder()))
                     .thenComparing(OrderTreeDto::getNumber, Comparator.nullsLast(Comparator.naturalOrder())));
-            customer.getWithoutOrder().sort(Comparator
+            customer.getCalculations().sort(Comparator
                     .comparing(CalculationTreeDto::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder())));
         }
 
         List<CustomerTreeDto> result = new ArrayList<>(byCustomer.values());
-        if (!legacy.getWithoutOrder().isEmpty()) {
+        if (!legacy.getCalculations().isEmpty() || !legacy.getOrders().isEmpty()) {
             result.add(legacy);
         }
         return result;
+    }
+
+    /**
+     * Finds the client node of a tree row, creating a placeholder for rows whose
+     * client left the reference book.
+     *
+     * @param byCustomer clients keyed by id
+     * @param legacy     bucket for rows without any client
+     * @param customerId client of the row, may be null
+     * @return node the row belongs to
+     */
+    private CustomerTreeDto customerNode(Map<UUID, CustomerTreeDto> byCustomer,
+                                         CustomerTreeDto legacy, UUID customerId) {
+        if (customerId == null) {
+            return legacy;
+        }
+        return byCustomer.computeIfAbsent(customerId, id -> {
+            CustomerTreeDto fallback = new CustomerTreeDto();
+            fallback.setId(id);
+            fallback.setName("Клиент удалён");
+            return fallback;
+        });
+    }
+
+    /**
+     * Loads the versions the orders grew from.
+     *
+     * @param orders orders of the tree screen
+     * @return versions keyed by id
+     */
+    private Map<UUID, Calculation> sourceVersions(List<CalculationOrder> orders) {
+        Set<UUID> ids = orders.stream()
+                .map(CalculationOrder::getSourceCalculationId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Calculation> sources = new HashMap<>();
+        calculationRepository.findAllById(ids).forEach(version -> sources.put(version.getId(), version));
+        return sources;
     }
 
     /**
@@ -417,21 +402,6 @@ public class CalculationService {
         Map<UUID, CalculationTreeDto> trees = new LinkedHashMap<>();
         byRoot.forEach((rootId, chain) -> trees.put(rootId, toTreeDto(rootId, chain)));
         return trees;
-    }
-
-    /**
-     * Returns the live calculations of one order, newest change first.
-     *
-     * @param orderId order identifier
-     * @return calculations of the order
-     */
-    @Transactional(readOnly = true)
-    public List<CalculationTreeDto> treesByOrder(UUID orderId) {
-        return treesByRoot().values().stream()
-                .filter(tree -> orderId.equals(tree.getOrderId()))
-                .sorted(Comparator.comparing(CalculationTreeDto::getUpdatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .toList();
     }
 
     /**
@@ -645,11 +615,11 @@ public class CalculationService {
      *
      * @param calculation version to map
      * @param latest      whether the version is a tip of the tree
-     * @param orders      orders referenced by the tree, keyed by id
+     * @param orders      orders that grew from this version
      * @return version DTO
      */
     private CalculationVersionDto toVersionDto(Calculation calculation, boolean latest,
-                                               Map<UUID, CalculationOrder> orders) {
+                                               List<CalculationVersionOrderDto> orders) {
         CalculationVersionDto dto = new CalculationVersionDto();
         dto.setId(calculation.getId());
         dto.setVersion(versionOf(calculation));
@@ -660,9 +630,7 @@ public class CalculationService {
         dto.setManagerName(calculation.getManagerName());
         dto.setStatus(calculation.getStatus());
         dto.setTotalCost(totalCostOf(calculation.getCalculationResult()));
-        dto.setOrderId(calculation.getOrderId());
-        CalculationOrder order = calculation.getOrderId() == null ? null : orders.get(calculation.getOrderId());
-        dto.setOrderNumber(order != null ? order.getNumber() : null);
+        dto.setOrders(orders);
         dto.setLatest(latest);
         dto.setCreatedAt(calculation.getCreatedAt());
         dto.setUpdatedAt(calculation.getUpdatedAt());
@@ -799,7 +767,6 @@ public class CalculationService {
         dto.setName(calculation.getName());
         dto.setClientName(calculation.getClientName());
         dto.setCustomerId(calculation.getCustomerId());
-        dto.setOrderId(calculation.getOrderId());
         dto.setManagerName(calculation.getManagerName());
         dto.setStatus(calculation.getStatus());
         dto.setCalculation(calculation.getCalculationState());
@@ -829,10 +796,6 @@ public class CalculationService {
         CalculationTreeDto dto = new CalculationTreeDto();
         dto.setId(root.getId());
         dto.setCustomerId(latest.getCustomerId() != null ? latest.getCustomerId() : root.getCustomerId());
-        // Заказ берётся у свежей ветки: перенос в заказ — событие версии,
-        // поэтому расчёт числится в заказе, начиная с той версии, где его завели.
-        dto.setOrderId(latest.getOrderId());
-        dto.setOrderSinceVersion(orderSinceVersion(chain, latest.getOrderId()));
         dto.setName(root.getName());
         dto.setManagerName(root.getManagerName());
         dto.setLatestId(latestId);
@@ -845,44 +808,6 @@ public class CalculationService {
                 .max(Comparator.naturalOrder())
                 .orElse(null));
         return dto;
-    }
-
-    /**
-     * Returns the version the calculation entered the given order with.
-     *
-     * <p>The order is stored per version, so «в заказе с v3» is the earliest
-     * version of the live chain that already carries this order.
-     *
-     * @param chain   live versions of the tree
-     * @param orderId current order of the tree, may be null
-     * @return version number, or null when the calculation has no order
-     */
-    private Integer orderSinceVersion(List<Calculation> chain, UUID orderId) {
-        if (orderId == null) {
-            return null;
-        }
-        OptionalInt first = chain.stream()
-                .filter(version -> orderId.equals(version.getOrderId()))
-                .mapToInt(this::versionOf)
-                .min();
-        return first.isPresent() ? first.getAsInt() : null;
-    }
-
-    /**
-     * Sums the costs of the calculations; null when none of them is priced.
-     *
-     * @param calculations trees of one order
-     * @return order total, or null when empty
-     */
-    private BigDecimal sumCosts(List<CalculationTreeDto> calculations) {
-        BigDecimal total = null;
-        for (CalculationTreeDto calculation : calculations) {
-            if (calculation.getTotalCost() == null) {
-                continue;
-            }
-            total = total == null ? calculation.getTotalCost() : total.add(calculation.getTotalCost());
-        }
-        return total;
     }
 
     /**
@@ -913,26 +838,5 @@ public class CalculationService {
                     created.setName(name);
                     return customerRepository.save(created);
                 });
-    }
-
-    /**
-     * Resolves the order of a save request and checks it belongs to the client.
-     *
-     * @param orderId  explicit order id, may be null for "no order yet"
-     * @param customer resolved client of the calculation
-     * @return the stored order, or null
-     * @throws NotFoundException        when the order does not exist
-     * @throws IllegalArgumentException when the order belongs to another client
-     */
-    private CalculationOrder resolveOrder(UUID orderId, Customer customer) {
-        if (orderId == null) {
-            return null;
-        }
-        CalculationOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new NotFoundException("Заказ не найден: " + orderId));
-        if (!order.getCustomerId().equals(customer.getId())) {
-            throw new IllegalArgumentException("Заказ принадлежит другому клиенту");
-        }
-        return order;
     }
 }

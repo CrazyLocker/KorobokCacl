@@ -37,27 +37,22 @@ public class CalculationController {
     }
 
     /**
-     * Saves an edited calculation as the next version of its chain.
+     * Saves an edited calculation as the next version of the version being edited.
      *
      * <p>Metadata (name, client, manager) is inherited from the parent version,
-     * so the body carries only the calculation itself. The order, however, is a
-     * decision of the moment: {@code orderId} moves the new version into
-     * another order, {@code detachOrder} takes it out of any order, and with
-     * neither the parent order is inherited.
+     * so the body carries only the calculation itself. Editing v3 of a five
+     * version chain branches from v3: the new version becomes v4 under v3,
+     * while v4 and v5 of the old line stay untouched.
      *
-     * @param id          identifier of the version being edited
-     * @param request     edited calculation request
-     * @param orderId     order to move the new version into, may be null
-     * @param detachOrder true to leave the version without an order
+     * @param id      identifier of the version being edited
+     * @param request edited calculation request
      * @return the saved version
      */
     @PostMapping("/{id}/iterate")
     public ResponseEntity<CalculationDto> iterate(
             @PathVariable UUID id,
-            @Valid @RequestBody CalculationRequest request,
-            @RequestParam(required = false) UUID orderId,
-            @RequestParam(defaultValue = "false") boolean detachOrder) {
-        return ResponseEntity.ok(calculationService.iterate(id, request, orderId, detachOrder));
+            @Valid @RequestBody CalculationRequest request) {
+        return ResponseEntity.ok(calculationService.iterate(id, request));
     }
 
     /**
@@ -71,11 +66,12 @@ public class CalculationController {
     }
 
     /**
-     * Returns the customer → order → calculation tree for the list screen.
+     * Returns the customer → order/calculation tree for the list screen.
      *
-     * <p>Calculations without an order are grouped in {@code withoutOrder} of
-     * their client; rows saved before the reference book existed fall into a
-     * bucket with a null client id.
+     * <p>Calculation trees stay under their client even after an order is
+     * placed: an order grows from one version and is listed separately with
+     * that version as its source. Rows saved before the reference book existed
+     * fall into a bucket with a null client id.
      *
      * @return clients with their orders and calculations
      */

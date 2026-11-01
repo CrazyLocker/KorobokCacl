@@ -9,6 +9,7 @@ import { calculatorApi } from '../../api/calculatorApi';
 import { openCalculationEditor } from '../../navigation';
 import { buildCalculationTreeRows, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
+import { CreateOrderModal } from './CreateOrderModal';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -47,6 +48,8 @@ export const CalculationsPage = ({ onNotify }: Props) => {
     const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     // Открытый «Вид расчёта»: id выбранной версии, null — дровер закрыт.
     const [viewId, setViewId] = useState<string | null>(null);
+    // Версия, из которой создаётся заказ; null — модалка закрыта.
+    const [orderSource, setOrderSource] = useState<CalculationVersion | null>(null);
 
     const loadTree = useCallback(() => {
         setLoading(true);
@@ -113,39 +116,41 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         const struck = record.kind === 'version' && version?.deleted === true;
 
         return (
-            <Flex gap={6} align="center" style={{ minWidth: 0 }}>
-                <span
-                    style={{
-                        fontSize: record.kind === 'calculation' ? 13 : 13,
-                        fontWeight: record.kind === 'customer' ? 600 : 400,
-                        textDecoration: struck ? 'line-through' : undefined,
-                        color: struck ? '#9aa0a6' : undefined,
-                        whiteSpace: 'normal',
-                        wordBreak: 'break-word',
-                    }}
-                >
-                    {record.title}
-                </span>
-                {record.kind === 'calculation' && record.calculation && (
-                    <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
-                        v{record.calculation.version}
-                    </Tag>
-                )}
-                {record.kind === 'calculation' && record.calculation?.orderSinceVersion != null && (
+            <Flex vertical gap={0} style={{ minWidth: 0 }}>
+                <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                    <span
+                        style={{
+                            fontSize: 13,
+                            fontWeight: record.kind === 'customer' ? 600 : 400,
+                            textDecoration: struck ? 'line-through' : undefined,
+                            color: struck ? '#9aa0a6' : undefined,
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                        }}
+                    >
+                        {record.title}
+                    </span>
+                    {record.kind === 'calculation' && record.calculation && (
+                        <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
+                            v{record.calculation.version}
+                        </Tag>
+                    )}
+                    {record.kind === 'version' && version && !version.deleted
+                        && version.latest && (
+                        <Tag color="blue" style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                            кончик
+                        </Tag>
+                    )}
+                    {record.kind === 'version' && version?.deleted && (
+                        <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                            удалена
+                        </Tag>
+                    )}
+                </Flex>
+                {record.subtitle && (
                     <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                        в заказе с v{record.calculation.orderSinceVersion}
+                        {record.subtitle}
                     </Typography.Text>
-                )}
-                {record.kind === 'version' && version && !version.deleted
-                    && version.latest && (
-                    <Tag color="blue" style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
-                        кончик
-                    </Tag>
-                )}
-                {record.kind === 'version' && version?.deleted && (
-                    <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
-                        удалена
-                    </Tag>
                 )}
             </Flex>
         );
@@ -154,10 +159,21 @@ export const CalculationsPage = ({ onNotify }: Props) => {
     const actions = (record: CalculationTreeRow) => {
         if (record.kind === 'version' && record.version) {
             return (
-                <Button size="small" type="text" onClick={() => setViewId(record.version!.id)}
-                    style={{ fontSize: 11 }}>
-                    Открыть
-                </Button>
+                <Flex justify="flex-end" gap={4}>
+                    <Button size="small" type="text" onClick={() => setViewId(record.version!.id)}
+                        style={{ fontSize: 11 }}>
+                        Открыть
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        disabled={record.version.deleted}
+                        onClick={() => setOrderSource(record.version!)}
+                        style={{ fontSize: 11 }}
+                    >
+                        Заказ
+                    </Button>
+                </Flex>
             );
         }
         if (record.kind !== 'calculation' || !record.calculation) return null;
@@ -295,8 +311,21 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 id={viewId}
                 onClose={() => setViewId(null)}
                 onEdit={openCalculationEditor}
+                onCreateOrder={setOrderSource}
                 onChanged={() => {
                     // Правка меняет дерево и закэшированные версии — сбрасываем кэш.
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
+            />
+
+            <CreateOrderModal
+                open={!!orderSource}
+                version={orderSource}
+                onClose={() => setOrderSource(null)}
+                onNotify={onNotify}
+                onCreated={() => {
+                    // Заказ виден в дереве: перечитываем и клиентов, и версии.
                     setVersionsByCalculation({});
                     loadTree();
                 }}

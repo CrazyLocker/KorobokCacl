@@ -6,7 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-/** Client node of the customer → order → calculation tree. */
+/** Client node of the customer → order/calculation tree. */
 @Data
 public class CustomerTreeDto {
 
@@ -16,9 +16,9 @@ public class CustomerTreeDto {
     /** Client name. */
     private String name;
 
-    /** Orders of the client, newest first. */
+    /** Orders placed by the client, newest first. */
     private List<OrderTreeDto> orders = new ArrayList<>();
 
-    /** Calculations of the client that are not attached to an order yet. */
-    private List<CalculationTreeDto> withoutOrder = new ArrayList<>();
+    /** Calculation trees of the client; versions stay here after an order is placed. */
+    private List<CalculationTreeDto> calculations = new ArrayList<>();
 }

@@ -10,11 +10,15 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * JPA entity for a client order: a folder of calculations for one deal.
+ * JPA entity for a client order born from a calculation version.
  *
- * <p>Several calculation trees (different constructions or print variants) may
- * belong to one order. The order itself stores only the deal header; its total
- * is derived from the calculations.
+ * <p>The client picks one variant of a calculation («третья версия») and the
+ * order grows from exactly that version: {@code sourceCalculationId} points at
+ * it. The calculation itself stays where it was, so every version remains in
+ * the tree and one calculation may feed several orders over time.
+ *
+ * <p>The order stores only the deal header; its total is derived from the
+ * source version.
  */
 @Entity
 @Table(name = "calculation_orders")
@@ -31,6 +35,10 @@ public class CalculationOrder {
     /** Client the order belongs to. */
     @Column(name = "customer_id", nullable = false)
     private UUID customerId;
+
+    /** Calculation version the order grew from. */
+    @Column(name = "source_calculation_id")
+    private UUID sourceCalculationId;
 
     /** Order number, unique per client. */
     @Column(nullable = false)

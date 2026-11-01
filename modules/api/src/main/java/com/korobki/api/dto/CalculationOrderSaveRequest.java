@@ -11,11 +11,14 @@ import java.util.UUID;
 @Data
 public class CalculationOrderSaveRequest {
 
-    /** Client the order belongs to. */
-    @NotNull(message = "Укажите клиента заказа")
-    private UUID customerId;
+    /**
+     * Version the order grows from. The client of the order is the client of
+     * that version, so no separate client field is needed.
+     */
+    @NotNull(message = "Укажите версию расчёта, из которой создаётся заказ")
+    private UUID sourceCalculationId;
 
-    /** Order number, unique per client. */
+    /** Order number, unique per client; generated when blank. */
     @Size(max = 50, message = "Номер заказа — не длиннее 50 символов")
     private String number;
 

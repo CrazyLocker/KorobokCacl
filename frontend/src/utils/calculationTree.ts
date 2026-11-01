@@ -1,42 +1,68 @@
 // frontend/src/utils/calculationTree.ts
-import type { CalculationTree, CalculationVersion, CustomerTree } from '../types';
+import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../types';
 
 /**
- * Строка дерева «Клиент → Заказ → Расчёт → Версии».
+ * Строка дерева «Клиент → Заказы и расчёты → Версии».
  *
- * <p>Узлы клиента и заказа — только группировка; действия живут на расчёте
- * («Открыть», «Редактировать» свежую ветку, мягко удалить) и на версии
- * (открыть её состояние в «Виде расчёта»).
+ * <p>Заказ вырос из конкретной версии, но не забирает расчёт из дерева: у
+ * клиента соседствуют заказы и все его живые расчёты. Узлы клиента и заказа —
+ * только группировка; действия живут на расчёте («Открыть», «Редактировать»
+ * свежую ветку, мягко удалить) и на версии (открыть её состояние в «Виде
+ * расчёта», создать из неё заказ).
  */
 export interface CalculationTreeRow {
     key: string;
     kind: 'customer' | 'order' | 'calculation' | 'version';
     title: string;
+    /** Пояснение под заголовком: «из v3 · Внутренняя вставка». */
+    subtitle?: string;
     /** Расчёт: по нему строятся действия и запрос версий. */
     calculation?: CalculationTree;
-    /** Версия: по ней открывается «Вид расчёта». */
+    /** Заказ: по нему видно, из какой версии он вырос. */
+    order?: OrderTree;
+    /** Версия: по ней открывается «Вид расчёта» и создаётся заказ. */
     version?: CalculationVersion;
     cost?: number | null;
     updatedAt?: string | null;
     children?: CalculationTreeRow[];
 }
 
+/** «из v3 · Элара 16» — откуда вырос заказ. */
+const orderSubtitle = (order: OrderTree): string | undefined => {
+    if (order.sourceVersion == null) {
+        return undefined;
+    }
+
+    return order.sourceCalculationName
+        ? `из v${order.sourceVersion} · ${order.sourceCalculationName}`
+        : `из v${order.sourceVersion}`;
+};
+
+/** «заказ № 2026-001» — какие заказы выросли из версии. */
+const versionSubtitle = (version: CalculationVersion): string | undefined => {
+    if (!version.orders?.length) {
+        return undefined;
+    }
+
+    return version.orders.map((order) => `заказ № ${order.number}`).join(', ');
+};
+
 /** Версия расчёта в дереве: номер, дата и стоимость. */
 const versionRow = (version: CalculationVersion): CalculationTreeRow => ({
     key: `version-${version.id}`,
     kind: 'version',
     title: `v${version.version}`,
+    subtitle: versionSubtitle(version),
     version,
     cost: version.totalCost,
     updatedAt: version.updatedAt,
 });
 
 /**
- * Собирает дерево строк из ответа `GET /api/calculations/tree`.
+ * Собирает строки дерева из ответа `GET /api/calculations/tree`.
  *
  * <p>Версии подставляются из `versionsByCalculation`: они грузятся лениво по
  * раскрытию расчёта, поэтому до первого раскрытия у расчёта нет детей.
- * Расчёты клиента без заказа попадают в отдельную группу «Без заказа».
  */
 export const buildCalculationTreeRows = (
     customers: readonly CustomerTree[],
@@ -55,31 +81,21 @@ export const buildCalculationTreeRows = (
         };
     };
 
-    return customers.map((customer) => {
-        const orderRows: CalculationTreeRow[] = customer.orders.map((order) => ({
-            key: `order-${order.id}`,
-            kind: 'order',
-            title: `Заказ № ${order.number}`,
-            cost: order.totalCost,
-            updatedAt: order.orderDate,
-            children: order.calculations.map(calculationRow),
-        }));
-
-        if (customer.withoutOrder.length > 0) {
-            orderRows.push({
-                key: `order-none-${customer.id}`,
-                kind: 'order',
-                title: 'Без заказа',
-                cost: customer.withoutOrder.reduce((sum, item) => sum + (item.totalCost ?? 0), 0),
-                children: customer.withoutOrder.map(calculationRow),
-            });
-        }
-
-        return {
-            key: `customer-${customer.id}`,
-            kind: 'customer',
-            title: customer.name,
-            children: orderRows,
-        };
+    const orderRow = (order: OrderTree): CalculationTreeRow => ({
+        key: `order-${order.id}`,
+        kind: 'order',
+        title: `Заказ № ${order.number}`,
+        subtitle: orderSubtitle(order),
+        order,
+        cost: order.totalCost,
+        updatedAt: order.orderDate,
     });
+
+    return customers.map((customer) => ({
+        key: `customer-${customer.id}`,
+        kind: 'customer',
+        title: customer.name,
+        // Сначала сделки клиента, под ними — расчёты, из которых растут новые.
+        children: [...customer.orders.map(orderRow), ...customer.calculations.map(calculationRow)],
+    }));
 };

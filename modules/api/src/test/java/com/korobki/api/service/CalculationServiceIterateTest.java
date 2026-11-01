@@ -99,7 +99,7 @@ class CalculationServiceIterateTest {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
 
-        CalculationDto dto = service.iterate(parent.getId(), editedRequest(), null, false);
+        CalculationDto dto = service.iterate(parent.getId(), editedRequest());
 
         assertEquals(2, dto.getVersion());
         assertEquals(parent.getRootId(), dto.getRootId());
@@ -113,7 +113,7 @@ class CalculationServiceIterateTest {
         stubCalculatorAndSave();
         Calculation third = parent(3);
 
-        CalculationDto dto = service.iterate(third.getId(), editedRequest(), null, false);
+        CalculationDto dto = service.iterate(third.getId(), editedRequest());
 
         assertEquals(4, dto.getVersion(), "номер равен глубине ветки: родитель + 1");
         assertEquals(third.getId(), captureSaved().getParentId(),
@@ -125,7 +125,7 @@ class CalculationServiceIterateTest {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
 
-        CalculationDto dto = service.iterate(parent.getId(), editedRequest(), null, false);
+        CalculationDto dto = service.iterate(parent.getId(), editedRequest());
 
         assertEquals("Коробка для часов", dto.getName());
         assertEquals("ООО Ромашка", dto.getClientName());
@@ -139,7 +139,7 @@ class CalculationServiceIterateTest {
         deleted.setDeletedAt(LocalDateTime.now());
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> service.iterate(deleted.getId(), editedRequest(), null, false));
+                () -> service.iterate(deleted.getId(), editedRequest()));
 
         assertEquals("Версия помечена удалённой — её нельзя редактировать", ex.getMessage());
         verify(repository, never()).save(any());
@@ -151,7 +151,7 @@ class CalculationServiceIterateTest {
         stubCalculatorAndSave();
         Calculation parent = parent(1);
 
-        service.iterate(parent.getId(), editedRequest(), null, false);
+        service.iterate(parent.getId(), editedRequest());
 
         Calculation saved = captureSaved();
         assertNotNull(saved.getCalculationState());
@@ -167,7 +167,7 @@ class CalculationServiceIterateTest {
         Calculation parent = parent(1);
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.iterate(parent.getId(), editedRequest(), null, false));
+                () -> service.iterate(parent.getId(), editedRequest()));
 
         verify(repository, never()).save(any());
     }
@@ -177,7 +177,7 @@ class CalculationServiceIterateTest {
         UUID id = UUID.randomUUID();
         when(repository.findById(id)).thenReturn(Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> service.iterate(id, editedRequest(), null, false));
+        assertThrows(NotFoundException.class, () -> service.iterate(id, editedRequest()));
         verify(calculatorService, never()).calculate(any());
     }
 
@@ -187,80 +187,4 @@ class CalculationServiceIterateTest {
         return captor.getValue();
     }
 
-    /**
-     * Клиент с заказом нужен, чтобы проверить перенос версии в заказ: заказ
-     * принадлежит клиенту расчёта.
-     */
-    private Customer customerWithOrder(CalculationOrder order) {
-        Customer customer = new Customer();
-        customer.setId(UUID.randomUUID());
-        customer.setName("ООО Ромашка");
-        order.setId(UUID.randomUUID());
-        order.setCustomerId(customer.getId());
-        order.setNumber("2026-001");
-        when(customerRepository.findById(customer.getId())).thenReturn(Optional.of(customer));
-        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
-        return customer;
-    }
-
-    @Test
-    void iterate_withOrderId_movesTheNewVersionIntoTheOrder() {
-        stubCalculatorAndSave();
-        CalculationOrder order = new CalculationOrder();
-        Customer customer = customerWithOrder(order);
-        Calculation parent = parent(3);
-        parent.setCustomerId(customer.getId());
-
-        CalculationDto dto = service.iterate(parent.getId(), editedRequest(), order.getId(), false);
-
-        assertEquals(order.getId(), dto.getOrderId());
-        assertEquals(customer.getId(), dto.getCustomerId());
-        assertEquals(4, dto.getVersion());
-        assertEquals(parent.getId(), captureSaved().getParentId());
-    }
-
-    @Test
-    void iterate_detachOrder_leavesTheVersionWithoutOrder() {
-        stubCalculatorAndSave();
-        CalculationOrder order = new CalculationOrder();
-        Customer customer = customerWithOrder(order);
-        Calculation parent = parent(3);
-        parent.setCustomerId(customer.getId());
-        parent.setOrderId(order.getId());
-
-        CalculationDto dto = service.iterate(parent.getId(), editedRequest(), null, true);
-
-        assertEquals(null, dto.getOrderId());
-        assertEquals(customer.getId(), dto.getCustomerId());
-    }
-
-    @Test
-    void iterate_orderOfAnotherCustomer_isRejected() {
-        stubCalculatorAndSave();
-        CalculationOrder order = new CalculationOrder();
-        Customer customer = customerWithOrder(order);
-        order.setCustomerId(UUID.randomUUID());
-        Calculation parent = parent(3);
-        parent.setCustomerId(customer.getId());
-
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> service.iterate(parent.getId(), editedRequest(), order.getId(), false));
-
-        assertEquals("Заказ принадлежит другому клиенту", error.getMessage());
-        verify(repository, never()).save(any());
-    }
-
-    @Test
-    void iterate_parentWithoutCustomer_cannotBeMovedIntoOrder() {
-        stubCalculatorAndSave();
-        CalculationOrder order = new CalculationOrder();
-        customerWithOrder(order);
-        Calculation parent = parent(3);
-
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> service.iterate(parent.getId(), editedRequest(), order.getId(), false));
-
-        assertEquals("У расчёта не указан клиент — сначала выберите клиента", error.getMessage());
-        verify(repository, never()).save(any());
-    }
 }

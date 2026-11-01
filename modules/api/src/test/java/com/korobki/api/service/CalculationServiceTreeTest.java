@@ -24,13 +24,14 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Проверяет дерево «Клиент → Заказ → Расчёт»: расчёты без заказа остаются у
- * клиента, заказ без расчётов не пропадает, старые строки без клиента попадают
- * в отдельную корзину, а суммы считаются по последней версии каждого расчёта.
+ * Проверяет дерево «Клиент → Заказ/Расчёт»: заказ вырастает из одной версии,
+ * но сама версия и весь расчёт остаются в дереве клиента; старые строки без
+ * клиента попадают в отдельную корзину.
  */
 class CalculationServiceTreeTest {
 
@@ -57,20 +58,21 @@ class CalculationServiceTreeTest {
         return customer;
     }
 
-    /** Заказ клиента. */
-    private CalculationOrder order(Customer customer, String number) {
+    /** Заказ, выросший из версии расчёта. */
+    private CalculationOrder order(Customer customer, String number, Calculation source) {
         CalculationOrder order = new CalculationOrder();
         order.setId(UUID.randomUUID());
         order.setCustomerId(customer.getId());
         order.setNumber(number);
         order.setOrderDate(LocalDate.of(2026, 10, 30));
         order.setStatus("draft");
+        order.setSourceCalculationId(source == null ? null : source.getId());
         return order;
     }
 
-    /** Версия расчёта с необязательными клиентом, заказом и снапшотом. */
+    /** Версия расчёта с необязательными клиентом и снапшотом. */
     private Calculation calculation(UUID rootId, int number, UUID parentId, Customer customer,
-                                    CalculationOrder order, String totalCost) {
+                                    String totalCost) {
         Calculation calculation = new Calculation();
         calculation.setId(UUID.randomUUID());
         calculation.setRootId(rootId);
@@ -80,7 +82,6 @@ class CalculationServiceTreeTest {
         calculation.setClientName(customer == null ? "Старый клиент" : customer.getName());
         calculation.setManagerName("Иванов");
         calculation.setCustomerId(customer == null ? null : customer.getId());
-        calculation.setOrderId(order == null ? null : order.getId());
         calculation.setUpdatedAt(LocalDateTime.now().minusMinutes(number));
         if (totalCost != null) {
             Map<String, Object> snapshot = new LinkedHashMap<>();
@@ -91,76 +92,81 @@ class CalculationServiceTreeTest {
     }
 
     @Test
-    void tree_groupsCalculationsByCustomerAndOrder() {
+    void tree_listsOrdersNextToCalculationsOfTheSameClient() {
         Customer romashka = customer("Ромашка");
         Customer lyutik = customer("Лютик");
-        CalculationOrder first = order(romashka, "2026-001");
-        CalculationOrder second = order(lyutik, "2026-002");
 
-        UUID treeInOrder = UUID.randomUUID();
-        Calculation orderRoot = calculation(treeInOrder, 1, null, romashka, first, "100.00");
-        Calculation orderTip = calculation(treeInOrder, 2, orderRoot.getId(), romashka, first, "120.00");
+        UUID orderedTree = UUID.randomUUID();
+        Calculation orderedRoot = calculation(orderedTree, 1, null, romashka, "100.00");
+        Calculation orderedTip = calculation(orderedTree, 2, orderedRoot.getId(), romashka, "120.00");
+        CalculationOrder first = order(romashka, "2026-001", orderedTip);
 
-        UUID treeWithoutOrder = UUID.randomUUID();
-        Calculation loose = calculation(treeWithoutOrder, 1, null, romashka, null, "50.00");
+        UUID looseTree = UUID.randomUUID();
+        Calculation loose = calculation(looseTree, 1, null, romashka, "50.00");
 
         UUID legacyTree = UUID.randomUUID();
-        Calculation legacy = calculation(legacyTree, 1, null, null, null, null);
+        Calculation legacy = calculation(legacyTree, 1, null, null, null);
 
         when(customerRepository.findAllByOrderByActiveDescNameAsc()).thenReturn(List.of(romashka, lyutik));
-        when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(first, second));
+        when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(first));
         when(calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc())
-                .thenReturn(List.of(orderTip, orderRoot, loose, legacy));
+                .thenReturn(List.of(orderedTip, orderedRoot, loose, legacy));
+        when(calculationRepository.findAllById(any()))
+                .thenReturn(List.of(orderedTip));
 
         List<CustomerTreeDto> tree = service.tree();
 
         assertEquals(3, tree.size());
         CustomerTreeDto romashkaNode = tree.get(0);
         assertEquals("Ромашка", romashkaNode.getName());
+        assertEquals(2, romashkaNode.getCalculations().size(),
+                "расчёт остаётся у клиента и после заказа");
         assertEquals(1, romashkaNode.getOrders().size());
-        assertEquals(1, romashkaNode.getWithoutOrder().size());
-        assertEquals("Расчёт v1", romashkaNode.getWithoutOrder().get(0).getName());
 
         OrderTreeDto orderNode = romashkaNode.getOrders().get(0);
         assertEquals("2026-001", orderNode.getNumber());
-        assertEquals(1, orderNode.getCalculations().size());
-        assertEquals(2L, orderNode.getCalculations().get(0).getVersionCount());
-        assertEquals(2, orderNode.getCalculations().get(0).getVersion());
+        assertEquals(orderedTip.getId(), orderNode.getSourceCalculationId());
+        assertEquals(2, orderNode.getSourceVersion(), "заказ вырос из второй версии");
+        assertEquals("Расчёт v2", orderNode.getSourceCalculationName());
         assertEquals(0, new BigDecimal("120.00").compareTo(orderNode.getTotalCost()),
-                "в сумму заказа идёт последняя версия расчёта: " + orderNode.getTotalCost());
+                "в сумму заказа идёт версия-источник: " + orderNode.getTotalCost());
 
         CustomerTreeDto lyutikNode = tree.get(1);
         assertEquals("Лютик", lyutikNode.getName());
-        assertEquals(1, lyutikNode.getOrders().size(), "заказ без расчётов остаётся видимым");
-        assertTrue(lyutikNode.getOrders().get(0).getCalculations().isEmpty());
-        assertNull(lyutikNode.getOrders().get(0).getTotalCost());
+        assertTrue(lyutikNode.getOrders().isEmpty());
+        assertTrue(lyutikNode.getCalculations().isEmpty());
 
         CustomerTreeDto legacyNode = tree.get(2);
         assertNull(legacyNode.getId());
         assertEquals("Без клиента", legacyNode.getName());
-        assertEquals(1, legacyNode.getWithoutOrder().size());
+        assertEquals(1, legacyNode.getCalculations().size());
     }
 
     @Test
     void tree_countsVersionsOfOneCalculation() {
         Customer romashka = customer("Ромашка");
-        CalculationOrder first = order(romashka, "2026-001");
 
         UUID rootId = UUID.randomUUID();
-        Calculation versionOne = calculation(rootId, 1, null, romashka, first, "10.00");
-        Calculation versionTwo = calculation(rootId, 2, versionOne.getId(), romashka, first, "20.00");
-        Calculation branch = calculation(rootId, 2, versionOne.getId(), romashka, first, "30.00");
+        Calculation versionOne = calculation(rootId, 1, null, romashka, "10.00");
+        Calculation versionTwo = calculation(rootId, 2, versionOne.getId(), romashka, "20.00");
+        Calculation branch = calculation(rootId, 2, versionOne.getId(), romashka, "30.00");
+        CalculationOrder first = order(romashka, "2026-001", versionOne);
 
         when(customerRepository.findAllByOrderByActiveDescNameAsc()).thenReturn(List.of(romashka));
         when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(first));
         when(calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc())
                 .thenReturn(List.of(branch, versionTwo, versionOne));
+        when(calculationRepository.findAllById(any()))
+                .thenReturn(List.of(versionOne));
 
         CustomerTreeDto node = service.tree().get(0);
 
-        assertEquals(1, node.getOrders().get(0).getCalculations().size(),
-                "дерево версий — один расчёт в заказе, а не три");
-        assertEquals(3L, node.getOrders().get(0).getCalculations().get(0).getVersionCount());
-        assertEquals(2, node.getOrders().get(0).getCalculations().get(0).getVersion());
+        assertEquals(1, node.getCalculations().size(), "три версии — это один расчёт, а не три");
+        assertEquals(3L, node.getCalculations().get(0).getVersionCount());
+        assertEquals(2, node.getCalculations().get(0).getVersion());
+
+        assertEquals(1, node.getOrders().size());
+        assertEquals(1, node.getOrders().get(0).getSourceVersion(),
+                "заказ вырос из первой версии, хотя у расчёта уже есть ветки");
     }
 }

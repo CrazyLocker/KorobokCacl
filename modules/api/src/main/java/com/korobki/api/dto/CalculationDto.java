@@ -37,9 +37,6 @@ public class CalculationDto {
     /** Client reference; null for rows saved before the reference book. */
     private UUID customerId;
 
-    /** Order the calculation belongs to; null when it has no order yet. */
-    private UUID orderId;
-
     /** Manager who created the calculation. */
     private String managerName;
 

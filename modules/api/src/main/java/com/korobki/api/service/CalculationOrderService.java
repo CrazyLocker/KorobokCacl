@@ -2,11 +2,12 @@ package com.korobki.api.service;
 
 import com.korobki.api.dto.CalculationOrderDto;
 import com.korobki.api.dto.CalculationOrderSaveRequest;
-import com.korobki.api.dto.CalculationTreeDto;
 import com.korobki.api.exception.NotFoundException;
+import com.korobki.persistence.entity.Calculation;
 import com.korobki.persistence.entity.CalculationOrder;
 import com.korobki.persistence.entity.Customer;
 import com.korobki.persistence.repository.CalculationOrderRepository;
+import com.korobki.persistence.repository.CalculationRepository;
 import com.korobki.persistence.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -14,9 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,7 +24,11 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Orders (deals) that group calculations of one client.
+ * Client orders: a deal that grows from one calculation version.
+ *
+ * <p>The client picks the variant they agreed to, so an order points at that
+ * version as its source. Every other version stays in the calculation tree, and
+ * the same version may later produce another order.
  */
 @Service
 @RequiredArgsConstructor
@@ -35,10 +39,10 @@ public class CalculationOrderService {
 
     private final CalculationOrderRepository orderRepository;
     private final CustomerRepository customerRepository;
-    private final CalculationService calculationService;
+    private final CalculationRepository calculationRepository;
 
     /**
-     * Returns orders with the number and cost of their calculations.
+     * Returns orders with the version each one grew from.
      *
      * @param customerId optional client filter
      * @return orders, newest first
@@ -51,16 +55,15 @@ public class CalculationOrderService {
 
         Map<UUID, String> customerNames = customerRepository.findAll().stream()
                 .collect(Collectors.toMap(Customer::getId, Customer::getName));
-        Map<UUID, List<CalculationTreeDto>> byOrder = calculationsByOrder();
+        Map<UUID, Calculation> sources = sources(orders);
 
         return orders.stream()
-                .map(order -> toDto(order, customerNames.get(order.getCustomerId()),
-                        byOrder.getOrDefault(order.getId(), List.of())))
+                .map(order -> toDto(order, customerNames.get(order.getCustomerId()), sources))
                 .toList();
     }
 
     /**
-     * Returns one order with its calculations.
+     * Returns one order with its source version.
      *
      * @param id order identifier
      * @return order DTO
@@ -72,51 +75,57 @@ public class CalculationOrderService {
         String customerName = customerRepository.findById(order.getCustomerId())
                 .map(Customer::getName)
                 .orElse("Клиент удалён");
-        return toDto(order, customerName, calculationsByOrder().getOrDefault(id, List.of()));
+        return toDto(order, customerName, sources(List.of(order)));
     }
 
     /**
-     * Creates an order.
+     * Creates an order from a calculation version.
      *
-     * <p>A blank number is generated as {@code <year>-<running number>} for the
-     * client, so a manager can create a deal without inventing a numbering.
+     * <p>The client of the order is taken from the version: an order cannot be
+     * placed for someone whose calculation does not name a client. A blank
+     * number is generated as {@code <year>-<running number>} for the client, so
+     * a manager can create a deal without inventing a numbering.
      *
      * @param request order details
      * @return stored order
-     * @throws NotFoundException        when the client does not exist
+     * @throws NotFoundException        when the version or its client does not exist
      * @throws IllegalArgumentException when the number is taken or status is unknown
      */
     @Transactional
     public CalculationOrderDto create(CalculationOrderSaveRequest request) {
-        Customer customer = customerRepository.findById(request.getCustomerId())
-                .orElseThrow(() -> new NotFoundException("Клиент не найден: " + request.getCustomerId()));
+        Calculation source = calculationRepository.findById(request.getSourceCalculationId())
+                .orElseThrow(() -> new NotFoundException(
+                        "Версия расчёта не найдена: " + request.getSourceCalculationId()));
+        Customer customer = customerOf(source);
 
         CalculationOrder order = new CalculationOrder();
         order.setCustomerId(customer.getId());
+        order.setSourceCalculationId(source.getId());
         order.setOrderDate(request.getOrderDate() != null ? request.getOrderDate() : LocalDate.now());
         order.setStatus(normalizeStatus(request.getStatus(), "draft"));
         order.setComment(trimToNull(request.getComment()));
         order.setNumber(resolveNumber(customer.getId(), request.getNumber()));
-        return toDto(orderRepository.save(order), customer.getName(), List.of());
+        return toDto(orderRepository.save(order), customer.getName(), Map.of(source.getId(), source));
     }
 
     /**
      * Updates an order.
      *
-     * <p>The client is not movable: moving a deal to another client would
-     * silently change who the calculations belong to.
+     * <p>Neither the client nor the source version is movable: moving a deal to
+     * another client or variant would silently rewrite what the client agreed to.
      *
      * @param id      order identifier
      * @param request new values
      * @return updated order
-     * @throws NotFoundException        when the order or its client does not exist
-     * @throws IllegalArgumentException when the number is taken or the client changes
+     * @throws NotFoundException        when the order does not exist
+     * @throws IllegalArgumentException when the number is taken or the source changes
      */
     @Transactional
     public CalculationOrderDto update(UUID id, CalculationOrderSaveRequest request) {
         CalculationOrder order = find(id);
-        if (!order.getCustomerId().equals(request.getCustomerId())) {
-            throw new IllegalArgumentException("Заказ нельзя передать другому клиенту");
+        if (request.getSourceCalculationId() != null
+                && !request.getSourceCalculationId().equals(order.getSourceCalculationId())) {
+            throw new IllegalArgumentException("Заказ нельзя перенести на другую версию расчёта");
         }
 
         order.setNumber(resolveNumberForUpdate(order, request.getNumber()));
@@ -129,7 +138,7 @@ public class CalculationOrderService {
         String customerName = customerRepository.findById(order.getCustomerId())
                 .map(Customer::getName)
                 .orElse("Клиент удалён");
-        return toDto(order, customerName, calculationsByOrder().getOrDefault(id, List.of()));
+        return toDto(order, customerName, sources(List.of(order)));
     }
 
     /**
@@ -146,21 +155,40 @@ public class CalculationOrderService {
     }
 
     /**
-     * Groups the live calculation trees by order.
+     * Resolves the client of a version.
      *
-     * @return calculations per order id
+     * @param source version the order grows from
+     * @return its client
+     * @throws NotFoundException        when the client row is gone
+     * @throws IllegalArgumentException when the version names no client
      */
-    private Map<UUID, List<CalculationTreeDto>> calculationsByOrder() {
-        Map<UUID, List<CalculationTreeDto>> byOrder = new HashMap<>();
-        for (CalculationTreeDto tree : calculationService.treesByRoot().values()) {
-            if (tree.getOrderId() != null) {
-                byOrder.computeIfAbsent(tree.getOrderId(), key -> new ArrayList<>()).add(tree);
+    private Customer customerOf(Calculation source) {
+        if (source.getCustomerId() == null) {
+            throw new IllegalArgumentException("У расчёта не указан клиент — сначала выберите клиента");
+        }
+        return customerRepository.findById(source.getCustomerId())
+                .orElseThrow(() -> new NotFoundException("Клиент не найден: " + source.getCustomerId()));
+    }
+
+    /**
+     * Loads the versions the given orders grew from.
+     *
+     * @param orders orders to resolve
+     * @return versions keyed by id
+     */
+    private Map<UUID, Calculation> sources(List<CalculationOrder> orders) {
+        Set<UUID> ids = new HashSet<>();
+        for (CalculationOrder order : orders) {
+            if (order.getSourceCalculationId() != null) {
+                ids.add(order.getSourceCalculationId());
             }
         }
-        byOrder.values().forEach(list -> list.sort(Comparator
-                .comparing(CalculationTreeDto::getUpdatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder()))));
-        return byOrder;
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, Calculation> sources = new HashMap<>();
+        calculationRepository.findAllById(ids).forEach(version -> sources.put(version.getId(), version));
+        return sources;
     }
 
     /**
@@ -230,13 +258,13 @@ public class CalculationOrderService {
     /**
      * Maps an order entity to its DTO.
      *
-     * @param order         stored order
-     * @param customerName  client name for the table
-     * @param calculations  live calculations of the order
+     * @param order        stored order
+     * @param customerName client name for the table
+     * @param sources      versions the orders grew from, keyed by id
      * @return order DTO
      */
     private CalculationOrderDto toDto(CalculationOrder order, String customerName,
-                                      List<CalculationTreeDto> calculations) {
+                                      Map<UUID, Calculation> sources) {
         CalculationOrderDto dto = new CalculationOrderDto();
         dto.setId(order.getId());
         dto.setCustomerId(order.getCustomerId());
@@ -245,28 +273,46 @@ public class CalculationOrderService {
         dto.setOrderDate(order.getOrderDate());
         dto.setStatus(order.getStatus());
         dto.setComment(order.getComment());
-        dto.setCalculationCount((long) calculations.size());
-        dto.setTotalCost(sumCosts(calculations));
+        dto.setSourceCalculationId(order.getSourceCalculationId());
+
+        Calculation source = order.getSourceCalculationId() == null
+                ? null
+                : sources.get(order.getSourceCalculationId());
+        if (source != null) {
+            dto.setSourceVersion(source.getVersion() != null ? source.getVersion() : 1);
+            dto.setSourceCalculationName(source.getName());
+            dto.setSourceCalculationUpdatedAt(source.getUpdatedAt());
+            dto.setTotalCost(totalCostOf(source));
+        }
+
         dto.setCreatedAt(order.getCreatedAt());
         dto.setUpdatedAt(order.getUpdatedAt());
         return dto;
     }
 
     /**
-     * Sums the costs of the calculations; null when none is priced.
+     * Reads the total cost of a version from its stored snapshot.
      *
-     * @param calculations trees of the order
-     * @return order total, or null when empty
+     * @param version version row
+     * @return total cost, or null when the snapshot is missing
      */
-    private BigDecimal sumCosts(List<CalculationTreeDto> calculations) {
-        BigDecimal total = null;
-        for (CalculationTreeDto calculation : calculations) {
-            if (calculation.getTotalCost() == null) {
-                continue;
-            }
-            total = total == null ? calculation.getTotalCost() : total.add(calculation.getTotalCost());
+    private BigDecimal totalCostOf(Calculation version) {
+        Map<String, Object> stored = version.getCalculationResult();
+        if (stored == null) {
+            return null;
         }
-        return total;
+        Object value = stored.get("totalCost");
+        if (value instanceof Number number) {
+            return new BigDecimal(number.toString());
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return new BigDecimal(text);
+            } catch (NumberFormatException ex) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

@@ -4,6 +4,8 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -43,11 +45,8 @@ public class CalculationVersionDto {
     /** Total cost stored with the version; null for versions saved before snapshots. */
     private BigDecimal totalCost;
 
-    /** Order the version belongs to; null while the calculation is without an order. */
-    private UUID orderId;
-
-    /** Human-readable order number for the tree, e.g. {@code 2026-001}. */
-    private String orderNumber;
+    /** Orders that grew from this version; empty when none were placed from it. */
+    private List<CalculationVersionOrderDto> orders = new ArrayList<>();
 
     /** True for the latest version of the chain. */
     private boolean latest;

@@ -3,6 +3,7 @@ package com.korobki.persistence.repository;
 import com.korobki.persistence.entity.CalculationOrder;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,4 +36,15 @@ public interface CalculationOrderRepository extends JpaRepository<CalculationOrd
      * @return the order when present
      */
     Optional<CalculationOrder> findByCustomerIdAndNumberIgnoreCase(UUID customerId, String number);
+
+    /**
+     * Finds the orders born from the given calculation versions.
+     *
+     * <p>Used by the version tree: a version shows the orders that grew out of
+     * it, so one calculation may feed several deals.
+     *
+     * @param sourceIds identifiers of calculation versions
+     * @return orders referring to any of the versions
+     */
+    List<CalculationOrder> findBySourceCalculationIdIn(Collection<UUID> sourceIds);
 }

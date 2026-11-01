@@ -105,22 +105,10 @@ export const calculatorApi = {
     getCalculation: (id: string): Promise<SavedCalculation> =>
         axios.get(`${API_BASE}/calculations/${id}`).then((res) => res.data),
 
-    // Сохранение правки: новая версия цепочки, метаданные наследуются от родителя.
-    // Заказ — решение момента: orderId переносит версию в заказ, detachOrder
-    // выводит из заказа, а без них версия наследует заказ родителя.
-    iterateCalculation: (
-        id: string,
-        data: CalculationRequest,
-        order?: { orderId?: string | null; detachOrder?: boolean },
-    ): Promise<SavedCalculation> =>
-        axios
-            .post(`${API_BASE}/calculations/${id}/iterate`, data, {
-                params: {
-                    ...(order?.orderId ? { orderId: order.orderId } : {}),
-                    ...(order?.detachOrder ? { detachOrder: true } : {}),
-                },
-            })
-            .then((res) => res.data),
+    // Сохранение правки: новая версия ветки, метаданные наследуются от родителя.
+    // Заказ из версии создаётся отдельно (createOrder) — расчёт остаётся в дереве.
+    iterateCalculation: (id: string, data: CalculationRequest): Promise<SavedCalculation> =>
+        axios.post(`${API_BASE}/calculations/${id}/iterate`, data).then((res) => res.data),
 
     getCalculationView: (id: string): Promise<CalculationView> =>
         axios.get(`${API_BASE}/calculations/${id}/view`).then((res) => res.data),

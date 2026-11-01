@@ -2,18 +2,19 @@ package com.korobki.api.service;
 
 import com.korobki.api.dto.CalculationOrderDto;
 import com.korobki.api.dto.CalculationOrderSaveRequest;
-import com.korobki.api.dto.CalculationTreeDto;
 import com.korobki.api.exception.NotFoundException;
+import com.korobki.persistence.entity.Calculation;
 import com.korobki.persistence.entity.CalculationOrder;
 import com.korobki.persistence.entity.Customer;
 import com.korobki.persistence.repository.CalculationOrderRepository;
+import com.korobki.persistence.repository.CalculationRepository;
 import com.korobki.persistence.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -29,24 +30,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Проверяет заказы клиента: номер генерируется сам, дубликат не проходит,
- * заказ нельзя передать другому клиенту, а сумма заказа складывается из
- * последних версий его расчётов.
+ * Проверяет заказы, которые вырастают из версии расчёта: клиент и цена берутся
+ * у версии-источника, номер генерируется сам, дубликат и перенос на другую
+ * версию не проходят.
  */
 class CalculationOrderServiceTest {
 
     private CalculationOrderRepository orderRepository;
     private CustomerRepository customerRepository;
-    private CalculationService calculationService;
+    private CalculationRepository calculationRepository;
     private CalculationOrderService service;
 
     @BeforeEach
     void setUp() {
         orderRepository = mock(CalculationOrderRepository.class);
         customerRepository = mock(CustomerRepository.class);
-        calculationService = mock(CalculationService.class);
-        when(calculationService.treesByRoot()).thenReturn(Map.of());
-        service = new CalculationOrderService(orderRepository, customerRepository, calculationService);
+        calculationRepository = mock(CalculationRepository.class);
+        service = new CalculationOrderService(orderRepository, customerRepository, calculationRepository);
     }
 
     /** Клиент справочника. */
@@ -58,21 +58,40 @@ class CalculationOrderServiceTest {
         return customer;
     }
 
+    /** Версия расчёта клиента со снапшотом стоимости. */
+    private Calculation version(Customer customer, int number, String totalCost) {
+        Calculation calculation = new Calculation();
+        calculation.setId(UUID.randomUUID());
+        calculation.setRootId(UUID.randomUUID());
+        calculation.setVersion(number);
+        calculation.setName("Расчёт v" + number);
+        calculation.setClientName(customer == null ? null : customer.getName());
+        calculation.setManagerName("Иванов");
+        calculation.setCustomerId(customer == null ? null : customer.getId());
+        if (totalCost != null) {
+            Map<String, Object> snapshot = new LinkedHashMap<>();
+            snapshot.put("totalCost", totalCost);
+            calculation.setCalculationResult(snapshot);
+        }
+        return calculation;
+    }
+
     /** Существующий заказ клиента. */
-    private CalculationOrder order(Customer customer, String number) {
+    private CalculationOrder order(Customer customer, String number, Calculation source) {
         CalculationOrder order = new CalculationOrder();
         order.setId(UUID.randomUUID());
         order.setCustomerId(customer.getId());
         order.setNumber(number);
         order.setOrderDate(LocalDate.of(2026, 10, 1));
         order.setStatus("draft");
+        order.setSourceCalculationId(source == null ? null : source.getId());
         return order;
     }
 
-    /** Запрос создания заказа. */
-    private CalculationOrderSaveRequest request(Customer customer, String number) {
+    /** Запрос создания заказа из версии. */
+    private CalculationOrderSaveRequest request(Calculation source, String number) {
         CalculationOrderSaveRequest request = new CalculationOrderSaveRequest();
-        request.setCustomerId(customer.getId());
+        request.setSourceCalculationId(source.getId());
         request.setNumber(number);
         return request;
     }
@@ -80,13 +99,16 @@ class CalculationOrderServiceTest {
     @Test
     void create_blankNumber_generatesNextNumberForTheYear() {
         Customer client = customer("Ромашка");
+        Calculation source = version(client, 2, "100.00");
         int year = LocalDate.now().getYear();
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.of(source));
         when(customerRepository.findById(client.getId())).thenReturn(Optional.of(client));
         when(orderRepository.findByCustomerIdOrderByOrderDateDescCreatedAtDesc(client.getId()))
-                .thenReturn(List.of(order(client, year + "-001"), order(client, year + "-002")));
+                .thenReturn(List.of(order(client, year + "-001", source),
+                        order(client, year + "-002", source)));
         when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        CalculationOrderDto created = service.create(request(client, "  "));
+        CalculationOrderDto created = service.create(request(source, "  "));
 
         assertEquals(year + "-003", created.getNumber());
         assertEquals("draft", created.getStatus());
@@ -94,32 +116,69 @@ class CalculationOrderServiceTest {
     }
 
     @Test
+    void create_takesClientAndCostFromSourceVersion() {
+        Customer client = customer("Ромашка");
+        Calculation source = version(client, 4, "321.50");
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.of(source));
+        when(customerRepository.findById(client.getId())).thenReturn(Optional.of(client));
+        when(orderRepository.findByCustomerIdAndNumberIgnoreCase(client.getId(), "2026-777"))
+                .thenReturn(Optional.empty());
+        when(orderRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        CalculationOrderDto created = service.create(request(source, "2026-777"));
+
+        assertEquals(client.getId(), created.getCustomerId());
+        assertEquals("Ромашка", created.getCustomerName());
+        assertEquals(source.getId(), created.getSourceCalculationId());
+        assertEquals(4, created.getSourceVersion());
+        assertEquals("Расчёт v4", created.getSourceCalculationName());
+        assertEquals(0, new BigDecimal("321.50").compareTo(created.getTotalCost()),
+                "цена заказа — снапшот версии-источника: " + created.getTotalCost());
+    }
+
+    @Test
     void create_duplicateNumber_isRejected() {
         Customer client = customer("Ромашка");
+        Calculation source = version(client, 1, "10.00");
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.of(source));
         when(customerRepository.findById(client.getId())).thenReturn(Optional.of(client));
         when(orderRepository.findByCustomerIdAndNumberIgnoreCase(client.getId(), "2026-001"))
-                .thenReturn(Optional.of(order(client, "2026-001")));
+                .thenReturn(Optional.of(order(client, "2026-001", source)));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
-                () -> service.create(request(client, "2026-001")));
+                () -> service.create(request(source, "2026-001")));
 
         assertTrue(error.getMessage().contains("уже есть у клиента"), error.getMessage());
         verify(orderRepository, never()).save(any());
     }
 
     @Test
-    void create_unknownClient_throwsNotFound() {
-        Customer client = customer("Ромашка");
-        when(customerRepository.findById(client.getId())).thenReturn(Optional.empty());
+    void create_unknownVersion_throwsNotFound() {
+        Calculation source = version(customer("Ромашка"), 1, "10.00");
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> service.create(request(client, "2026-001")));
+        assertThrows(NotFoundException.class, () -> service.create(request(source, "2026-001")));
+    }
+
+    @Test
+    void create_versionWithoutClient_isRejected() {
+        Calculation source = version(null, 1, "10.00");
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.of(source));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.create(request(source, "2026-001")));
+
+        assertEquals("У расчёта не указан клиент — сначала выберите клиента", error.getMessage());
+        verify(orderRepository, never()).save(any());
     }
 
     @Test
     void create_unknownStatus_isRejected() {
         Customer client = customer("Ромашка");
+        Calculation source = version(client, 1, "10.00");
+        when(calculationRepository.findById(source.getId())).thenReturn(Optional.of(source));
         when(customerRepository.findById(client.getId())).thenReturn(Optional.of(client));
-        CalculationOrderSaveRequest request = request(client, "2026-001");
+        CalculationOrderSaveRequest request = request(source, "2026-001");
         request.setStatus("согласование");
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
@@ -129,24 +188,29 @@ class CalculationOrderServiceTest {
     }
 
     @Test
-    void update_clientChange_isRejected() {
+    void update_sourceVersionChange_isRejected() {
         Customer client = customer("Ромашка");
-        Customer another = customer("Лютик");
-        CalculationOrder stored = order(client, "2026-001");
+        Calculation first = version(client, 1, "10.00");
+        Calculation second = version(client, 2, "20.00");
+        CalculationOrder stored = order(client, "2026-001", first);
         when(orderRepository.findById(stored.getId())).thenReturn(Optional.of(stored));
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.update(stored.getId(), request(another, "2026-001")));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> service.update(stored.getId(), request(second, "2026-001")));
+
+        assertTrue(error.getMessage().contains("нельзя перенести на другую версию"), error.getMessage());
     }
 
     @Test
     void update_changesStatusAndComment() {
         Customer client = customer("Ромашка");
-        CalculationOrder stored = order(client, "2026-001");
+        Calculation source = version(client, 1, "10.00");
+        CalculationOrder stored = order(client, "2026-001", source);
         when(orderRepository.findById(stored.getId())).thenReturn(Optional.of(stored));
         when(customerRepository.findById(client.getId())).thenReturn(Optional.of(client));
+        when(calculationRepository.findAllById(any())).thenReturn(List.of(source));
 
-        CalculationOrderSaveRequest request = request(client, "2026-001");
+        CalculationOrderSaveRequest request = request(source, "2026-001");
         request.setStatus("sent");
         request.setComment("Отправлено клиенту");
 
@@ -154,34 +218,23 @@ class CalculationOrderServiceTest {
 
         assertEquals("sent", updated.getStatus());
         assertEquals("Отправлено клиенту", updated.getComment());
+        assertEquals(1, updated.getSourceVersion());
     }
 
     @Test
-    void list_sumsCostsOfLatestVersions() {
+    void list_reportsSourceVersionOfEachOrder() {
         Customer client = customer("Ромашка");
-        CalculationOrder stored = order(client, "2026-001");
+        Calculation source = version(client, 3, "150.50");
+        CalculationOrder stored = order(client, "2026-001", source);
         when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(stored));
         when(customerRepository.findAll()).thenReturn(List.of(client));
-
-        CalculationTreeDto first = new CalculationTreeDto();
-        first.setId(UUID.randomUUID());
-        first.setOrderId(stored.getId());
-        first.setTotalCost(new BigDecimal("100.00"));
-        first.setUpdatedAt(LocalDateTime.now());
-
-        CalculationTreeDto second = new CalculationTreeDto();
-        second.setId(UUID.randomUUID());
-        second.setOrderId(stored.getId());
-        second.setTotalCost(new BigDecimal("50.50"));
-        second.setUpdatedAt(LocalDateTime.now().minusDays(1));
-
-        when(calculationService.treesByRoot()).thenReturn(Map.of(first.getId(), first, second.getId(), second));
+        when(calculationRepository.findAllById(any())).thenReturn(List.of(source));
 
         CalculationOrderDto dto = service.list(null).get(0);
 
         assertEquals("Ромашка", dto.getCustomerName());
-        assertEquals(2L, dto.getCalculationCount());
+        assertEquals(3, dto.getSourceVersion(), "видно, из какой версии вырос заказ");
         assertEquals(0, new BigDecimal("150.50").compareTo(dto.getTotalCost()),
-                "сумма заказа должна складываться из расчётов: " + dto.getTotalCost());
+                "сумма заказа — стоимость версии-источника: " + dto.getTotalCost());
     }
 }

@@ -29,9 +29,6 @@ public class CalculationSaveRequest {
      */
     private String clientName;
 
-    /** Order the calculation belongs to; null means "no order yet". */
-    private UUID orderId;
-
     /** Manager who created the calculation. */
     @NotBlank(message = "Укажите менеджера")
     private String managerName;

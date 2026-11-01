@@ -44,10 +44,6 @@ public class Calculation {
     @Column(name = "customer_id")
     private UUID customerId;
 
-    /** Order (deal) the calculation belongs to; null for "no order yet". */
-    @Column(name = "order_id")
-    private UUID orderId;
-
     /** Manager who created the calculation. */
     @Column(name = "manager_name", nullable = false)
     private String managerName;

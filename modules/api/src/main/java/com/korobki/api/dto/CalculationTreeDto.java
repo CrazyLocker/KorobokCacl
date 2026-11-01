@@ -6,7 +6,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/** One calculation tree inside the customer → order → calculation tree. */
+/** One calculation tree inside the customer → calculation tree. */
 @Data
 public class CalculationTreeDto {
 
@@ -15,9 +15,6 @@ public class CalculationTreeDto {
 
     /** Client the calculation belongs to. */
     private UUID customerId;
-
-    /** Order the calculation belongs to; null when it has no order yet. */
-    private UUID orderId;
 
     /** Human-readable calculation name. */
     private String name;
@@ -33,12 +30,6 @@ public class CalculationTreeDto {
 
     /** Number of live versions in the tree. */
     private Long versionCount;
-
-    /**
-     * Version the calculation entered its current order with; null when it has
-     * no order yet. Shown as «в заказе с vN» in the tree.
-     */
-    private Integer orderSinceVersion;
 
     /** Cost of the newest version; null when it has no stored snapshot. */
     private BigDecimal totalCost;

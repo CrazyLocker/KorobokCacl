@@ -1,7 +1,7 @@
 // frontend/src/components/Settings/VersionTree.tsx
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Flex, Tag, Tree } from 'antd';
+import { Button, Flex, Tag, Tree } from 'antd';
 import type { DataNode } from 'antd/es/tree';
 import type { CalculationVersion } from '../../types';
 import { buildVersionTree } from '../../utils/versionTree';
@@ -14,6 +14,11 @@ interface Props {
     selectedId: string | null;
     /** Клик по версии. */
     onSelect: (id: string) => void;
+    /**
+     * Создать заказ из версии. Кнопка показывается только там, где заказ можно
+     * завести: в «Виде расчёта» и в списке сохранённых расчётов.
+     */
+    onCreateOrder?: (version: CalculationVersion) => void;
 }
 
 const MUTED = { color: '#8c8c8c', fontSize: 12 } as const;
@@ -30,23 +35,24 @@ const formatDate = (value: string): string => {
 };
 
 /**
- * Метка о заказе рядом с версией, которая его изменила: «в заказе № …» —
- * версия завела расчёт в заказ, «без заказа» — вывела из него.
+ * Заказы, выросшие из версии: их может быть несколько, поэтому теги идут
+ * списком. Сам расчёт остаётся в дереве клиента — заказ его не «забирает».
  */
-const orderTag = (node: VersionNode, parentOrderId: string | null): ReactNode => {
-    if (node.orderId === parentOrderId) return null;
-    if (!node.orderId) {
-        return <Tag style={{ marginInlineEnd: 0 }}>без заказа</Tag>;
-    }
-    return (
-        <Tag color="blue" style={{ marginInlineEnd: 0 }}>
-            {node.orderNumber ? `в заказе № ${node.orderNumber}` : 'в заказе'}
+const orderTags = (node: VersionNode): ReactNode => {
+    if (!node.orders?.length) return null;
+
+    return node.orders.map((order) => (
+        <Tag key={order.id} color="blue" style={{ marginInlineEnd: 0 }}>
+            {`заказ № ${order.number}`}
         </Tag>
-    );
+    ));
 };
 
-/** Заголовок узла: номер, время правки, менеджер, себестоимость, заказ. */
-const versionTitle = (node: VersionNode, parentOrderId: string | null): ReactNode => (
+/** Заголовок узла: номер, время правки, менеджер, себестоимость, заказы. */
+const versionTitle = (
+    node: VersionNode,
+    onCreateOrder?: (version: CalculationVersion) => void,
+): ReactNode => (
     <Flex
         gap={10}
         align="center"
@@ -59,18 +65,35 @@ const versionTitle = (node: VersionNode, parentOrderId: string | null): ReactNod
         <span style={MUTED}>{formatDate(node.updatedAt)}</span>
         <span>{node.managerName || '—'}</span>
         <span style={{ minWidth: 96, textAlign: 'right' }}>{money(node.totalCost)}</span>
-        {orderTag(node, parentOrderId)}
+        {orderTags(node)}
         {node.deleted && <Tag color="red" style={{ marginInlineEnd: 0 }}>удалена</Tag>}
         {!node.deleted && node.children.length === 0 && (
             <Tag color="green" style={{ marginInlineEnd: 0 }}>конец ветки</Tag>
         )}
+        {!node.deleted && onCreateOrder && (
+            <Button
+                type="link"
+                size="small"
+                style={{ padding: 0, height: 20, fontSize: 11 }}
+                onClick={(event) => {
+                    // Клик по кнопке не должен выбирать версию в дереве.
+                    event.stopPropagation();
+                    onCreateOrder(node);
+                }}
+            >
+                Создать заказ
+            </Button>
+        )}
     </Flex>
 );
 
-const toTreeNode = (node: VersionNode, parentOrderId: string | null): DataNode => ({
+const toTreeNode = (
+    node: VersionNode,
+    onCreateOrder?: (version: CalculationVersion) => void,
+): DataNode => ({
     key: node.id,
-    title: versionTitle(node, parentOrderId),
-    children: node.children.map((child) => toTreeNode(child, node.orderId ?? null)),
+    title: versionTitle(node, onCreateOrder),
+    children: node.children.map((child) => toTreeNode(child, onCreateOrder)),
 });
 
 /**
@@ -78,7 +101,9 @@ const toTreeNode = (node: VersionNode, parentOrderId: string | null): DataNode =
  * версию. Удалённые версии остаются зачёркнутыми — история нужна при
  * согласовании с заказчиком.
  */
-export const VersionTree = ({ versions, selectedId, onSelect }: Props) => {
+export const VersionTree = ({
+    versions, selectedId, onSelect, onCreateOrder,
+}: Props) => {
     const [expandedKeys, setExpandedKeys] = useState<string[]>(() => versions.map((version) => version.id));
 
     // Новые версии (после сохранения или удаления) раскрываем, ручной выбор не сбрасываем.
@@ -91,8 +116,8 @@ export const VersionTree = ({ versions, selectedId, onSelect }: Props) => {
     }, [versions]);
 
     const treeData = useMemo(
-        () => buildVersionTree(versions).map((node) => toTreeNode(node, null)),
-        [versions],
+        () => buildVersionTree(versions).map((node) => toTreeNode(node, onCreateOrder)),
+        [versions, onCreateOrder],
     );
 
     return (
