@@ -135,4 +135,16 @@ describe('buildCalculationTreeRows', () => {
     it('возвращает пустой список для пустого ответа API', () => {
         expect(buildCalculationTreeRows([], {})).toEqual([]);
     });
+
+    it('скрывает клиента, у которого нет ни заказов, ни расчётов', () => {
+        const rows = buildCalculationTreeRows(
+            [
+                customer({ id: 'empty', name: 'dsf', orders: [], calculations: [] }),
+                customer({ id: 'busy', name: 'Лютик', calculations: [calculation({ id: 'calc-1' })] }),
+            ],
+            {},
+        );
+
+        expect(rows.map((row) => row.title)).toEqual(['Лютик']);
+    });
 });

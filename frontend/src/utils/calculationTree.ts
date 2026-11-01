@@ -91,11 +91,18 @@ export const buildCalculationTreeRows = (
         updatedAt: order.orderDate,
     });
 
-    return customers.map((customer) => ({
-        key: `customer-${customer.id}`,
-        kind: 'customer',
-        title: customer.name,
-        // Сначала сделки клиента, под ними — расчёты, из которых растут новые.
-        children: [...customer.orders.map(orderRow), ...customer.calculations.map(calculationRow)],
-    }));
+    // Клиент без заказов и расчётов — строка-пустышка: справочник переживает
+    // очистку расчётов, и показывать «dsf» с пустой веткой бессмысленно.
+    // Такой клиент появится в дереве, когда у него будет первый расчёт.
+    const rows = customers
+        .map((customer) => ({
+            key: `customer-${customer.id}`,
+            kind: 'customer' as const,
+            title: customer.name,
+            // Сначала сделки клиента, под ними — расчёты, из которых растут новые.
+            children: [...customer.orders.map(orderRow), ...customer.calculations.map(calculationRow)],
+        }))
+        .filter((row) => (row.children?.length ?? 0) > 0);
+
+    return rows;
 };
