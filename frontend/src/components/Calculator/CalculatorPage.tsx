@@ -557,8 +557,8 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 style={{ ...CONTROL_STYLE, width: '20ch' }}
                             />
                         </Form.Item>
-                        <Form.Item label="Лист" style={{ marginBottom: 0 }}>
-                            <Text strong>70 × 100</Text>
+                        <Form.Item style={{ marginBottom: 0 }}>
+                            <Text type="secondary">Лист 70 × 100</Text>
                         </Form.Item>
                     </Form>
                 </Card>

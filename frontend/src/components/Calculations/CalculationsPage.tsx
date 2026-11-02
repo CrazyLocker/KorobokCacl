@@ -369,8 +369,9 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 title: 'Себестоимость',
                                 dataIndex: 'cost',
                                 key: 'cost',
-                                width: 120,
-                                align: 'right',
+                                width: 160,
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
                                 render: (cost: number | null | undefined, record: CalculationTreeRow) => (
                                     <span style={{
                                         fontSize: 12,
@@ -385,9 +386,10 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 dataIndex: 'clientPrice',
                                 key: 'clientPrice',
                                 width: 150,
-                                align: 'right',
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
                                 render: (price: number | null | undefined, record: CalculationTreeRow) => (
-                                    <Flex vertical gap={0} align="flex-end">
+                                    <Flex vertical gap={0} align="center">
                                         <span style={{
                                             fontSize: 12,
                                             fontWeight: record.kind === 'customer' ? 600 : 400,
@@ -407,7 +409,9 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 title: 'Обновлён',
                                 dataIndex: 'updatedAt',
                                 key: 'updatedAt',
-                                width: 130,
+                                width: 140,
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
                                 render: (value: string | null | undefined) => (
                                     <span style={{ fontSize: 11, color: '#5f6368' }}>{formatDate(value)}</span>
                                 ),
