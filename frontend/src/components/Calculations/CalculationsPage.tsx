@@ -211,10 +211,10 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         </Flex>
     );
 
-    // Помеченная удалённой версия зачёркивается целиком: строка в истории
-    // остаётся, но видно, что она больше не участвует в работе.
+    // Помеченная удалённой версия или расчёт зачёркивается целиком: строка в
+    // истории остаётся, но видно, что она больше не участвует в работе.
     const rowStyle = (record: CalculationTreeRow) => (
-        record.kind === 'version' && record.version?.deleted
+        record.deleted
             ? { textDecoration: 'line-through', color: '#9aa0a6' }
             : undefined
     );
@@ -352,10 +352,11 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         dataSource={rows}
                         onRow={(record) => ({ style: rowStyle(record) })}
                         expandable={{
-                            // Дерево держим раскрытым вручную: клик подгружает
-                            // версии расчёта и разворачивает только эту ветку.
+                            // Дерево держим раскрытым вручную: версии вложены по
+                            // parentId, поэтому раскрывать можно и версию с ветками.
                             expandedRowKeys: expandedKeys,
                             onExpand: handleExpand,
+                            rowExpandable: (record) => (record.children?.length ?? 0) > 0,
                             indentSize: 18,
                         }}
                         columns={[

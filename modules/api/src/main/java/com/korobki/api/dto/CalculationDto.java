@@ -28,6 +28,12 @@ public class CalculationDto {
     /** Number of live versions in the tree. */
     private Long versionCount;
 
+    /**
+     * True when every version of the tree is marked deleted: the row stays in
+     * the list, struck through.
+     */
+    private Boolean deleted;
+
     /** Human-readable calculation name. */
     private String name;
 

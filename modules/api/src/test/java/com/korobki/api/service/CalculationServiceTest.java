@@ -182,6 +182,33 @@ class CalculationServiceTest {
     }
 
     @Test
+    void list_keepsFullyDeletedTreeAsStruckRow() {
+        UUID rootId = UUID.randomUUID();
+        Calculation root = version(rootId, rootId, 1, null);
+        root.setDeletedAt(LocalDateTime.of(2026, 11, 1, 12, 0));
+        Calculation second = version(UUID.randomUUID(), rootId, 2, rootId);
+        second.setDeletedAt(LocalDateTime.of(2026, 11, 1, 12, 0));
+
+        CalculationChainSummary summary = mock(CalculationChainSummary.class);
+        when(summary.getRootId()).thenReturn(rootId);
+        when(summary.getVersion()).thenReturn(2);
+        when(summary.getVersionCount()).thenReturn(2L);
+        when(summary.getLiveCount()).thenReturn(0L);
+        when(summary.getLastUpdated()).thenReturn(LocalDateTime.of(2026, 11, 1, 12, 0));
+
+        when(repository.findChainSummary()).thenReturn(List.of(summary));
+        when(repository.findAllById(List.of(rootId))).thenReturn(List.of(root));
+        when(repository.findByRootIdOrderByVersionAsc(rootId)).thenReturn(List.of(root, second));
+
+        List<CalculationDto> result = service.list();
+
+        assertEquals(1, result.size(), "удалённый расчёт остаётся строкой истории");
+        assertEquals(Boolean.TRUE, result.get(0).getDeleted());
+        assertEquals(second.getId(), result.get(0).getLatestId(),
+                "когда всё удалено, открывается самая свежая версия");
+    }
+
+    @Test
     void get_existingId_returnsDto() {
         Calculation calculation = version(UUID.randomUUID(), UUID.randomUUID(), 3, null);
         calculation.setStatus("ready");

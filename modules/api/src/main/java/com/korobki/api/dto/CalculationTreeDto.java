@@ -31,6 +31,12 @@ public class CalculationTreeDto {
     /** Number of live versions in the tree. */
     private Long versionCount;
 
+    /**
+     * True when every version of the tree is marked deleted: the node is shown
+     * struck through.
+     */
+    private Boolean deleted;
+
     /** Cost of the newest version; null when it has no stored snapshot. */
     private BigDecimal totalCost;
 

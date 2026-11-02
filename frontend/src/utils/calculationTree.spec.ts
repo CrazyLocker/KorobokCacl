@@ -136,6 +136,48 @@ describe('buildCalculationTreeRows', () => {
         expect(buildCalculationTreeRows([], {})).toEqual([]);
     });
 
+    it('вкладывает версии по parentId: правка v1 даёт v2 внутри v1', () => {
+        const rows = buildCalculationTreeRows(
+            [customer({ calculations: [calculation({ id: 'calc-1' })] })],
+            {
+                'calc-1': [
+                    version('v1', 1),
+                    version('v2', 2, { parentId: 'v1' }),
+                    version('v3', 2, { parentId: 'v1' }),
+                    version('v4', 3, { parentId: 'v2' }),
+                ],
+            },
+        );
+
+        const roots = rows[0].children?.[0].children;
+        expect(roots?.map((row) => row.title)).toEqual(['v1']);
+        expect(roots?.[0].children?.map((row) => row.version?.id)).toEqual(['v2', 'v3']);
+        expect(roots?.[0].children?.[0].children?.map((row) => row.version?.id)).toEqual(['v4']);
+    });
+
+    it('помечает удалённые версии и полностью удалённый расчёт', () => {
+        const rows = buildCalculationTreeRows(
+            [
+                customer({
+                    id: 'customer-1',
+                    calculations: [
+                        calculation({ id: 'calc-1' }),
+                        calculation({ id: 'calc-2', deleted: true }),
+                    ],
+                }),
+            ],
+            {
+                'calc-1': [version('v1', 1, { deleted: true })],
+                'calc-2': [version('v2', 1, { deleted: true })],
+            },
+        );
+
+        const [first, second] = rows[0].children ?? [];
+        expect(first.deleted).toBeUndefined();
+        expect(first.children?.[0].deleted).toBe(true);
+        expect(second.deleted).toBe(true);
+    });
+
     it('скрывает клиента, у которого нет ни заказов, ни расчётов', () => {
         const rows = buildCalculationTreeRows(
             [

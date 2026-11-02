@@ -1,5 +1,7 @@
 // frontend/src/utils/calculationTree.ts
 import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../types';
+import { buildVersionTree } from './versionTree';
+import type { VersionNode } from './versionTree';
 
 /**
  * Строка дерева «Клиент → Заказы и расчёты → Версии».
@@ -28,6 +30,8 @@ export interface CalculationTreeRow {
     /** Тираж, под который посчитана цена. */
     quantity?: number | null;
     updatedAt?: string | null;
+    /** Строка помечена удалённой (расчёт целиком или отдельная версия). */
+    deleted?: boolean;
     children?: CalculationTreeRow[];
 }
 
@@ -51,17 +55,24 @@ const versionSubtitle = (version: CalculationVersion): string | undefined => {
     return version.orders.map((order) => `заказ № ${order.number}`).join(', ');
 };
 
-/** Версия расчёта в дереве: номер, дата и стоимость. */
-const versionRow = (version: CalculationVersion): CalculationTreeRow => ({
-    key: `version-${version.id}`,
+/**
+ * Версия расчёта в дереве: номер, дата и стоимость.
+ *
+ * <p>Версии вкладываются друг в друга по `parentId`: правка v3 даёт v4 внутри
+ * v3, поэтому ветка видна как ветка, а не как плоский список.
+ */
+const versionRow = (node: VersionNode): CalculationTreeRow => ({
+    key: `version-${node.id}`,
     kind: 'version',
-    title: `v${version.version}`,
-    subtitle: versionSubtitle(version),
-    version,
-    cost: version.totalCost,
-    clientPrice: version.clientPrice,
-    quantity: version.quantity,
-    updatedAt: version.updatedAt,
+    title: `v${node.version}`,
+    subtitle: versionSubtitle(node),
+    version: node,
+    deleted: node.deleted,
+    cost: node.totalCost,
+    clientPrice: node.clientPrice,
+    quantity: node.quantity,
+    updatedAt: node.updatedAt,
+    children: node.children.length > 0 ? node.children.map(versionRow) : undefined,
 });
 
 /**
@@ -76,16 +87,18 @@ export const buildCalculationTreeRows = (
 ): CalculationTreeRow[] => {
     const calculationRow = (calculation: CalculationTree): CalculationTreeRow => {
         const versions = versionsByCalculation[calculation.id];
+        const versionRoots = versions ? buildVersionTree(versions) : [];
         return {
             key: `calculation-${calculation.id}`,
             kind: 'calculation',
             title: calculation.name,
             calculation,
+            deleted: calculation.deleted,
             cost: calculation.totalCost,
             clientPrice: calculation.clientPrice,
             quantity: calculation.quantity,
             updatedAt: calculation.updatedAt,
-            children: versions?.map(versionRow),
+            children: versionRoots.length > 0 ? versionRoots.map(versionRow) : undefined,
         };
     };
 

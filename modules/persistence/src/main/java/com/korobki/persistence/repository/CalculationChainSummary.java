@@ -18,8 +18,11 @@ public interface CalculationChainSummary {
     /** Deepest version number in the tree. */
     Integer getVersion();
 
-    /** Number of live versions in the tree. */
+    /** Number of versions in the tree, deleted ones included. */
     Long getVersionCount();
+
+    /** Number of versions that are not marked deleted; 0 means the whole tree is deleted. */
+    Long getLiveCount();
 
     /** Time of the last change anywhere in the tree. */
     LocalDateTime getLastUpdated();

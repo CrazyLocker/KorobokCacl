@@ -148,8 +148,10 @@ export interface SavedCalculation {
     version?: number;
     // Идентификатор самой свежей ветки: с неё продолжают работу из списка.
     latestId?: string;
-    // Сколько живых версий в дереве.
+    // Сколько версий в дереве, включая помеченные удалёнными.
     versionCount?: number;
+    // Все версии цепочки помечены удалёнными: строка остаётся в истории зачёркнутой.
+    deleted?: boolean;
     name: string;
     clientName: string;
     // Клиент справочника; null у расчётов, сохранённых до его появления.
@@ -235,6 +237,8 @@ export interface CalculationTree {
     version: number;
     versionCount: number;
     totalCost: number | null;
+    // У расчёта не осталось живых версий: он показывается зачёркнутым.
+    deleted?: boolean;
     // Цена с НДС для клиента из снапшота свежей ветки; null — снапшота нет.
     clientPrice?: number | null;
     // Тираж, под который посчитана цена (печать, иначе сборка); null — режимы выключены.

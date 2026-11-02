@@ -109,7 +109,7 @@ class CalculationServiceTreeTest {
 
         when(customerRepository.findAllByOrderByActiveDescNameAsc()).thenReturn(List.of(romashka, lyutik));
         when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(first));
-        when(calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc())
+        when(calculationRepository.findAllByOrderByUpdatedAtDesc())
                 .thenReturn(List.of(orderedTip, orderedRoot, loose, legacy));
         when(calculationRepository.findAllById(any()))
                 .thenReturn(List.of(orderedTip));
@@ -154,7 +154,7 @@ class CalculationServiceTreeTest {
 
         when(customerRepository.findAllByOrderByActiveDescNameAsc()).thenReturn(List.of(romashka));
         when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(first));
-        when(calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc())
+        when(calculationRepository.findAllByOrderByUpdatedAtDesc())
                 .thenReturn(List.of(branch, versionTwo, versionOne));
         when(calculationRepository.findAllById(any()))
                 .thenReturn(List.of(versionOne));
@@ -168,5 +168,28 @@ class CalculationServiceTreeTest {
         assertEquals(1, node.getOrders().size());
         assertEquals(1, node.getOrders().get(0).getSourceVersion(),
                 "заказ вырос из первой версии, хотя у расчёта уже есть ветки");
+    }
+
+    @Test
+    void tree_keepsFullyDeletedCalculationStruck() {
+        Customer romashka = customer("Ромашка");
+
+        UUID rootId = UUID.randomUUID();
+        Calculation deletedRoot = calculation(rootId, 1, null, romashka, "10.00");
+        deletedRoot.setDeletedAt(LocalDateTime.now());
+        Calculation deletedTip = calculation(rootId, 2, deletedRoot.getId(), romashka, "20.00");
+        deletedTip.setDeletedAt(LocalDateTime.now());
+
+        when(customerRepository.findAllByOrderByActiveDescNameAsc()).thenReturn(List.of(romashka));
+        when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of());
+        when(calculationRepository.findAllByOrderByUpdatedAtDesc())
+                .thenReturn(List.of(deletedTip, deletedRoot));
+
+        CustomerTreeDto node = service.tree().get(0);
+
+        assertEquals(1, node.getCalculations().size(), "удалённый расчёт не пропадает из дерева");
+        assertEquals(Boolean.TRUE, node.getCalculations().get(0).getDeleted());
+        assertEquals(deletedTip.getId(), node.getCalculations().get(0).getLatestId());
+        assertEquals(2L, node.getCalculations().get(0).getVersionCount());
     }
 }

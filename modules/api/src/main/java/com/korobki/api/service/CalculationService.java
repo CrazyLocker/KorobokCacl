@@ -393,9 +393,11 @@ public class CalculationService {
      */
     @Transactional(readOnly = true)
     public Map<UUID, CalculationTreeDto> treesByRoot() {
-        List<Calculation> live = calculationRepository.findByDeletedAtIsNullOrderByUpdatedAtDesc();
+        // Удалённые версии тоже нужны: дерево показывает историю зачёркнутой,
+        // а расчёт без живых версий остаётся строкой «удалён».
+        List<Calculation> all = calculationRepository.findAllByOrderByUpdatedAtDesc();
         Map<UUID, List<Calculation>> byRoot = new LinkedHashMap<>();
-        for (Calculation version : live) {
+        for (Calculation version : all) {
             byRoot.computeIfAbsent(rootIdOf(version), key -> new ArrayList<>()).add(version);
         }
 
@@ -616,11 +618,12 @@ public class CalculationService {
      *
      * <p>A tree may have several tips after branching, so the list row points
      * at the tip that changed last — that is the line the manager was working
-     * on.
+     * on. When every version is marked deleted, the newest version still gets
+     * returned: the row stays in the history and has to open something.
      *
      * @param chain versions of one tree, oldest first
-     * @return identifier of the newest live tip, or null when everything is
-     *         deleted
+     * @return identifier of the newest live tip, or of the newest version when
+     *         everything is deleted
      */
     private UUID latestIdOf(List<Calculation> chain) {
         Set<UUID> parentsOfLive = new HashSet<>();
@@ -629,11 +632,19 @@ public class CalculationService {
                 parentsOfLive.add(version.getParentId());
             }
         }
-        return chain.stream()
+        UUID liveTip = chain.stream()
                 .filter(version -> version.getDeletedAt() == null)
                 .filter(version -> !parentsOfLive.contains(version.getId()))
                 .max(Comparator.comparing(Calculation::getUpdatedAt,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
+                .map(Calculation::getId)
+                .orElse(null);
+        if (liveTip != null) {
+            return liveTip;
+        }
+
+        return chain.stream()
+                .max(Comparator.comparing(this::versionOf))
                 .map(Calculation::getId)
                 .orElse(null);
     }
@@ -854,6 +865,7 @@ public class CalculationService {
         dto.setVersion(summary.getVersion());
         dto.setVersionCount(summary.getVersionCount());
         dto.setLatestId(latestId);
+        dto.setDeleted(summary.getLiveCount() != null && summary.getLiveCount() == 0L);
         dto.setUpdatedAt(summary.getLastUpdated());
         return dto;
     }
@@ -907,6 +919,7 @@ public class CalculationService {
         dto.setLatestId(latestId);
         dto.setVersion(chain.stream().mapToInt(this::versionOf).max().orElse(1));
         dto.setVersionCount((long) chain.size());
+        dto.setDeleted(chain.stream().allMatch(version -> version.getDeletedAt() != null));
         dto.setTotalCost(totalCostOf(latest.getCalculationResult()));
         dto.setClientPrice(clientPriceOf(latest.getCalculationResult()));
         dto.setQuantity(quantityOf(latest.getCalculationState()));
