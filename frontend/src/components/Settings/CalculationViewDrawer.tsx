@@ -10,6 +10,8 @@ import type {
 } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { normalizeSavedCalculation } from '../../utils/normalizeSavedCalculation';
+import { STATUS_COLORS, STATUS_LABELS } from '../../utils/calculationStatus';
+import { detailHasPriceEffect, extraHasPriceEffect, splitPriced } from '../../utils/pricedRows';
 import { VersionTree } from './VersionTree';
 
 interface Props {
@@ -27,22 +29,6 @@ interface Props {
     onChanged?: () => void;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-    draft: 'Черновик',
-    ready: 'Готов',
-    sent: 'Отправлен',
-    in_work: 'В работе',
-    closed: 'Закрыт',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-    draft: 'default',
-    ready: 'processing',
-    sent: 'warning',
-    in_work: 'success',
-    closed: 'red',
-};
-
 const MUTED = { color: '#9aa0a6' } as const;
 
 const money = (value: number | null | undefined): string =>
@@ -50,17 +36,6 @@ const money = (value: number | null | undefined): string =>
 
 const formatDate = (value: string | null | undefined): string =>
     value ? new Date(value).toLocaleString('ru-RU') : '—';
-
-/**
- * Текст строки «Печать». При включённой сборке обычная печать не работает:
- * режимы взаимоисключающие, и нормализатор гасит её при чтении старого state.
- */
-const describePrintMode = (request: CalculationRequest): string =>
-    request.printSettings.enabled
-        ? `формат ${request.printSettings.format}, тираж ${request.printSettings.quantity}`
-        : request.assemblySettings?.enabled
-            ? 'выключена: работает режим сборки'
-            : 'выключена';
 
 /** Сообщение об ошибке загрузки: тело ErrorResponse важнее текста axios. */
 const toErrorMessage = (err: unknown): string => {
@@ -305,6 +280,30 @@ export const CalculationViewDrawer = ({
     const hasChildren = versions.some((version) => version.parentId === shownId);
     const isDeleted = shownVersion?.deleted ?? view?.deleted ?? false;
 
+    // Показываем только то, что участвовало в цене: строки без вклада скрыты.
+    const details = splitPriced(request?.details ?? [], detailHasPriceEffect);
+    const paidExtras = splitPriced(request?.extras ?? [], extraHasPriceEffect);
+    const pricedDetails = details.visible;
+    const hiddenDetails = details.hidden;
+    const pricedExtras = paidExtras.visible;
+    const hiddenExtras = paidExtras.hidden;
+
+    // Блок режимов строится по включённым: выключенная печать или сборка
+    // ничего не добавляет к цене, поэтому о ней нечего рассказывать.
+    const modeItems: DescriptionsProps['items'] = request ? [
+        ...(request.printSettings.enabled ? [{
+            key: 'print',
+            label: 'Печать',
+            children: `формат ${request.printSettings.format}, тираж ${request.printSettings.quantity}`,
+        }] : []),
+        ...(request.assemblySettings?.enabled ? [{
+            key: 'assembly',
+            label: 'Сборка на печатный лист',
+            children: `формат ${request.assemblySettings.format}, `
+                + `тираж ${request.assemblySettings.quantity}`,
+        }] : []),
+    ] : [];
+
     /** Помечает версию и её подветку удалёнными: строки остаются в истории. */
     const handleDeleteVersion = async () => {
         if (!shownId) return;
@@ -476,13 +475,20 @@ export const CalculationViewDrawer = ({
                         items={descriptionItems}
                     />
 
-                    {request && (
+                    {request && pricedDetails.length > 0 && (
                         <Flex vertical gap={8}>
-                            <Typography.Text strong>Детали</Typography.Text>
+                            <Flex gap={8} align="baseline">
+                                <Typography.Text strong>Детали</Typography.Text>
+                                {hiddenDetails > 0 && (
+                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        · скрыто {hiddenDetails} без влияния на цену
+                                    </Typography.Text>
+                                )}
+                            </Flex>
                             <Table<ApiDetail>
                                 size="small"
                                 pagination={false}
-                                dataSource={request.details}
+                                dataSource={pricedDetails}
                                 rowKey={(_row, index) => String(index ?? 0)}
                                 columns={DETAIL_COLUMNS}
                                 scroll={{ x: 680 }}
@@ -490,39 +496,32 @@ export const CalculationViewDrawer = ({
                         </Flex>
                     )}
 
-                    {request && request.extras.length > 0 && (
+                    {request && pricedExtras.length > 0 && (
                         <Flex vertical gap={8}>
-                            <Typography.Text strong>Дополнительные операции</Typography.Text>
+                            <Flex gap={8} align="baseline">
+                                <Typography.Text strong>Дополнительные операции</Typography.Text>
+                                {hiddenExtras > 0 && (
+                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        · скрыто {hiddenExtras} без влияния на цену
+                                    </Typography.Text>
+                                )}
+                            </Flex>
                             <Table<Extra>
                                 size="small"
                                 pagination={false}
-                                dataSource={request.extras}
+                                dataSource={pricedExtras}
                                 rowKey={(_row, index) => String(index ?? 0)}
                                 columns={EXTRA_COLUMNS}
                             />
                         </Flex>
                     )}
 
-                    {request && (
+                    {request && modeItems.length > 0 && (
                         <Descriptions
                             size="small"
                             bordered
                             column={1}
-                            items={[
-                                {
-                                    key: 'print',
-                                    label: 'Печать',
-                                    children: describePrintMode(request),
-                                },
-                                {
-                                    key: 'assembly',
-                                    label: 'Сборка на печатный лист',
-                                    children: request.assemblySettings?.enabled
-                                        ? `формат ${request.assemblySettings.format}, `
-                                            + `тираж ${request.assemblySettings.quantity}`
-                                        : 'выключена',
-                                },
-                            ]}
+                            items={modeItems}
                         />
                     )}
 

@@ -10,7 +10,7 @@ import { openCalculationEditor } from '../../navigation';
 import { buildCalculationTreeRows, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
-import { OrderModal } from './OrderModal';
+import { OrderDrawer } from './OrderDrawer';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -449,7 +449,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 }}
             />
 
-            <OrderModal
+            <OrderDrawer
                 open={!!orderTarget}
                 order={orderTarget?.order ?? null}
                 startInEdit={orderTarget?.edit ?? false}
