@@ -2,14 +2,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App as AntdApp } from 'antd';
 import {
-    Button, Card, Flex, Spin, Table, Tag, Typography,
+    Button, Card, Flex, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
-import type { CalculationTree, CalculationVersion, CustomerTree } from '../../types';
+import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { openCalculationEditor } from '../../navigation';
 import { buildCalculationTreeRows, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
+import { OrderModal } from './OrderModal';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -61,16 +62,16 @@ export const CalculationsPage = ({ onNotify }: Props) => {
     const [viewId, setViewId] = useState<string | null>(null);
     // Версия, из которой создаётся заказ; null — модалка закрыта.
     const [orderSource, setOrderSource] = useState<CalculationVersion | null>(null);
+    // Открытая карточка заказа: просмотр или правка.
+    const [orderTarget, setOrderTarget] = useState<{ order: OrderTree; edit: boolean } | null>(null);
 
-    // Версии грузим сразу для всех расчётов: дерево должно показывать всю
-    // историю без лишнего клика, а кнопка «Заказ» живёт на узле версии.
+    // Версии грузим сразу для всех расчётов, чтобы раскрытие расчёта было
+    // мгновенным: кэш наполняем молча, дерево остаётся свёрнутым.
     const loadVersions = useCallback((tree: CustomerTree[]) => {
         const calculations = tree.flatMap((customer) => customer.calculations);
-        const customerKeys = tree.map((customer) => `customer-${customer.id}`);
 
         if (calculations.length === 0) {
             setVersionsByCalculation({});
-            setExpandedKeys([]);
             return;
         }
 
@@ -78,16 +79,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             .getCalculationVersions(calculation.id)
             .then((versions) => [calculation.id, versions] as const)
             .catch(() => [calculation.id, [] as CalculationVersion[]] as const)))
-            .then((entries) => {
-                setVersionsByCalculation(Object.fromEntries(entries));
-                // Раскрываем клиентов и те расчёты, где версий больше одной.
-                setExpandedKeys([
-                    ...customerKeys,
-                    ...calculations
-                        .filter((calculation) => (calculation.versionCount ?? 1) > 1)
-                        .map((calculation) => `calculation-${calculation.id}`),
-                ]);
-            });
+            .then((entries) => setVersionsByCalculation(Object.fromEntries(entries)));
     }, []);
 
     const loadTree = useCallback(() => {
@@ -176,52 +168,77 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         });
     };
 
-    const titleCell = (record: CalculationTreeRow) => {
-        const version = record.version;
-        const struck = record.kind === 'version' && version?.deleted === true;
-
-        return (
-            <Flex vertical gap={0} style={{ minWidth: 0 }}>
-                <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+    // Первая колонка ограничена 45 символами: длинные названия расчётов
+    // обрезаются с многоточием, полный текст виден в подсказке.
+    const titleCell = (record: CalculationTreeRow) => (
+        <Flex vertical gap={0} style={{ minWidth: 0 }}>
+            <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                <Tooltip title={record.title}>
                     <span
                         style={{
+                            display: 'inline-block',
+                            maxWidth: '45ch',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            verticalAlign: 'bottom',
                             fontSize: 13,
                             fontWeight: record.kind === 'customer' ? 600 : 400,
-                            textDecoration: struck ? 'line-through' : undefined,
-                            color: struck ? '#9aa0a6' : undefined,
-                            whiteSpace: 'normal',
-                            wordBreak: 'break-word',
                         }}
                     >
                         {record.title}
                     </span>
-                    {record.kind === 'calculation' && record.calculation && (
-                        <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
-                            v{record.calculation.version}
-                        </Tag>
-                    )}
-                    {record.kind === 'version' && version && !version.deleted
-                        && version.latest && (
-                        <Tag color="blue" style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
-                            кончик
-                        </Tag>
-                    )}
-                    {record.kind === 'version' && version?.deleted && (
-                        <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
-                            удалена
-                        </Tag>
-                    )}
-                </Flex>
-                {record.subtitle && (
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                        {record.subtitle}
-                    </Typography.Text>
+                </Tooltip>
+                {record.kind === 'calculation' && record.calculation && (
+                    <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
+                        v{record.calculation.version}
+                    </Tag>
+                )}
+                {record.kind === 'version' && record.version?.deleted && (
+                    <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                        удалена
+                    </Tag>
                 )}
             </Flex>
-        );
-    };
+            {record.subtitle && (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }} ellipsis>
+                    {record.subtitle}
+                </Typography.Text>
+            )}
+        </Flex>
+    );
+
+    // Помеченная удалённой версия зачёркивается целиком: строка в истории
+    // остаётся, но видно, что она больше не участвует в работе.
+    const rowStyle = (record: CalculationTreeRow) => (
+        record.kind === 'version' && record.version?.deleted
+            ? { textDecoration: 'line-through', color: '#9aa0a6' }
+            : undefined
+    );
 
     const actions = (record: CalculationTreeRow) => {
+        if (record.kind === 'order' && record.order) {
+            return (
+                <Flex justify="flex-end" gap={4}>
+                    <Button
+                        size="small"
+                        type="text"
+                        onClick={() => setOrderTarget({ order: record.order!, edit: false })}
+                        style={{ fontSize: 11 }}
+                    >
+                        Открыть
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        onClick={() => setOrderTarget({ order: record.order!, edit: true })}
+                        style={{ fontSize: 11 }}
+                    >
+                        Редактировать
+                    </Button>
+                </Flex>
+            );
+        }
         if (record.kind === 'version' && record.version) {
             return (
                 <Flex justify="flex-end" gap={4}>
@@ -330,6 +347,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         pagination={false}
                         tableLayout="fixed"
                         dataSource={rows}
+                        onRow={(record) => ({ style: rowStyle(record) })}
                         expandable={{
                             // Дерево держим раскрытым вручную: клик подгружает
                             // версии расчёта и разворачивает только эту ветку.
@@ -348,7 +366,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 title: 'Себестоимость',
                                 dataIndex: 'cost',
                                 key: 'cost',
-                                width: 140,
+                                width: 120,
                                 align: 'right',
                                 render: (cost: number | null | undefined, record: CalculationTreeRow) => (
                                     <span style={{
@@ -363,7 +381,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                 title: 'Обновлён',
                                 dataIndex: 'updatedAt',
                                 key: 'updatedAt',
-                                width: 150,
+                                width: 130,
                                 render: (value: string | null | undefined) => (
                                     <span style={{ fontSize: 11, color: '#5f6368' }}>{formatDate(value)}</span>
                                 ),
@@ -371,7 +389,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                             {
                                 title: '',
                                 key: 'actions',
-                                width: 250,
+                                width: 260,
                                 align: 'right',
                                 render: (_: unknown, record: CalculationTreeRow) => actions(record),
                             },
@@ -400,6 +418,18 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 onNotify={onNotify}
                 onCreated={() => {
                     // Заказ виден в дереве: перечитываем и клиентов, и версии.
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
+            />
+
+            <OrderModal
+                open={!!orderTarget}
+                order={orderTarget?.order ?? null}
+                startInEdit={orderTarget?.edit ?? false}
+                onClose={() => setOrderTarget(null)}
+                onNotify={onNotify}
+                onSaved={() => {
                     setVersionsByCalculation({});
                     loadTree();
                 }}
