@@ -21,6 +21,9 @@ const MONEY = new Intl.NumberFormat('ru-RU', {
     maximumFractionDigits: 2,
 });
 
+// Тираж печатается без копеек и с разрядами: «1 000».
+const QUANTITY = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+
 const money = (value?: number | null): string =>
     value == null ? '—' : `${MONEY.format(value)} ₽`;
 
@@ -375,6 +378,29 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                                     }}>
                                         {money(cost)}
                                     </span>
+                                ),
+                            },
+                            {
+                                title: 'Цена клиента',
+                                dataIndex: 'clientPrice',
+                                key: 'clientPrice',
+                                width: 150,
+                                align: 'right',
+                                render: (price: number | null | undefined, record: CalculationTreeRow) => (
+                                    <Flex vertical gap={0} align="flex-end">
+                                        <span style={{
+                                            fontSize: 12,
+                                            fontWeight: record.kind === 'customer' ? 600 : 400,
+                                            color: record.kind === 'customer' ? '#202124' : '#5f6368',
+                                        }}>
+                                            {money(price)}
+                                        </span>
+                                        {record.quantity != null && (
+                                            <span style={{ fontSize: 10, color: '#8c8c8c' }}>
+                                                за {QUANTITY.format(record.quantity)} шт
+                                            </span>
+                                        )}
+                                    </Flex>
                                 ),
                             },
                             {

@@ -235,6 +235,10 @@ export interface CalculationTree {
     version: number;
     versionCount: number;
     totalCost: number | null;
+    // Цена с НДС для клиента из снапшота свежей ветки; null — снапшота нет.
+    clientPrice?: number | null;
+    // Тираж, под который посчитана цена (печать, иначе сборка); null — режимы выключены.
+    quantity?: number | null;
     updatedAt: string;
 }
 
@@ -309,6 +313,10 @@ export interface CalculationVersion {
     status: SavedCalculation['status'];
     // Себестоимость из снапшота версии; null у записей до появления снапшотов.
     totalCost: number | null;
+    // Цена с НДС для клиента из того же снапшота.
+    clientPrice?: number | null;
+    // Тираж, под который посчитана цена: печать, иначе сборка.
+    quantity?: number | null;
     // Признак конца ветки: у версии нет детей.
     latest: boolean;
     // Заказы, выросшие из этой версии: из одного варианта их может быть несколько.

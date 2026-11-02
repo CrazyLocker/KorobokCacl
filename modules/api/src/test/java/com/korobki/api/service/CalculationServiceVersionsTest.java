@@ -131,6 +131,24 @@ class CalculationServiceVersionsTest {
     }
 
     @Test
+    void versions_reportsClientPriceAndRunOfThePricedMode() {
+        Calculation v1 = version(1, "62.50");
+        v1.setCalculationResult(Map.of(
+                "totalCost", new BigDecimal("62.50"),
+                "basePriceWithVAT", new BigDecimal("123.75")));
+        v1.setCalculationState(Map.of(
+                "printSettings", Map.of("enabled", false, "quantity", 300),
+                "assemblySettings", Map.of("enabled", true, "quantity", 500)));
+        stubTree(List.of(v1));
+
+        CalculationVersionDto dto = service.versions(v1.getId()).get(0);
+
+        assertEquals(0, dto.getClientPrice().compareTo(new BigDecimal("123.75")),
+                "цена для клиента берётся из снапшота с НДС");
+        assertEquals(500, dto.getQuantity(), "при выключенной печати тираж берётся из сборки");
+    }
+
+    @Test
     void versions_versionWithoutSnapshot_hasNullTotalCost() {
         Calculation v1 = version(1, null);
         stubTree(List.of(v1));

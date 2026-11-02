@@ -34,6 +34,12 @@ public class CalculationTreeDto {
     /** Cost of the newest version; null when it has no stored snapshot. */
     private BigDecimal totalCost;
 
+    /** Price for the client (with VAT) of the newest version; null without a snapshot. */
+    private BigDecimal clientPrice;
+
+    /** Print run the newest version was priced for; null when neither mode is enabled. */
+    private Integer quantity;
+
     /** Last modification timestamp of the tree. */
     private LocalDateTime updatedAt;
 }

@@ -23,6 +23,10 @@ export interface CalculationTreeRow {
     /** Версия: по ней открывается «Вид расчёта» и создаётся заказ. */
     version?: CalculationVersion;
     cost?: number | null;
+    /** Цена с НДС для клиента. */
+    clientPrice?: number | null;
+    /** Тираж, под который посчитана цена. */
+    quantity?: number | null;
     updatedAt?: string | null;
     children?: CalculationTreeRow[];
 }
@@ -55,6 +59,8 @@ const versionRow = (version: CalculationVersion): CalculationTreeRow => ({
     subtitle: versionSubtitle(version),
     version,
     cost: version.totalCost,
+    clientPrice: version.clientPrice,
+    quantity: version.quantity,
     updatedAt: version.updatedAt,
 });
 
@@ -76,6 +82,8 @@ export const buildCalculationTreeRows = (
             title: calculation.name,
             calculation,
             cost: calculation.totalCost,
+            clientPrice: calculation.clientPrice,
+            quantity: calculation.quantity,
             updatedAt: calculation.updatedAt,
             children: versions?.map(versionRow),
         };

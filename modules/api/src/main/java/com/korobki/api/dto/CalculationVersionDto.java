@@ -45,6 +45,12 @@ public class CalculationVersionDto {
     /** Total cost stored with the version; null for versions saved before snapshots. */
     private BigDecimal totalCost;
 
+    /** Price for the client (with VAT) stored with the version; null without a snapshot. */
+    private BigDecimal clientPrice;
+
+    /** Print run the client price was calculated for; null when neither mode is enabled. */
+    private Integer quantity;
+
     /** Orders that grew from this version; empty when none were placed from it. */
     private List<CalculationVersionOrderDto> orders = new ArrayList<>();
 

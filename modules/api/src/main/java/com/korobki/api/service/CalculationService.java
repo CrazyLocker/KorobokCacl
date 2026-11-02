@@ -679,6 +679,8 @@ public class CalculationService {
         dto.setManagerName(calculation.getManagerName());
         dto.setStatus(calculation.getStatus());
         dto.setTotalCost(totalCostOf(calculation.getCalculationResult()));
+        dto.setClientPrice(clientPriceOf(calculation.getCalculationResult()));
+        dto.setQuantity(quantityOf(calculation.getCalculationState()));
         dto.setOrders(orders);
         dto.setLatest(latest);
         dto.setCreatedAt(calculation.getCreatedAt());
@@ -707,10 +709,31 @@ public class CalculationService {
      * @return total cost, or null when the snapshot is missing or has no price
      */
     private BigDecimal totalCostOf(Map<String, Object> stored) {
+        return decimalOf(stored, "totalCost");
+    }
+
+    /**
+     * Reads the client price (with VAT) out of a stored result snapshot.
+     *
+     * @param stored JSON snapshot of the result, may be null
+     * @return price for the client, or null when the snapshot is missing
+     */
+    private BigDecimal clientPriceOf(Map<String, Object> stored) {
+        return decimalOf(stored, "basePriceWithVAT");
+    }
+
+    /**
+     * Reads one decimal value out of a stored JSON object.
+     *
+     * @param stored JSON object, may be null
+     * @param key    field name
+     * @return decimal value, or null when the field is missing or not a number
+     */
+    private BigDecimal decimalOf(Map<String, Object> stored, String key) {
         if (stored == null) {
             return null;
         }
-        Object value = stored.get("totalCost");
+        Object value = stored.get(key);
         if (value instanceof Number number) {
             return new BigDecimal(number.toString());
         }
@@ -722,6 +745,40 @@ public class CalculationService {
             }
         }
         return null;
+    }
+
+    /**
+     * Reads the print run the price was calculated for.
+     *
+     * <p>Print mode wins when it is on; assembly takes over otherwise, because
+     * only one of the two modes prices the run in the calculator.
+     *
+     * @param state stored calculation request, may be null
+     * @return run size, or null when neither mode is enabled
+     */
+    private Integer quantityOf(Map<String, Object> state) {
+        if (state == null) {
+            return null;
+        }
+        Integer print = quantityOfBlock(state.get("printSettings"));
+        return print != null ? print : quantityOfBlock(state.get("assemblySettings"));
+    }
+
+    /**
+     * Reads the run size out of a print or assembly settings block.
+     *
+     * @param block settings block, may be null
+     * @return run size, or null when the block is off or has no quantity
+     */
+    private Integer quantityOfBlock(Object block) {
+        if (!(block instanceof Map<?, ?> settings)) {
+            return null;
+        }
+        if (!(settings.get("enabled") instanceof Boolean enabled) || !enabled) {
+            return null;
+        }
+        Object quantity = settings.get("quantity");
+        return quantity instanceof Number number ? number.intValue() : null;
     }
 
     /**
@@ -851,6 +908,8 @@ public class CalculationService {
         dto.setVersion(chain.stream().mapToInt(this::versionOf).max().orElse(1));
         dto.setVersionCount((long) chain.size());
         dto.setTotalCost(totalCostOf(latest.getCalculationResult()));
+        dto.setClientPrice(clientPriceOf(latest.getCalculationResult()));
+        dto.setQuantity(quantityOf(latest.getCalculationState()));
         dto.setUpdatedAt(chain.stream()
                 .map(Calculation::getUpdatedAt)
                 .filter(Objects::nonNull)
