@@ -127,3 +127,25 @@ export const buildCalculationTreeRows = (
 
     return rows;
 };
+
+/**
+ * Ключи всего поддерева строки — в порядке сверху вниз, без самой строки.
+ *
+ * <p>Нужно спойлеру клиента: раскрытие должно показывать ветку целиком, а не
+ * только первый уровень, поэтому в развёрнутые попадают и заказы, и расчёты,
+ * и все ветки версий внутри расчётов.
+ */
+export const collectDescendantKeys = (row: CalculationTreeRow): string[] => {
+    const keys: string[] = [];
+
+    const walk = (node: CalculationTreeRow) => {
+        node.children?.forEach((child) => {
+            keys.push(child.key);
+            walk(child);
+        });
+    };
+
+    walk(row);
+
+    return keys;
+};

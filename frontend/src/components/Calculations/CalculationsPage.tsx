@@ -1,5 +1,5 @@
 // frontend/src/components/Calculations/CalculationsPage.tsx
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntdApp } from 'antd';
 import {
     Button, Card, Flex, Spin, Table, Tag, Tooltip, Typography,
@@ -7,7 +7,7 @@ import {
 import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { openCalculationEditor } from '../../navigation';
-import { buildCalculationTreeRows, type CalculationTreeRow } from '../../utils/calculationTree';
+import { buildCalculationTreeRows, collectDescendantKeys, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
 import { CreateOrderModal } from './CreateOrderModal';
 import { OrderDrawer } from './OrderDrawer';
@@ -67,6 +67,9 @@ export const CalculationsPage = ({ onNotify }: Props) => {
     const [orderSource, setOrderSource] = useState<CalculationVersion | null>(null);
     // Открытая карточка заказа: просмотр или правка.
     const [orderTarget, setOrderTarget] = useState<{ order: OrderTree; edit: boolean } | null>(null);
+    // Клиенты, раскрытые «целиком»: за ними закреплено полное поддерево, даже
+    // когда версии расчётов догружаются уже после клика.
+    const autoExpandRef = useRef<Set<string>>(new Set());
 
     // Версии грузим сразу для всех расчётов, чтобы раскрытие расчёта было
     // мгновенным: кэш наполняем молча, дерево остаётся свёрнутым.
@@ -105,8 +108,68 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         [customers, versionsByCalculation],
     );
 
-    /** Раскрытие расчёта подгружает его версии (один раз на расчёт). */
+    // Клиент, раскрытый целиком, остаётся раскрытым и после пересборки строк:
+    // версии приходят отдельным запросом, и их ключи дописываются в развёрнутые.
+    useEffect(() => {
+        if (autoExpandRef.current.size === 0) return;
+
+        setExpandedKeys((previous) => {
+            const next = new Set(previous);
+            let changed = false;
+
+            rows.forEach((row) => {
+                if (!autoExpandRef.current.has(row.key)) return;
+
+                collectDescendantKeys(row).forEach((key) => {
+                    if (next.has(key)) return;
+                    next.add(key);
+                    changed = true;
+                });
+            });
+
+            return changed ? Array.from(next) : previous;
+        });
+    }, [rows]);
+
+    /**
+     * Раскрытие расчёта подгружает его версии, раскрытие клиента разворачивает
+     * всю ветку: заказы, расчёты и все ветки версий внутри них. Повторный клик
+     * по клиенту сворачивает её так же целиком.
+     */
     const handleExpand = (expanded: boolean, record: CalculationTreeRow) => {
+        if (record.kind === 'customer') {
+            const branch = collectDescendantKeys(record);
+
+            if (expanded) {
+                autoExpandRef.current.add(record.key);
+            } else {
+                autoExpandRef.current.delete(record.key);
+            }
+
+            setExpandedKeys((previous) => (expanded
+                ? Array.from(new Set([...previous, record.key, ...branch]))
+                : previous.filter((key) => key !== record.key && !branch.includes(key))));
+
+            if (!expanded) return;
+
+            // Версии расчётов внутри ветки могли ещё не догрузиться — просим их
+            // сразу, иначе дерево раскроется только до самих расчётов.
+            record.children?.forEach((child) => {
+                const calculation = child.calculation;
+                if (child.kind !== 'calculation' || !calculation) return;
+                if (versionsByCalculation[calculation.id]) return;
+
+                calculatorApi.getCalculationVersions(calculation.id)
+                    .then((versions) => setVersionsByCalculation((previous) => ({
+                        ...previous,
+                        [calculation.id]: versions,
+                    })))
+                    .catch((err: Error) => onNotify('Ошибка загрузки версий: ' + err.message, 'error'));
+            });
+
+            return;
+        }
+
         setExpandedKeys((previous) => expanded
             ? [...previous, record.key]
             : previous.filter((key) => key !== record.key));

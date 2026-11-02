@@ -1,6 +1,6 @@
 // frontend/src/utils/calculationTree.spec.ts
 import { describe, expect, it } from 'vitest';
-import { buildCalculationTreeRows } from './calculationTree';
+import { buildCalculationTreeRows, collectDescendantKeys } from './calculationTree';
 import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../types';
 
 let seq = 0;
@@ -188,5 +188,41 @@ describe('buildCalculationTreeRows', () => {
         );
 
         expect(rows.map((row) => row.title)).toEqual(['Лютик']);
+    });
+});
+
+describe('collectDescendantKeys', () => {
+    it('собирает заказы, расчёты и все ветки версий', () => {
+        const rows = buildCalculationTreeRows(
+            [
+                customer({
+                    id: 'customer-1',
+                    orders: [order()],
+                    calculations: [calculation({ id: 'calc-1' })],
+                }),
+            ],
+            {
+                'calc-1': [
+                    version('v1', 1),
+                    version('v2', 2, { parentId: 'v1' }),
+                    version('v3', 3, { parentId: 'v2' }),
+                ],
+            },
+        );
+
+        expect(collectDescendantKeys(rows[0])).toEqual([
+            'order-order-1',
+            'calculation-calc-1',
+            'version-v1',
+            'version-v2',
+            'version-v3',
+        ]);
+    });
+
+    it('не включает ключ самой строки и пуст у листа', () => {
+        const [customerRow] = buildCalculationTreeRows([customer({ id: 'c1', orders: [order()] })], {});
+
+        expect(collectDescendantKeys(customerRow)).toEqual(['order-order-1']);
+        expect(collectDescendantKeys(customerRow.children![0])).toEqual([]);
     });
 });
