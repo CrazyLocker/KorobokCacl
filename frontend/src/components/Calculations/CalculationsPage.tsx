@@ -211,21 +211,41 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         });
     };
 
-    // Полное удаление ветки: версия и все её подветки стираются из базы.
-    // Это необратимо, поэтому подтверждение отдельное и с явным текстом.
-    const handlePurgeVersion = (version: CalculationVersion) => {
+    // Пометка ветки: версия и её подветки остаются в дереве зачёркнутыми.
+    // Стирание из базы живёт в Настройках → «Удаление данных».
+    const handleDeleteVersion = (version: CalculationVersion) => {
         modal.confirm({
-            title: `Полное удаление ветки v${version.version}`,
-            content: 'Версия и все её подветки будут удалены из базы без возможности '
-                + 'восстановления. Ветку, из которой вырос заказ, удалить нельзя — '
-                + 'сначала удалите заказ.',
-            okText: 'Удалить навсегда',
+            title: `Пометить ветку v${version.version} удалённой`,
+            content: 'Версия и её подветки останутся в истории зачёркнутыми. '
+                + 'Удалить их из базы навсегда можно в Настройках → «Удаление данных».',
+            okText: 'Пометить',
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
                 try {
-                    await calculatorApi.purgeCalculation(version.id);
-                    onNotify(`Ветка v${version.version} удалена полностью`, 'success');
+                    await calculatorApi.deleteCalculation(version.id);
+                    onNotify(`Ветка v${version.version} помечена удалённой`, 'success');
+                    loadTree();
+                } catch (err) {
+                    onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
+                }
+            },
+        });
+    };
+
+    // Пометка заказа: сделка остаётся видимой зачёркнутой, история сохраняется.
+    const handleDeleteOrder = (order: OrderTree) => {
+        modal.confirm({
+            title: `Пометить заказ № ${order.number} удалённым`,
+            content: 'Заказ останется в дереве зачёркнутым. Удалить его из базы навсегда '
+                + 'можно в Настройках → «Удаление данных».',
+            okText: 'Пометить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deleteOrder(order.id);
+                    onNotify(`Заказ № ${order.number} помечен удалённым`, 'success');
                     loadTree();
                 } catch (err) {
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
@@ -299,8 +319,19 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         type="text"
                         onClick={() => setOrderTarget({ order: record.order!, edit: true })}
                         style={{ fontSize: 11 }}
+                        disabled={record.order.deleted}
                     >
                         Редактировать
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={() => handleDeleteOrder(record.order!)}
+                        style={{ fontSize: 11 }}
+                        disabled={record.order.deleted}
+                    >
+                        Удалить
                     </Button>
                 </Flex>
             );
@@ -325,10 +356,11 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                         size="small"
                         type="text"
                         danger
-                        onClick={() => handlePurgeVersion(record.version!)}
+                        onClick={() => handleDeleteVersion(record.version!)}
                         style={{ fontSize: 11 }}
+                        disabled={record.version.deleted}
                     >
-                        Удалить навсегда
+                        Удалить
                     </Button>
                 </Flex>
             );
@@ -346,6 +378,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                     type="text"
                     onClick={() => openCalculationEditor(record.calculation!.latestId ?? record.calculation!.id)}
                     style={{ fontSize: 11 }}
+                    disabled={record.calculation.deleted}
                 >
                     Редактировать
                 </Button>
@@ -355,6 +388,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                     danger
                     onClick={() => handleDeleteCalculation(record.calculation!)}
                     style={{ fontSize: 11 }}
+                    disabled={record.calculation.deleted}
                 >
                     Удалить
                 </Button>

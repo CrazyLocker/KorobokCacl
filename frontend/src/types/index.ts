@@ -214,6 +214,8 @@ export interface CalculationOrder {
     totalCost: number | null;
     createdAt: string;
     updatedAt: string;
+    // Заказ помечен удалённым: строка остаётся в истории зачёркнутой.
+    deleted?: boolean;
 }
 
 // Запрос на создание/правку заказа
@@ -260,6 +262,8 @@ export interface OrderTree {
     sourceCalculationName: string | null;
     sourceCalculationUpdatedAt: string | null;
     sourceCalculationLatestId: string | null;
+    // Заказ помечен удалённым: в дереве показывается зачёркнутым.
+    deleted?: boolean;
 }
 
 // Узел клиента в дереве расчётов

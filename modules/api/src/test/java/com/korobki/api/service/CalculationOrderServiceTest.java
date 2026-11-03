@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -236,5 +238,74 @@ class CalculationOrderServiceTest {
         assertEquals(3, dto.getSourceVersion(), "видно, из какой версии вырос заказ");
         assertEquals(0, new BigDecimal("150.50").compareTo(dto.getTotalCost()),
                 "сумма заказа — стоимость версии-источника: " + dto.getTotalCost());
+    }
+
+    @Test
+    void delete_marksOrderButKeepsTheRow() {
+        CalculationOrder order = new CalculationOrder();
+        order.setId(UUID.randomUUID());
+        order.setNumber("2026-004");
+        order.setStatus("draft");
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        service.delete(order.getId());
+
+        assertNotNull(order.getDeletedAt(), "заказ помечен удалённым");
+        verify(orderRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void update_deletedOrder_isRejected() {
+        CalculationOrder order = new CalculationOrder();
+        order.setId(UUID.randomUUID());
+        order.setNumber("2026-005");
+        order.setStatus("draft");
+        order.setDeletedAt(LocalDateTime.now());
+        when(orderRepository.findById(order.getId())).thenReturn(Optional.of(order));
+
+        CalculationOrderSaveRequest request = new CalculationOrderSaveRequest();
+        request.setStatus("ready");
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class, () -> service.update(order.getId(), request));
+
+        assertTrue(error.getMessage().contains("помечен удалённым"), error.getMessage());
+    }
+
+    @Test
+    void purge_rejectsOrdersThatAreNotMarked() {
+        CalculationOrder marked = new CalculationOrder();
+        marked.setId(UUID.randomUUID());
+        marked.setNumber("2026-006");
+        marked.setStatus("draft");
+        marked.setDeletedAt(LocalDateTime.now());
+
+        CalculationOrder alive = new CalculationOrder();
+        alive.setId(UUID.randomUUID());
+        alive.setNumber("2026-007");
+        alive.setStatus("draft");
+
+        when(orderRepository.findAllById(any())).thenReturn(List.of(marked, alive));
+
+        IllegalArgumentException error = assertThrows(
+                IllegalArgumentException.class, () -> service.purge(List.of(marked.getId(), alive.getId())));
+
+        assertTrue(error.getMessage().contains("2026-007"), error.getMessage());
+        assertTrue(error.getMessage().contains("только помеченные"), error.getMessage());
+        verify(orderRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void purge_erasesMarkedOrders() {
+        CalculationOrder order = new CalculationOrder();
+        order.setId(UUID.randomUUID());
+        order.setNumber("2026-008");
+        order.setStatus("draft");
+        order.setDeletedAt(LocalDateTime.now());
+
+        when(orderRepository.findAllById(any())).thenReturn(List.of(order));
+
+        assertEquals(1, service.purge(List.of(order.getId())));
+        verify(orderRepository).deleteAll(List.of(order));
     }
 }

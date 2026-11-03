@@ -60,4 +60,7 @@ public class CalculationOrderDto {
 
     /** Last modification timestamp. */
     private LocalDateTime updatedAt;
+
+    /** True when the order is marked as deleted and may be erased from the database. */
+    private Boolean deleted;
 }

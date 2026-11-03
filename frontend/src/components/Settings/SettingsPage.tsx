@@ -3,6 +3,7 @@ import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Upload } from 'antd';
 import { calculatorApi } from '../../api/calculatorApi';
 import { sortParts } from '../../utils/sortParts';
+import { PurgeBlock } from './PurgeBlock';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -131,7 +132,7 @@ export const SettingsPage = ({ onNotify }: Props) => {
                         Настройки
                     </Typography.Title>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        Обмен данными: справочники, прайсы и расчёты в формате JSON
+                        Обмен данными и очистка базы от помеченных записей
                     </Typography.Text>
                 </Flex>
             </Card>
@@ -242,6 +243,8 @@ export const SettingsPage = ({ onNotify }: Props) => {
                     </Flex>
                 </Card>
             </Flex>
+
+            <PurgeBlock onNotify={onNotify} />
         </div>
     );
 };

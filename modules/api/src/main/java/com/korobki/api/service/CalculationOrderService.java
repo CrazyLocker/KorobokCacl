@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -123,6 +124,9 @@ public class CalculationOrderService {
     @Transactional
     public CalculationOrderDto update(UUID id, CalculationOrderSaveRequest request) {
         CalculationOrder order = find(id);
+        if (order.getDeletedAt() != null) {
+            throw new IllegalArgumentException("Заказ помечен удалённым — редактировать его нельзя");
+        }
         if (request.getSourceCalculationId() != null
                 && !request.getSourceCalculationId().equals(order.getSourceCalculationId())) {
             throw new IllegalArgumentException("Заказ нельзя перенести на другую версию расчёта");
@@ -139,6 +143,50 @@ public class CalculationOrderService {
                 .map(Customer::getName)
                 .orElse("Клиент удалён");
         return toDto(order, customerName, sources(List.of(order)));
+    }
+
+    /**
+     * Marks an order as deleted, keeping the row and its history.
+     *
+     * <p>The deal happened: the manager still needs it while agreeing the
+     * history with the client, so the tree keeps the order struck through. The
+     * row is erased only from the cleanup block.
+     *
+     * @param id order identifier
+     * @throws NotFoundException when the order does not exist
+     */
+    @Transactional
+    public void delete(UUID id) {
+        CalculationOrder order = find(id);
+        if (order.getDeletedAt() == null) {
+            order.setDeletedAt(LocalDateTime.now());
+        }
+    }
+
+    /**
+     * Erases orders from the database.
+     *
+     * <p>Only marked orders are erasable: the mark is the confirmation that the
+     * deal is over, and the cleanup block never touches a live order.
+     *
+     * @param ids orders to erase
+     * @return number of erased rows
+     * @throws IllegalArgumentException when any of the orders is not marked
+     */
+    @Transactional
+    public int purge(List<UUID> ids) {
+        List<CalculationOrder> orders = orderRepository.findAllById(ids);
+        List<String> alive = orders.stream()
+                .filter(order -> order.getDeletedAt() == null)
+                .map(CalculationOrder::getNumber)
+                .sorted()
+                .toList();
+        if (!alive.isEmpty()) {
+            throw new IllegalArgumentException("Удалить из базы можно только помеченные заказы. Сначала пометьте: "
+                    + String.join(", ", alive));
+        }
+        orderRepository.deleteAll(orders);
+        return orders.size();
     }
 
     /**
@@ -287,6 +335,7 @@ public class CalculationOrderService {
 
         dto.setCreatedAt(order.getCreatedAt());
         dto.setUpdatedAt(order.getUpdatedAt());
+        dto.setDeleted(order.getDeletedAt() != null);
         return dto;
     }
 

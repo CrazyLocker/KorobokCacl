@@ -142,12 +142,23 @@ export const calculatorApi = {
     updateOrder: (id: string, data: CalculationOrderSaveRequest): Promise<CalculationOrder> =>
         axios.put(`${API_BASE}/orders/${id}`, data).then((res) => res.data),
 
+    // Пометка заказа удалённым: строка остаётся в дереве зачёркнутой.
+    deleteOrder: (id: string): Promise<void> =>
+        axios.delete(`${API_BASE}/orders/${id}`).then(() => {}),
+
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),
 
     // Полное удаление ветки: строки исчезают из базы, история их не хранит.
     purgeCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}/purge`).then(() => {}),
+
+    // === Блок очистки: только помеченные записи ===
+    purgeCalculations: (ids: string[]): Promise<number> =>
+        axios.post(`${API_BASE}/calculations/purge`, { ids }).then((res) => res.data.deleted),
+
+    purgeOrders: (ids: string[]): Promise<number> =>
+        axios.post(`${API_BASE}/orders/purge`, { ids }).then((res) => res.data.deleted),
 
     // === Сохранённые ножи ===
     saveKnife: (data: KnifeSaveRequest): Promise<SavedKnife> =>

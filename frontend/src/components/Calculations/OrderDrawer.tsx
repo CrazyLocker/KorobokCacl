@@ -87,6 +87,13 @@ export const OrderDrawer = ({
         }
     }, [open, loading, initialValues, form]);
 
+    // Помеченный заказ пришёл из дерева в режим правки — гасим его.
+    useEffect(() => {
+        if (full?.deleted) {
+            setEditing(false);
+        }
+    }, [full]);
+
     const handleSave = async () => {
         if (!full) return;
 
@@ -120,16 +127,24 @@ export const OrderDrawer = ({
     };
 
     const number = full?.number ?? order?.number;
+    // Помеченный удалённым заказ показывается только для истории: править его
+    // нельзя, стереть из базы можно лишь в Настройках → «Удаление данных».
+    const isDeleted = Boolean(full?.deleted ?? order?.deleted);
 
     return (
         <Drawer
             open={open}
             onClose={close}
-            title={number ? `Заказ № ${number}` : 'Заказ'}
+            title={(
+                <Flex gap={8} align="center">
+                    <span>{number ? `Заказ № ${number}` : 'Заказ'}</span>
+                    {isDeleted && <Tag style={{ marginInlineEnd: 0 }}>удалён</Tag>}
+                </Flex>
+            )}
             size={screens.md ? 900 : '100%'}
             destroyOnHidden
             styles={{ body: { padding: 16 } }}
-            extra={(
+            extra={!isDeleted && (
                 <Flex gap={8}>
                     {editing ? (
                         <>
@@ -159,6 +174,14 @@ export const OrderDrawer = ({
             ) : (
                 <Flex vertical gap={16}>
                     {error && <Alert type="warning" showIcon message={error} />}
+                    {isDeleted && (
+                        <Alert
+                            type="info"
+                            showIcon
+                            message="Заказ помечен удалённым"
+                            description="Он остался в истории зачёркнутым. Стереть его из базы можно в Настройках → «Удаление данных»."
+                        />
+                    )}
 
                     {editing ? (
                         <Form form={form} layout="vertical" size="small" style={{ maxWidth: 560 }}>

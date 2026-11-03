@@ -308,6 +308,7 @@ public class CalculationService {
             node.setOrderDate(order.getOrderDate());
             node.setStatus(order.getStatus());
             node.setCustomerId(order.getCustomerId());
+            node.setDeleted(order.getDeletedAt() != null);
 
             Calculation source = order.getSourceCalculationId() == null
                     ? null
@@ -433,39 +434,65 @@ public class CalculationService {
     /**
      * Removes a version and its whole subtree from the database for good.
      *
-     * <p>Soft delete keeps the history for the agreement with the client, so
-     * this is the explicit "erase" action for branches that were created by
-     * mistake: the rows are gone, the tree shrinks, and no trace stays in the
-     * version history.
-     *
-     * <p>Orders are business documents and survive their calculation, so a
-     * branch that an order grew from is not erased: the request is rejected
-     * with the numbers of the orders, they have to be dealt with first.
-     * Children are removed by the foreign key cascade of {@code parent_id}.
+     * <p>Erasing is the second step after the mark: only a version already
+     * marked as deleted may be erased, so the cleanup block can never wipe a
+     * live branch by accident. Children are removed by the foreign key cascade
+     * of {@code parent_id}.
      *
      * @param id version to erase together with its descendants
      * @throws NotFoundException        if the calculation does not exist
-     * @throws IllegalArgumentException if an order grew from the subtree
+     * @throws IllegalArgumentException if the version is not marked or an order grew from it
      */
     @Transactional
     public void purge(UUID id) {
-        Calculation calculation = find(id);
-        List<Calculation> chain = calculationRepository
-                .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
-        Set<UUID> subtree = subtreeOf(chain, id);
+        purgeAll(List.of(id));
+    }
 
-        List<CalculationOrder> orders = orderRepository.findBySourceCalculationIdIn(subtree);
-        if (!orders.isEmpty()) {
-            String numbers = orders.stream()
-                    .map(CalculationOrder::getNumber)
-                    .sorted()
-                    .collect(Collectors.joining(", "));
-            throw new IllegalArgumentException(
-                    "Ветку нельзя удалить полностью: из неё создан заказ " + numbers
-                            + ". Сначала удалите заказ или оставьте ветку в истории");
+    /**
+     * Erases several marked versions with their subtrees.
+     *
+     * <p>Every identifier must already be marked as deleted: the mark is the
+     * confirmation that the branch is not needed any more. A branch that an
+     * order grew from is not erased — orders are documents and have to be
+     * erased first through the same cleanup block.
+     *
+     * @param ids versions to erase
+     * @return number of erased versions
+     * @throws IllegalArgumentException if a version is not marked or has orders
+     */
+    @Transactional
+    public int purgeAll(List<UUID> ids) {
+        int erased = 0;
+        for (UUID id : ids) {
+            Calculation calculation = calculationRepository.findById(id).orElse(null);
+            if (calculation == null) {
+                continue;
+            }
+            if (calculation.getDeletedAt() == null) {
+                throw new IllegalArgumentException(
+                        "Из базы удаляются только помеченные удалёнными версии: «" + calculation.getName()
+                                + "» не помечена");
+            }
+
+            List<Calculation> chain = calculationRepository
+                    .findByRootIdOrderByVersionAsc(rootIdOf(calculation));
+            Set<UUID> subtree = subtreeOf(chain, id);
+
+            List<CalculationOrder> orders = orderRepository.findBySourceCalculationIdIn(subtree);
+            if (!orders.isEmpty()) {
+                String numbers = orders.stream()
+                        .map(CalculationOrder::getNumber)
+                        .sorted()
+                        .collect(Collectors.joining(", "));
+                throw new IllegalArgumentException(
+                        "Ветку нельзя удалить полностью: из неё создан заказ " + numbers
+                                + ". Сначала удалите заказ или оставьте ветку в истории");
+            }
+
+            calculationRepository.deleteById(id);
+            erased++;
         }
-
-        calculationRepository.deleteById(id);
+        return erased;
     }
 
     /**

@@ -48,4 +48,7 @@ public class OrderTreeDto {
 
     /** Newest tip of the source tree, used by "Редактировать". */
     private UUID sourceCalculationLatestId;
+
+    /** True when the order is marked as deleted: the tree shows it struck through. */
+    private Boolean deleted;
 }

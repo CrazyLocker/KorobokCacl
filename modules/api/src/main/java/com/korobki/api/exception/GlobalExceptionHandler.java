@@ -74,7 +74,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex) {
         ErrorResponse response = new ErrorResponse(
                 HttpStatus.BAD_REQUEST.value(),
-                "Ошибка в запросе расчёта",
+                "Ошибка в запросе",
                 Map.of("error", ex.getMessage() != null ? ex.getMessage() : ""),
                 LocalDateTime.now()
         );

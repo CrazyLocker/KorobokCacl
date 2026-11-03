@@ -192,4 +192,23 @@ class CalculationServiceTreeTest {
         assertEquals(deletedTip.getId(), node.getCalculations().get(0).getLatestId());
         assertEquals(2L, node.getCalculations().get(0).getVersionCount());
     }
+    @Test
+    void tree_marksOrderDeletedButKeepsItInHistory() {
+        Customer client = customer("Ромашка");
+        Calculation source = calculation(UUID.randomUUID(), 1, null, client, "100.00");
+        CalculationOrder stored = order(client, "2026-010", source);
+        stored.setDeletedAt(LocalDateTime.now());
+
+        when(customerRepository.findAll()).thenReturn(List.of(client));
+        when(calculationRepository.findAllByOrderByUpdatedAtDesc()).thenReturn(List.of(source));
+        when(calculationRepository.findByRootIdOrderByVersionAsc(source.getRootId())).thenReturn(List.of(source));
+        when(orderRepository.findAllByOrderByOrderDateDescCreatedAtDesc()).thenReturn(List.of(stored));
+        when(calculationRepository.findAllById(any())).thenReturn(List.of(source));
+
+        CustomerTreeDto node = service.tree().get(0);
+        OrderTreeDto orderNode = node.getOrders().get(0);
+
+        assertTrue(orderNode.getDeleted(), "помеченный заказ остаётся в дереве с флагом удаления");
+        assertEquals("2026-010", orderNode.getNumber());
+    }
 }

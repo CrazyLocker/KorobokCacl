@@ -2,6 +2,8 @@ package com.korobki.api.controller;
 
 import com.korobki.api.dto.CalculationOrderDto;
 import com.korobki.api.dto.CalculationOrderSaveRequest;
+import com.korobki.api.dto.PurgeRequest;
+import com.korobki.api.dto.PurgeResultDto;
 import com.korobki.api.service.CalculationOrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -67,5 +69,33 @@ public class CalculationOrderController {
             @PathVariable UUID id,
             @Valid @RequestBody CalculationOrderSaveRequest request) {
         return ResponseEntity.ok(orderService.update(id, request));
+    }
+
+    /**
+     * Marks an order as deleted, keeping the row and its history.
+     *
+     * <p>The tree keeps the order struck through; erasing it from the database
+     * is a separate action of the cleanup block.
+     *
+     * @param id order identifier
+     * @return empty response
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        orderService.delete(id);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Erases the orders picked in the cleanup block of the settings page.
+     *
+     * <p>Only orders already marked as deleted may be erased.
+     *
+     * @param request identifiers of the orders to erase
+     * @return number of erased orders
+     */
+    @PostMapping("/purge")
+    public ResponseEntity<PurgeResultDto> purge(@RequestBody PurgeRequest request) {
+        return ResponseEntity.ok(new PurgeResultDto(orderService.purge(request.getIds())));
     }
 }

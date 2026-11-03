@@ -108,6 +108,7 @@ export const buildCalculationTreeRows = (
         title: `Заказ № ${order.number}`,
         subtitle: orderSubtitle(order),
         order,
+        deleted: order.deleted,
         cost: order.totalCost,
         updatedAt: order.orderDate,
     });

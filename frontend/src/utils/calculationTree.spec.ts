@@ -225,4 +225,12 @@ describe('collectDescendantKeys', () => {
         expect(collectDescendantKeys(customerRow)).toEqual(['order-order-1']);
         expect(collectDescendantKeys(customerRow.children![0])).toEqual([]);
     });
+    it('переносит пометку удаления заказа в строку дерева', () => {
+        const [customerRow] = buildCalculationTreeRows(
+            [customer({ orders: [order({ deleted: true })], calculations: [] })],
+            {},
+        );
+
+        expect(customerRow.children![0].deleted).toBe(true);
+    });
 });

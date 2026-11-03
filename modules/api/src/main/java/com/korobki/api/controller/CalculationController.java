@@ -6,6 +6,8 @@ import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.dto.CustomerTreeDto;
+import com.korobki.api.dto.PurgeRequest;
+import com.korobki.api.dto.PurgeResultDto;
 import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -138,8 +140,9 @@ public class CalculationController {
      *
      * <p>This is the explicit "remove for good" action for branches that were
      * created by mistake: unlike {@link #delete(UUID)} nothing stays in the
-     * history. A branch an order grew from is protected — the request fails
-     * with the numbers of those orders.
+     * history. Only a version already marked as deleted may be erased, and a
+     * branch an order grew from is protected — the request fails with the
+     * numbers of those orders.
      *
      * @param id version to erase together with its descendants
      * @return empty response
@@ -148,5 +151,19 @@ public class CalculationController {
     public ResponseEntity<Void> purge(@PathVariable UUID id) {
         calculationService.purge(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Erases the versions picked in the cleanup block of the settings page.
+     *
+     * <p>Every identifier must already be marked as deleted; the request is
+     * rejected with the names of the versions that are not marked.
+     *
+     * @param request identifiers of the versions to erase
+     * @return number of erased versions
+     */
+    @PostMapping("/purge")
+    public ResponseEntity<PurgeResultDto> purgeAll(@RequestBody PurgeRequest request) {
+        return ResponseEntity.ok(new PurgeResultDto(calculationService.purgeAll(request.getIds())));
     }
 }

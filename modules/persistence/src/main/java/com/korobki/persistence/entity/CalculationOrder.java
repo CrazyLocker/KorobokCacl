@@ -63,6 +63,13 @@ public class CalculationOrder {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    /**
+     * Mark of deletion: the order stays in the tree struck through and may be
+     * erased from the database only through the cleanup block.
+     */
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
+
     /** Sets creation/update timestamps before insert. */
     @PrePersist
     protected void onCreate() {
