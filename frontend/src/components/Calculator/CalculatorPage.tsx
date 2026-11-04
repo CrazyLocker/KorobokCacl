@@ -35,14 +35,6 @@ interface CalculatorPageProps {
     calc: CalculatorModel;
 }
 
-const OPERATION_LABELS: Record<string, string> = {
-    'Печать': 'П',
-    'Лак': 'Лак',
-    'Тиснение': 'Тис',
-    'Конгрев': 'Кон',
-    'Ламинация': 'Лам',
-};
-
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
 const money = (value: number): string => `${value.toFixed(2)} ₽`;
@@ -294,21 +286,18 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                         </Checkbox>,
                     )}
                     {calc.extras.map((extra) => (
-                        <Tooltip key={extra.name} title={extra.name}>
-                            <Checkbox
-                                checked={Boolean(record.operations?.[extra.name])}
-                                disabled={!record.enabled}
-                                onChange={(event) => calc.updateDetailOperation(
-                                    record.uiKey,
-                                    extra.name,
-                                    event.target.checked,
-                                )}
-                            >
-                                <span style={{ fontSize: 12 }}>
-                                    {OPERATION_LABELS[extra.name] || extra.name.charAt(0)}
-                                </span>
-                            </Checkbox>
-                        </Tooltip>
+                        <Checkbox
+                            key={extra.name}
+                            checked={Boolean(record.operations?.[extra.name])}
+                            disabled={!record.enabled}
+                            onChange={(event) => calc.updateDetailOperation(
+                                record.uiKey,
+                                extra.name,
+                                event.target.checked,
+                            )}
+                        >
+                            <span style={{ fontSize: 12 }}>{extra.name}</span>
+                        </Checkbox>
                     ))}
                 </Space>
             ),
