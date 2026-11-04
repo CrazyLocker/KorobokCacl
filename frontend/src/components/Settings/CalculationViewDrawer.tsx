@@ -355,13 +355,8 @@ export const CalculationViewDrawer = ({
         { key: 'updatedAt', label: 'Обновлён', children: formatDate(view.updatedAt) },
         { key: 'construction', label: 'Конструкция', children: request?.construction || '—' },
         {
-            key: 'workPrice',
-            label: 'Работа за деталь',
-            children: request ? money(request.workPrice) : '—',
-        },
-        {
             key: 'margin',
-            label: 'Плечо',
+            label: 'Наценка',
             children: request?.marginValue !== undefined ? `+${request.marginValue}` : 'по умолчанию',
         },
     ] : [];

@@ -61,7 +61,7 @@ export interface CalculationRequest {
     // Режим сборки; отсутствует/disabled — считается обычная печать.
     assemblySettings?: AssemblySettings;
     workPrice: number;
-    marginValue?: number; // Плечо (+N), по умолчанию 30
+    marginValue?: number; // Наценка (+N), по умолчанию 30
     priceList: Record<string, number>;
 }
 
