@@ -35,15 +35,16 @@
 # 1. Роль и база (идемпотентно, пароль передаётся переменной и не попадает в git)
 psql -U postgres -v app_password='пароль-роли' -f scripts/init-db.sql
 
-# 2. Параметры запуска
-Copy-Item scripts\env.example .env
-#    заполните DB_PASSWORD и ALPHA_ADMIN_PASSWORD в .env
+# 2. Параметры запуска — необязательно: в application.yml есть дефолты
+#    для локальной базы, IDEA стартует без переменных окружения.
+Copy-Item scripts\env.example .env   # только для нестандартных кредов
 
 # 3. Схема создаётся сама: Flyway прогонит V1–V23 при первом старте
 .\scripts\dev-env.ps1 -Run
 ```
 
-Без `ALPHA_ADMIN_PASSWORD` приложение не стартует: пароль администратора обязателен.
+Аутентификации на альфе нет: всё API открыто, защита — только петлевой интерфейс
+и CORS. Это принятый риск (P0-1 в `docs/alpha-readiness-review.md`).
 
 ## Запуск для разработки (две консоли)
 
@@ -90,7 +91,6 @@ cd frontend; npm run build; npm run preview   # dist на 5173 (+ тот же п
 | `/api/orders/purge` | POST | Стереть помеченные заказы |
 | `/api/customers` | GET / POST | Клиенты |
 | `/api/customers/{id}` | PUT | Переименовать/скрыть клиента |
-| `/api/auth/me` | GET | Проверка пары логин/пароль администратора |
 
 ## Тесты
 

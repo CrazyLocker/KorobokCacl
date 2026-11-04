@@ -2,6 +2,7 @@
 #   .\scripts\dev-env.ps1                 # только выставить переменные в текущей сессии
 #   .\scripts\dev-env.ps1 -Run            # выставить и запустить bootRun на 8080
 #   .\scripts\dev-env.ps1 -Run -Port 8081 # то же на другом порту (для проверок)
+# Скрипт необязателен: без .env приложение стартует на дефолтах из application.yml.
 param(
     [switch]$Run,
     [int]$Port = 8080
@@ -11,7 +12,7 @@ $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $root '.env'
 
 if (-not (Test-Path $envFile)) {
-    Write-Host "Файл .env не найден. Скопируйте scripts\env.example в .env и заполните пароли." -ForegroundColor Yellow
+    Write-Host "Файл .env не найден. Скопируйте scripts\env.example в .env, если нужны нестандартные креды БД." -ForegroundColor Yellow
     exit 1
 }
 
@@ -25,7 +26,7 @@ foreach ($line in Get-Content $envFile) {
     [Environment]::SetEnvironmentVariable($name, $value, 'Process')
 }
 
-Write-Host "Переменные из .env загружены: БД $($env:DB_USER)@$($env:DB_URL), администратор $($env:ALPHA_ADMIN_USER)." -ForegroundColor Green
+Write-Host "Переменные из .env загружены: БД $($env:DB_USER)@$($env:DB_URL)." -ForegroundColor Green
 
 if ($Run) {
     Push-Location $root
