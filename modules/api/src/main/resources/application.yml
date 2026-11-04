@@ -7,11 +7,12 @@ spring:
   application:
     name: korobki-calculator
   datasource:
-    # Креды приходят из окружения: пароль БД не хранится в репозитории.
-    # Локально — scripts/dev-env.ps1 (или переменные в конфигурации IDEA).
+    # Альфа запускается из IDEA без настройки окружения: дефолты ниже —
+    # локальная база разработчика. Для стенда достаточно задать DB_URL,
+    # DB_USER и DB_PASSWORD в окружении или в .env (scripts/dev-env.ps1).
     url: ${DB_URL:jdbc:postgresql://localhost:5432/korobki}
-    username: ${DB_USER:korobki}
-    password: ${DB_PASSWORD}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:4meonl}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -35,11 +36,6 @@ jwt:
   expiration: 28800000
 
 app:
-  security:
-    # Единственная учётная запись администратора: изменяющие и удаляющие
-    # запросы требуют её, чтение справочников открыто.
-    admin-user: ${ALPHA_ADMIN_USER:admin}
-    admin-password: ${ALPHA_ADMIN_PASSWORD:}
   pricing:
     manufacturing-cost: 5.0
     markup-min: 30.0

@@ -2,27 +2,29 @@ package com.korobki.security.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.security.web.SecurityFilterChain;
 
 import java.util.List;
 
 /**
  * Spring Security configuration.
  *
- * <p>Чтение справочников и расчёт открыты: технологу нужно быстро смотреть
- * данные без логина. Всё, что меняет или удаляет данные (сохранение расчёта,
- * версии, заказы, клиенты, импорт справочников, purge), требует роль ADMIN —
- * это защита от потери истории согласований.
+ * <p>Все REST-эндпоинты открыты: альфа-тест идёт на чистой базе, на локальной
+ * машине, одним пользователем — пароль на изменяющие ручки давал больше трения,
+ * чем пользы. Это принятый риск, зафиксированный в
+ * {@code docs/alpha-readiness-review.md} (P0-1); перед работой с данными,
+ * которые нельзя потерять, аутентификацию нужно вернуть точечно (коммит
+ * {@code 50792b6} в истории).
+ *
+ * <p>Защита от сетевой экспозиции при этом остаётся: сервер слушает только
+ * петлевой интерфейс ({@code server.address=127.0.0.1}) и CORS пускает лишь
+ * dev-сервер Vite. HTTP Basic включён как фолбэк для запросов вне API.
  */
 @Configuration
 @EnableWebSecurity
@@ -31,46 +33,35 @@ public class SecurityConfig {
     /**
      * Builds the HTTP security filter chain.
      *
-     * @param http  security builder
-     * @param props учётная запись администратора
+     * <p>CSRF отключён: API stateless, без сессионных cookie.
+     *
+     * @param http security builder
      * @return configured filter chain
      * @throws Exception on configuration error
      */
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, AdminProperties props) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
-                // Проверка пароля администратора: нужна роль, иначе фронт не поймёт, верен ли пароль.
-                .requestMatchers("/api/auth/me").hasRole("ADMIN")
-                // Справочники, расчёт и просмотр истории — открыты.
-                .requestMatchers(HttpMethod.GET, "/api/**").permitAll()
-                .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
-                // Всё остальное по API — только администратор.
-                .requestMatchers("/api/**").hasRole("ADMIN")
+                .requestMatchers(
+                    "/api/constructs/**",
+                    "/api/operations/**",
+                    "/api/calculator/**",
+                    "/api/print-tables/**",
+                    "/api/price-lists/**",
+                    "/api/knife/**",
+                    "/api/references/**",
+                    "/api/orders/**",
+                    "/api/customers/**",
+                    "/api/calculations/**",
+                    "/api/doc/**"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());
         return http.build();
-    }
-
-    /**
-     * Единственная учётная запись администратора из настроек.
-     *
-     * <p>Свой менеджер пользователей отключает сгенерированный Spring пароль:
-     * иначе приложение печатает случайный пароль в консоль при каждом старте.
-     *
-     * @param props настройки администратора
-     * @return менеджер с одной учётной записью
-     */
-    @Bean
-    public InMemoryUserDetailsManager userDetailsService(AdminProperties props) {
-        UserDetails admin = User.withUsername(props.getAdminUser())
-                .password("{noop}" + props.getAdminPassword())
-                .roles("ADMIN")
-                .build();
-        return new InMemoryUserDetailsManager(admin);
     }
 
     /**
