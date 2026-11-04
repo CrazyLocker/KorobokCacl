@@ -9,7 +9,6 @@ import { ReferencesPage } from './components/References/ReferencesPage';
 import { CalculationsPage } from './components/Calculations/CalculationsPage';
 import { SettingsPage } from './components/Settings/SettingsPage';
 import { DevStub } from './components/DevStub';
-import { AdminGateProvider } from './components/common/AdminGate';
 import { LayoutPage } from './features/layout/ui/LayoutPage';
 import { KnifePage } from './features/knife/ui/KnifePage';
 import { PAGE_PATHS, pageFromPath } from './navigation';
@@ -107,7 +106,7 @@ function App() {
     };
 
     return (
-        <AdminGateProvider>
+        <>
             <AppShell
                 activePage={activePage}
                 onNavigate={navigateToPage}
@@ -123,7 +122,7 @@ function App() {
                 onSaved={calc.applySavedVersion}
                 calculation={calc.buildRequest()}
             />
-        </AdminGateProvider>
+        </>
     );
 }
 

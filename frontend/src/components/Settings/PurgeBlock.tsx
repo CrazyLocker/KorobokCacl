@@ -4,8 +4,6 @@ import { App as AntdApp, Button, Card, Flex, Spin, Table, Tag, Typography } from
 import { DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import type { CalculationOrder, SavedCalculation } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
-import { clearAdminAuth, isUnauthorized } from '../../api/adminAuth';
-import { useAdminGate } from '../common/adminGateContext';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
@@ -35,7 +33,6 @@ const formatDate = (value?: string | null): string => {
  */
 export const PurgeBlock = ({ onNotify }: Props) => {
     const { modal } = AntdApp.useApp();
-    const { ensureAdmin } = useAdminGate();
     const [loading, setLoading] = useState(false);
     const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
     const [orders, setOrders] = useState<CalculationOrder[]>([]);
@@ -73,17 +70,11 @@ export const PurgeBlock = ({ onNotify }: Props) => {
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
-                if (!(await ensureAdmin())) return;
                 try {
                     const deleted = await calculatorApi.purgeCalculations(selectedCalculations);
                     onNotify(`Удалено из базы расчётов: ${deleted}`, 'success');
                     load();
                 } catch (err) {
-                    if (isUnauthorized(err)) {
-                        clearAdminAuth();
-                        onNotify('Неверный пароль администратора', 'error');
-                        return;
-                    }
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
@@ -99,17 +90,11 @@ export const PurgeBlock = ({ onNotify }: Props) => {
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
-                if (!(await ensureAdmin())) return;
                 try {
                     const deleted = await calculatorApi.purgeOrders(selectedOrders);
                     onNotify(`Удалено из базы заказов: ${deleted}`, 'success');
                     load();
                 } catch (err) {
-                    if (isUnauthorized(err)) {
-                        clearAdminAuth();
-                        onNotify('Неверный пароль администратора', 'error');
-                        return;
-                    }
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },

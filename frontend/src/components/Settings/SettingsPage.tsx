@@ -2,8 +2,6 @@
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons';
 import { Button, Card, Flex, Typography, Upload } from 'antd';
 import { calculatorApi } from '../../api/calculatorApi';
-import { adminAuthHeader, clearAdminAuth } from '../../api/adminAuth';
-import { useAdminGate } from '../common/adminGateContext';
 import { sortParts } from '../../utils/sortParts';
 import { PurgeBlock } from './PurgeBlock';
 
@@ -18,25 +16,17 @@ interface Props {
  * расчёты» — здесь остаются только выгрузки справочников и расчётов.
  */
 export const SettingsPage = ({ onNotify }: Props) => {
-    const { ensureAdmin } = useAdminGate();
     // --- Импорт/экспорт JSON ---
     const handleImportFile = async (file: File | undefined, endpoint: string, label: string) => {
         if (!file) return;
-        if (!(await ensureAdmin())) return;
         try {
             const text = await file.text();
             const json = JSON.parse(text);
-            const auth = adminAuthHeader();
             const res = await fetch(`/api/references/${endpoint}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...(auth ?? {}) },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(json),
             });
-            if (res.status === 401) {
-                clearAdminAuth();
-                onNotify('Неверный пароль администратора', 'error');
-                return;
-            }
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             onNotify(`${label}: импорт выполнен`, 'success');
         } catch (err: any) {
