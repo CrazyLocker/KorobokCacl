@@ -4,6 +4,7 @@ import { calculatorApi } from '../api/calculatorApi';
 import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
 import { normalizeSavedCalculation } from '../utils/normalizeSavedCalculation';
 import { buildDetailRows, readCalculationIdFromLocation } from '../utils/restoreCalculation';
+import { defaultMarginForConstruction } from '../utils/margin';
 import { sortConstructs } from '../utils/sortConstructs';
 import { sortParts } from '../utils/sortParts';
 import type {
@@ -55,6 +56,8 @@ export interface RestoredCalculation {
     clientName: string;
     managerName: string;
     version?: number;
+    /** Клиент справочника: у наследующих версий берётся из родителя. */
+    customerId?: string | null;
 }
 
 /** Prototype normDetailName: case, ё and whitespace insensitive. */
@@ -142,6 +145,7 @@ export function useCalculator() {
             clientName: saved.clientName,
             managerName: saved.managerName,
             version: saved.version,
+            customerId: saved.customerId ?? null,
         });
         isRestoredRef.current = true;
     }, []);
@@ -155,6 +159,7 @@ export function useCalculator() {
             clientName: saved.clientName,
             managerName: saved.managerName,
             version: saved.version,
+            customerId: saved.customerId ?? null,
         });
         isRestoredRef.current = true;
     }, []);
@@ -215,6 +220,11 @@ export function useCalculator() {
 
             setCurrentConstruction(name);
 
+            // Наценка зависит от конструкции: у «Кашированной» она выше,
+            // потому что коробка сложнее. Значение задаётся заново при каждом
+            // переключении конструкции, а правки руками живут до переключения.
+            setMarginValue(defaultMarginForConstruction(name));
+
             // Details are built from the construction itself: the reference book is
             // the single source of truth. A part deleted there disappears here after
             // reload, and a part with perSheet = 0 stays visible but disabled.
@@ -240,6 +250,16 @@ export function useCalculator() {
             // No fallback list and no carry-over of rows from the previous
             // construction: an empty parts list means an empty calculator.
             setDetails(constructionDetails);
+
+            // Сборка относится к конкретной коробке: у новой конструкции нет
+            // отмеченных «В сборку» деталей, поэтому режим выключается — иначе
+            // калькулятор показывал бы ошибку «отметьте хотя бы одну деталь».
+            setAssemblySettings((prev) => ({ ...prev, enabled: false }));
+
+            // Печать и доп. операции тоже принадлежат прежней конструкции:
+            // флажки деталей уже сброшены пересборкой строк, а режим печати
+            // гасим, иначе калькулятор считал бы тираж от чужой коробки.
+            setPrintSettings((prev) => ({ ...prev, enabled: false }));
 
             // Load the price list of this construction. A construction without a
             // price list is normal: the table stays empty until prices are filled in.

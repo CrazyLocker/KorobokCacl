@@ -120,14 +120,17 @@ export const AppShell = ({ activePage, onNavigate, onSave, children }: AppShellP
         <Layout style={{ minHeight: '100vh', background: tokens.color.background }}>
             {!isMobile && (
                 <Sider
-                    width={236}
+                    width={276}
                     theme="light"
                     style={{
                         background: tokens.color.surface,
                         borderRight: `1px solid ${tokens.color.border}`,
                         position: 'sticky',
                         top: 0,
-                        height: '100vh',
+                        // Панель по высоте разделов: полоса не тянется до низа
+                        // экрана, а заканчивается последним пунктом меню.
+                        alignSelf: 'flex-start',
+                        maxHeight: '100vh',
                         overflow: 'auto',
                     }}
                 >

@@ -1,8 +1,8 @@
 // frontend/src/components/Calculator/SaveCalculationModal.tsx
-import { useState } from 'react';
-import { Alert, Button, Flex, Form, Input, Modal } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, AutoComplete, Button, Checkbox, Divider, Flex, Form, Input, Modal } from 'antd';
 import { calculatorApi } from '../../api/calculatorApi';
-import type { CalculationRequest, SavedCalculation } from '../../types';
+import type { CalculationRequest, Customer, SavedCalculation } from '../../types';
 import type { RestoredCalculation } from '../../hooks/useCalculator';
 import { toApiDetails } from '../../utils/calculationRequest';
 
@@ -27,6 +27,10 @@ interface SaveFormValues {
 const apiErrorMessage = (error: unknown): string =>
     error instanceof Error && error.message ? error.message : 'Не удалось сохранить расчёт';
 
+/** Сравнение имён клиентов без учёта регистра и лишних пробелов. */
+const sameName = (left: string, right: string): boolean =>
+    left.trim().toLowerCase() === right.trim().toLowerCase();
+
 /**
  * Сохранение расчёта: Ant Design Modal + Form.
  *
@@ -36,6 +40,11 @@ const apiErrorMessage = (error: unknown): string =>
  *   <li>правка сохранённого — «Сохранить версию» (метаданные наследуются)
  *       и «Сохранить как новый» (нужна форма).</li>
  * </ul>
+ *
+ * <p>Клиент — справочная величина: имя подсказывается из справочника, а
+ * неизвестное имя бэкенд заводит сам. Заказ можно создать сразу здесь: он
+ * вырастет из сохраняемой версии, поэтому его источник — только что сохранённый
+ * расчёт, а не отдельный выбор «привязать к заказу».
  */
 export const SaveCalculationModal = ({
     open,
@@ -47,12 +56,57 @@ export const SaveCalculationModal = ({
 }: Props) => {
     const [form] = Form.useForm<SaveFormValues>();
     const [saving, setSaving] = useState(false);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    // «Заказ из этой версии» — необязательный шаг сразу после сохранения.
+    const [withOrder, setWithOrder] = useState(false);
+    const [orderNumber, setOrderNumber] = useState('');
+    const [orderDate, setOrderDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const clientName = Form.useWatch('clientName', form) ?? '';
+
+    useEffect(() => {
+        if (!open) return;
+        void calculatorApi.listCustomers()
+            .then(setCustomers)
+            .catch(() => setCustomers([]));
+    }, [open]);
+
+    /** Клиент, уже заведённый в справочнике: по нему сохраняется customerId. */
+    const matchedCustomer = useMemo(() => {
+        if (!clientName.trim()) return null;
+        return customers.find((customer) => sameName(customer.name, clientName)) ?? null;
+    }, [clientName, customers]);
+
+    const customerOptions = customers
+        .filter((customer) => customer.active)
+        .map((customer) => ({ value: customer.name }));
 
     const toRequest = (): CalculationRequest => ({
         ...calculation,
         // UI-ключи строк не должны попадать в JSON запроса.
         details: toApiDetails(calculation.details),
     });
+
+    /**
+     * Заказ из только что сохранённой версии.
+     *
+     * <p>Ошибка заказа не отменяет сохранение расчёта: расчёт уже в базе, поэтому
+     * сообщаем отдельно и оставляем пользователю возможность повторить из дерева.
+     */
+    const createOrderFor = async (saved: SavedCalculation) => {
+        if (!withOrder) return;
+
+        try {
+            const order = await calculatorApi.createOrder({
+                sourceCalculationId: saved.id,
+                number: orderNumber.trim() || null,
+                orderDate,
+                status: 'draft',
+            });
+            onNotify(`Заказ № ${order.number} создан из v${saved.version ?? 1}`, 'success');
+        } catch (error: unknown) {
+            onNotify('Расчёт сохранён, но заказ не создан: ' + apiErrorMessage(error), 'error');
+        }
+    };
 
     // --- Сохранение как отдельный расчёт ---
     const handleSaveAsNew = async () => {
@@ -67,11 +121,13 @@ export const SaveCalculationModal = ({
         try {
             const saved = await calculatorApi.saveCalculation({
                 name: values.name.trim(),
+                customerId: matchedCustomer?.id ?? null,
                 clientName: values.clientName.trim(),
                 managerName: values.managerName.trim(),
                 calculation: toRequest(),
             });
             onNotify('Расчёт сохранён', 'success');
+            await createOrderFor(saved);
             onSaved?.(saved);
             onClose();
         } catch (error: unknown) {
@@ -92,6 +148,7 @@ export const SaveCalculationModal = ({
                 saved.version ? `Сохранена версия ${saved.version}` : 'Сохранена новая версия',
                 'success',
             );
+            await createOrderFor(saved);
             onSaved?.(saved);
             onClose();
         } catch (error: unknown) {
@@ -133,7 +190,11 @@ export const SaveCalculationModal = ({
                 if (!saving) onClose();
             }}
             footer={footer}
-            afterClose={() => form.resetFields()}
+            afterClose={() => {
+                form.resetFields();
+                setWithOrder(false);
+                setOrderNumber('');
+            }}
         >
             {restored && (
                 <Alert
@@ -142,7 +203,8 @@ export const SaveCalculationModal = ({
                     style={{ marginBottom: 16 }}
                     message="Расчёт открыт на правку"
                     description={'Название, клиент и менеджер наследуются от версии, которую редактируете. '
-                        + 'Изменённые значения применяются только при сохранении как нового расчёта.'}
+                        + 'Из любой версии в дереве можно создать заказ. '
+                        + 'Остальные изменённые значения применяются только при сохранении как нового расчёта.'}
                 />
             )}
             <Form<SaveFormValues>
@@ -150,7 +212,13 @@ export const SaveCalculationModal = ({
                 layout="vertical"
                 requiredMark={false}
                 style={{ marginTop: restored ? 0 : 16 }}
-                initialValues={restored ?? undefined}
+                initialValues={restored
+                    ? {
+                        name: restored.name,
+                        clientName: restored.clientName,
+                        managerName: restored.managerName,
+                    }
+                    : undefined}
             >
                 <Form.Item
                     label="Название расчёта"
@@ -163,8 +231,17 @@ export const SaveCalculationModal = ({
                     label="Клиент"
                     name="clientName"
                     rules={[{ required: true, whitespace: true, message: 'Укажите клиента' }]}
+                    tooltip="Клиент ведётся справочником: неизвестное имя будет заведено автоматически"
                 >
-                    <Input placeholder="Название клиента" data-testid="save-client" />
+                    <AutoComplete
+                        options={customerOptions}
+                        filterOption={(input, option) =>
+                            (option?.value ?? '').toLowerCase().includes(input.toLowerCase())}
+                        placeholder="Название клиента"
+                        data-testid="save-client"
+                    >
+                        <Input placeholder="Название клиента" suffix={matchedCustomer ? '✓' : undefined} />
+                    </AutoComplete>
                 </Form.Item>
                 <Form.Item
                     label="Менеджер"
@@ -174,6 +251,40 @@ export const SaveCalculationModal = ({
                     <Input placeholder="ФИО менеджера" data-testid="save-manager" />
                 </Form.Item>
             </Form>
+            <Divider style={{ margin: '16px 0 12px' }} />
+            <Flex vertical gap={8}>
+                <Checkbox
+                    checked={withOrder}
+                    disabled={saving}
+                    onChange={(event) => setWithOrder(event.target.checked)}
+                >
+                    Создать заказ из этой версии
+                </Checkbox>
+                {withOrder && (
+                    <Flex gap={8} wrap>
+                        <Input
+                            placeholder="Номер заказа (пусто — присвоится автоматически)"
+                            value={orderNumber}
+                            disabled={saving}
+                            onChange={(event) => setOrderNumber(event.target.value)}
+                            style={{ flex: 1, minWidth: 220 }}
+                            data-testid="save-order-number"
+                        />
+                        <Input
+                            type="date"
+                            value={orderDate}
+                            disabled={saving}
+                            onChange={(event) => setOrderDate(event.target.value)}
+                            style={{ width: 150 }}
+                        />
+                    </Flex>
+                )}
+                {withOrder && (
+                    <span style={{ fontSize: 11, color: '#9aa0a6' }}>
+                        Заказ появится в дереве у клиента с подписью «из vN», статус — «Черновик».
+                    </span>
+                )}
+            </Flex>
             {restored && (
                 <Flex vertical gap={4} style={{ fontSize: 12, color: '#9aa0a6' }}>
                     <span>Редактируется версия: v{restored.version ?? 1}</span>

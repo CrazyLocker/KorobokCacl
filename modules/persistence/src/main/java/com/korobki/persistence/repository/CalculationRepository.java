@@ -2,9 +2,10 @@ package com.korobki.persistence.repository;
 
 import com.korobki.persistence.entity.Calculation;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,24 +27,52 @@ public interface CalculationRepository extends JpaRepository<Calculation, UUID> 
     List<Calculation> findByRootIdOrderByVersionAsc(UUID rootId);
 
     /**
-     * Returns one summary row per live calculation.
+     * Returns one summary row per calculation, deleted versions included.
      *
      * <p>The list screen shows calculations, not their history, and a tree may
      * have several tips, so the row carries the deepest version number and the
-     * number of versions instead of pointing at a single "head".
+     * number of versions instead of pointing at a single "head". Marked
+     * deletions stay in the summary — the history is shown struck through —
+     * while {@code liveCount} tells the service whether anything is still alive.
      *
-     * @return live calculations with their tree statistics, most recently
-     *         updated first
+     * @return calculations with their tree statistics, most recently updated
+     *         first
      */
     @Query("""
             SELECT c.rootId AS rootId,
                    MAX(c.version) AS version,
                    COUNT(c) AS versionCount,
-                   MAX(c.updatedAt) AS lastUpdated
+                   MAX(c.updatedAt) AS lastUpdated,
+                   SUM(CASE WHEN c.deletedAt IS NULL THEN 1 ELSE 0 END) AS liveCount
             FROM Calculation c
-            WHERE c.deletedAt IS NULL
             GROUP BY c.rootId
             ORDER BY MAX(c.updatedAt) DESC
             """)
     List<CalculationChainSummary> findChainSummary();
+
+    /**
+     * Returns every version of every calculation, deleted ones included.
+     *
+     * <p>Used by the customer/order tree: the whole reference is small, and
+     * grouping in memory beats a query per order. Deleted versions are needed
+     * so the tree can show the history struck through.
+     *
+     * @return versions, most recently updated first
+     */
+    List<Calculation> findAllByOrderByUpdatedAtDesc();
+
+    /**
+     * Copies a renamed client into every stored calculation of that client.
+     *
+     * <p>Calculations keep a denormalized client name so a snapshot still shows
+     * who the deal was for; without this update a renamed client would keep the
+     * old name in the list and in the view.
+     *
+     * @param customerId client identifier
+     * @param name       new client name
+     * @return number of updated calculations
+     */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Calculation c SET c.clientName = :name WHERE c.customerId = :customerId")
+    int renameCustomerCalculations(@Param("customerId") UUID customerId, @Param("name") String name);
 }

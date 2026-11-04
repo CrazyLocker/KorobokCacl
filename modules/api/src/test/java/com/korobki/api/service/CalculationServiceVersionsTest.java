@@ -5,7 +5,9 @@ import com.korobki.api.controller.CalculatorService;
 import com.korobki.api.dto.CalculationVersionDto;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +32,8 @@ class CalculationServiceVersionsTest {
     @BeforeEach
     void setUp() {
         repository = mock(CalculationRepository.class);
-        service = new CalculationService(repository, new ObjectMapper(), mock(CalculatorService.class));
+        service = new CalculationService(repository, mock(CustomerRepository.class),
+                mock(CalculationOrderRepository.class), new ObjectMapper(), mock(CalculatorService.class));
         rootId = UUID.randomUUID();
     }
 
@@ -125,6 +128,24 @@ class CalculationServiceVersionsTest {
         CalculationVersionDto dto = service.versions(v1.getId()).get(0);
 
         assertEquals(0, dto.getTotalCost().compareTo(new BigDecimal("62.50")));
+    }
+
+    @Test
+    void versions_reportsClientPriceAndRunOfThePricedMode() {
+        Calculation v1 = version(1, "62.50");
+        v1.setCalculationResult(Map.of(
+                "totalCost", new BigDecimal("62.50"),
+                "basePriceWithVAT", new BigDecimal("123.75")));
+        v1.setCalculationState(Map.of(
+                "printSettings", Map.of("enabled", false, "quantity", 300),
+                "assemblySettings", Map.of("enabled", true, "quantity", 500)));
+        stubTree(List.of(v1));
+
+        CalculationVersionDto dto = service.versions(v1.getId()).get(0);
+
+        assertEquals(0, dto.getClientPrice().compareTo(new BigDecimal("123.75")),
+                "цена для клиента берётся из снапшота с НДС");
+        assertEquals(500, dto.getQuantity(), "при выключенной печати тираж берётся из сборки");
     }
 
     @Test

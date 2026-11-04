@@ -7,8 +7,11 @@ import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.exception.NotFoundException;
 import com.korobki.persistence.entity.Calculation;
+import com.korobki.persistence.entity.Customer;
 import com.korobki.persistence.repository.CalculationChainSummary;
+import com.korobki.persistence.repository.CalculationOrderRepository;
 import com.korobki.persistence.repository.CalculationRepository;
+import com.korobki.persistence.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,14 +28,26 @@ import static org.mockito.Mockito.*;
 class CalculationServiceTest {
 
     private CalculationRepository repository;
+    private CustomerRepository customerRepository;
+    private CalculationOrderRepository orderRepository;
     private CalculatorService calculatorService;
     private CalculationService service;
 
     @BeforeEach
     void setUp() {
         repository = mock(CalculationRepository.class);
+        customerRepository = mock(CustomerRepository.class);
+        orderRepository = mock(CalculationOrderRepository.class);
         calculatorService = mock(CalculatorService.class);
-        service = new CalculationService(repository, new ObjectMapper(), calculatorService);
+
+        Customer customer = new Customer();
+        customer.setId(UUID.randomUUID());
+        customer.setName("ООО Ромашка");
+        when(customerRepository.findByNameIgnoreCase(any())).thenReturn(Optional.of(customer));
+        when(customerRepository.findById(any())).thenReturn(Optional.of(customer));
+
+        service = new CalculationService(
+                repository, customerRepository, orderRepository, new ObjectMapper(), calculatorService);
     }
 
     private CalculationSaveRequest validRequest() {
@@ -164,6 +179,33 @@ class CalculationServiceTest {
 
         assertTrue(service.list().isEmpty());
         verify(repository, never()).findAllById(any());
+    }
+
+    @Test
+    void list_keepsFullyDeletedTreeAsStruckRow() {
+        UUID rootId = UUID.randomUUID();
+        Calculation root = version(rootId, rootId, 1, null);
+        root.setDeletedAt(LocalDateTime.of(2026, 11, 1, 12, 0));
+        Calculation second = version(UUID.randomUUID(), rootId, 2, rootId);
+        second.setDeletedAt(LocalDateTime.of(2026, 11, 1, 12, 0));
+
+        CalculationChainSummary summary = mock(CalculationChainSummary.class);
+        when(summary.getRootId()).thenReturn(rootId);
+        when(summary.getVersion()).thenReturn(2);
+        when(summary.getVersionCount()).thenReturn(2L);
+        when(summary.getLiveCount()).thenReturn(0L);
+        when(summary.getLastUpdated()).thenReturn(LocalDateTime.of(2026, 11, 1, 12, 0));
+
+        when(repository.findChainSummary()).thenReturn(List.of(summary));
+        when(repository.findAllById(List.of(rootId))).thenReturn(List.of(root));
+        when(repository.findByRootIdOrderByVersionAsc(rootId)).thenReturn(List.of(root, second));
+
+        List<CalculationDto> result = service.list();
+
+        assertEquals(1, result.size(), "удалённый расчёт остаётся строкой истории");
+        assertEquals(Boolean.TRUE, result.get(0).getDeleted());
+        assertEquals(second.getId(), result.get(0).getLatestId(),
+                "когда всё удалено, открывается самая свежая версия");
     }
 
     @Test

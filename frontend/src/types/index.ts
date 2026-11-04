@@ -61,7 +61,7 @@ export interface CalculationRequest {
     // Режим сборки; отсутствует/disabled — считается обычная печать.
     assemblySettings?: AssemblySettings;
     workPrice: number;
-    marginValue?: number; // Плечо (+N), по умолчанию 30
+    marginValue?: number; // Наценка (+N), по умолчанию 30
     priceList: Record<string, number>;
 }
 
@@ -148,10 +148,14 @@ export interface SavedCalculation {
     version?: number;
     // Идентификатор самой свежей ветки: с неё продолжают работу из списка.
     latestId?: string;
-    // Сколько живых версий в дереве.
+    // Сколько версий в дереве, включая помеченные удалёнными.
     versionCount?: number;
+    // Все версии цепочки помечены удалёнными: строка остаётся в истории зачёркнутой.
+    deleted?: boolean;
     name: string;
     clientName: string;
+    // Клиент справочника; null у расчётов, сохранённых до его появления.
+    customerId?: string | null;
     managerName: string;
     status: 'draft' | 'ready' | 'sent' | 'in_work' | 'closed';
     calculation: CalculationRequest;
@@ -162,9 +166,114 @@ export interface SavedCalculation {
 // Запрос на сохранение расчёта
 export interface CalculationSaveRequest {
     name: string;
-    clientName: string;
+    // Клиент справочника; можно не передавать, тогда бэкенд найдёт/создаст его
+    // по clientName.
+    customerId?: string | null;
+    clientName?: string;
     managerName: string;
     calculation: CalculationRequest;
+}
+
+// Клиент справочника
+export interface Customer {
+    id: string;
+    name: string;
+    inn?: string | null;
+    contact?: string | null;
+    active: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// Запрос на создание/правку клиента
+export interface CustomerSaveRequest {
+    name: string;
+    inn?: string | null;
+    contact?: string | null;
+    active?: boolean;
+}
+
+// Заказ клиента: сделка, выросшая из одной версии расчёта
+export interface CalculationOrder {
+    id: string;
+    customerId: string;
+    customerName: string;
+    number: string;
+    orderDate: string;
+    status: SavedCalculation['status'];
+    comment?: string | null;
+    // Версия, из которой вырос заказ; остальные версии остаются в дереве.
+    sourceCalculationId: string | null;
+    // Номер этой версии, например 3 для v3.
+    sourceVersion: number | null;
+    sourceCalculationName: string | null;
+    sourceCalculationUpdatedAt: string | null;
+    // Свежая ветка расчёта-источника: с неё продолжают работу.
+    sourceCalculationLatestId: string | null;
+    // Стоимость версии-источника; null — снапшота нет.
+    totalCost: number | null;
+    createdAt: string;
+    updatedAt: string;
+    // Заказ помечен удалённым: строка остаётся в истории зачёркнутой.
+    deleted?: boolean;
+}
+
+// Запрос на создание/правку заказа
+export interface CalculationOrderSaveRequest {
+    // Версия, из которой создаётся заказ; клиент берётся у неё.
+    sourceCalculationId: string;
+    // Пусто — бэкенд сгенерирует номер вида 2026-001.
+    number?: string | null;
+    orderDate?: string | null;
+    status?: SavedCalculation['status'];
+    comment?: string | null;
+}
+
+// Расчёт в дереве «Клиент → Заказы/Расчёты»
+export interface CalculationTree {
+    id: string;
+    customerId: string | null;
+    name: string;
+    managerName: string;
+    latestId: string;
+    version: number;
+    versionCount: number;
+    totalCost: number | null;
+    // У расчёта не осталось живых версий: он показывается зачёркнутым.
+    deleted?: boolean;
+    // Цена с НДС для клиента из снапшота свежей ветки; null — снапшота нет.
+    clientPrice?: number | null;
+    // Тираж, под который посчитана цена (печать, иначе сборка); null — режимы выключены.
+    quantity?: number | null;
+    updatedAt: string;
+}
+
+// Узел заказа в дереве расчётов
+export interface OrderTree {
+    id: string;
+    customerId: string | null;
+    number: string;
+    orderDate: string;
+    status: SavedCalculation['status'];
+    totalCost: number | null;
+    // Версия, из которой вырос заказ.
+    sourceCalculationId: string | null;
+    sourceVersion: number | null;
+    sourceCalculationName: string | null;
+    sourceCalculationUpdatedAt: string | null;
+    sourceCalculationLatestId: string | null;
+    // Заказ помечен удалённым: в дереве показывается зачёркнутым.
+    deleted?: boolean;
+}
+
+// Узел клиента в дереве расчётов
+export interface CustomerTree {
+    id: string | null;
+    name: string;
+    // Заказы клиента; заказ растёт из версии, но не забирает расчёт из дерева.
+    orders: OrderTree[];
+    // Все живые расчёты клиента, включая те, из которых уже сделан заказ.
+    calculations: CalculationTree[];
 }
 
 // Вид расчёта (read-only): метаданные, сохранённый запрос и результат
@@ -190,6 +299,12 @@ export interface CalculationView {
     viewError?: string | null;
 }
 
+// Заказ, выросший из версии расчёта: показывает, какой вариант ушёл клиенту.
+export interface CalculationVersionOrder {
+    id: string;
+    number: string;
+}
+
 // Одна версия дерева сохранённого расчёта (история правок).
 export interface CalculationVersion {
     // Идентификатор версии: по нему открывается её состояние.
@@ -206,8 +321,14 @@ export interface CalculationVersion {
     status: SavedCalculation['status'];
     // Себестоимость из снапшота версии; null у записей до появления снапшотов.
     totalCost: number | null;
+    // Цена с НДС для клиента из того же снапшота.
+    clientPrice?: number | null;
+    // Тираж, под который посчитана цена: печать, иначе сборка.
+    quantity?: number | null;
     // Признак конца ветки: у версии нет детей.
     latest: boolean;
+    // Заказы, выросшие из этой версии: из одного варианта их может быть несколько.
+    orders: CalculationVersionOrder[];
     createdAt: string;
     updatedAt: string;
 }

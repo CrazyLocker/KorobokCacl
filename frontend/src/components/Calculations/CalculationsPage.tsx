@@ -1,65 +1,193 @@
 // frontend/src/components/Calculations/CalculationsPage.tsx
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App as AntdApp } from 'antd';
 import {
     Button, Card, Flex, Spin, Table, Tag, Tooltip, Typography,
 } from 'antd';
-import type { SavedCalculation } from '../../types';
+import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
 import { openCalculationEditor } from '../../navigation';
+import { buildCalculationTreeRows, collectDescendantKeys, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
-import { CalculationVersions } from '../Settings/CalculationVersions';
+import { CreateOrderModal } from './CreateOrderModal';
+import { OrderDrawer } from './OrderDrawer';
 
 interface Props {
     onNotify: (message: string, severity?: 'success' | 'error' | 'info') => void;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-    draft: 'Черновик',
-    ready: 'Готов',
-    sent: 'Отправлен',
-    in_work: 'В работе',
-    closed: 'Закрыт',
-};
+const MONEY = new Intl.NumberFormat('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+});
 
-const STATUS_COLORS: Record<string, string> = {
-    draft: 'default',
-    ready: 'processing',
-    sent: 'warning',
-    in_work: 'success',
-    closed: 'red',
+// Тираж печатается без копеек и с разрядами: «1 000».
+const QUANTITY = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+
+const money = (value?: number | null): string =>
+    value == null ? '—' : `${MONEY.format(value)} ₽`;
+
+const formatDate = (value?: string | null): string => {
+    if (!value) return '—';
+
+    // Дата заказа приходит как yyyy-mm-dd — без времени. `new Date` читает её
+    // как UTC-полночь и при выводе сдвигает на часовой пояс (04:00 в Самаре),
+    // поэтому такие значения печатаем как дату, без часов и минут.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-');
+        return `${day}.${month}.${year.slice(2)}`;
+    }
+
+    return new Date(value).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
 };
 
 /**
- * Страница «Сохранённые расчёты»: все расчёты с историей версий.
+ * Страница «Сохранённые расчёты»: дерево клиентов, заказов и расчётов.
  *
- * <p>Каждая строка — расчёт-корень, под ней раскрывается дерево версий:
- * клик по версии открывает её в «Виде расчёта», оттуда же «Редактировать эту
- * версию» создаёт подветку от выбранной.
+ * <p>Раскрытие расчёта подгружает его версии; клик по версии открывает её в
+ * «Виде расчёта», откуда можно создать подветку от выбранной версии.
  */
 export const CalculationsPage = ({ onNotify }: Props) => {
     const { modal } = AntdApp.useApp();
-    const [calculations, setCalculations] = useState<SavedCalculation[]>([]);
+    const [customers, setCustomers] = useState<CustomerTree[]>([]);
+    const [versionsByCalculation, setVersionsByCalculation] = useState<
+        Record<string, CalculationVersion[]>
+    >({});
     const [loading, setLoading] = useState(false);
+    const [expandedKeys, setExpandedKeys] = useState<string[]>([]);
     // Открытый «Вид расчёта»: id выбранной версии, null — дровер закрыт.
     const [viewId, setViewId] = useState<string | null>(null);
+    // Версия, из которой создаётся заказ; null — модалка закрыта.
+    const [orderSource, setOrderSource] = useState<CalculationVersion | null>(null);
+    // Открытая карточка заказа: просмотр или правка.
+    const [orderTarget, setOrderTarget] = useState<{ order: OrderTree; edit: boolean } | null>(null);
+    // Клиенты, раскрытые «целиком»: за ними закреплено полное поддерево, даже
+    // когда версии расчётов догружаются уже после клика.
+    const autoExpandRef = useRef<Set<string>>(new Set());
 
-    const loadCalculations = () => {
+    // Версии грузим сразу для всех расчётов, чтобы раскрытие расчёта было
+    // мгновенным: кэш наполняем молча, дерево остаётся свёрнутым.
+    const loadVersions = useCallback((tree: CustomerTree[]) => {
+        const calculations = tree.flatMap((customer) => customer.calculations);
+
+        if (calculations.length === 0) {
+            setVersionsByCalculation({});
+            return;
+        }
+
+        Promise.all(calculations.map((calculation) => calculatorApi
+            .getCalculationVersions(calculation.id)
+            .then((versions) => [calculation.id, versions] as const)
+            .catch(() => [calculation.id, [] as CalculationVersion[]] as const)))
+            .then((entries) => setVersionsByCalculation(Object.fromEntries(entries)));
+    }, []);
+
+    const loadTree = useCallback(() => {
         setLoading(true);
-        calculatorApi.listCalculations()
-            .then(setCalculations)
+        calculatorApi.getCalculationTree()
+            .then((tree) => {
+                setCustomers(tree);
+                loadVersions(tree);
+            })
             .catch((err: Error) => onNotify('Ошибка загрузки расчётов: ' + err.message, 'error'))
             .finally(() => setLoading(false));
-    };
+    }, [loadVersions, onNotify]);
 
     useEffect(() => {
-        loadCalculations();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        loadTree();
+    }, [loadTree]);
+
+    const rows = useMemo(
+        () => buildCalculationTreeRows(customers, versionsByCalculation),
+        [customers, versionsByCalculation],
+    );
+
+    // Клиент, раскрытый целиком, остаётся раскрытым и после пересборки строк:
+    // версии приходят отдельным запросом, и их ключи дописываются в развёрнутые.
+    useEffect(() => {
+        if (autoExpandRef.current.size === 0) return;
+
+        setExpandedKeys((previous) => {
+            const next = new Set(previous);
+            let changed = false;
+
+            rows.forEach((row) => {
+                if (!autoExpandRef.current.has(row.key)) return;
+
+                collectDescendantKeys(row).forEach((key) => {
+                    if (next.has(key)) return;
+                    next.add(key);
+                    changed = true;
+                });
+            });
+
+            return changed ? Array.from(next) : previous;
+        });
+    }, [rows]);
+
+    /**
+     * Раскрытие расчёта подгружает его версии, раскрытие клиента разворачивает
+     * всю ветку: заказы, расчёты и все ветки версий внутри них. Повторный клик
+     * по клиенту сворачивает её так же целиком.
+     */
+    const handleExpand = (expanded: boolean, record: CalculationTreeRow) => {
+        if (record.kind === 'customer') {
+            const branch = collectDescendantKeys(record);
+
+            if (expanded) {
+                autoExpandRef.current.add(record.key);
+            } else {
+                autoExpandRef.current.delete(record.key);
+            }
+
+            setExpandedKeys((previous) => (expanded
+                ? Array.from(new Set([...previous, record.key, ...branch]))
+                : previous.filter((key) => key !== record.key && !branch.includes(key))));
+
+            if (!expanded) return;
+
+            // Версии расчётов внутри ветки могли ещё не догрузиться — просим их
+            // сразу, иначе дерево раскроется только до самих расчётов.
+            record.children?.forEach((child) => {
+                const calculation = child.calculation;
+                if (child.kind !== 'calculation' || !calculation) return;
+                if (versionsByCalculation[calculation.id]) return;
+
+                calculatorApi.getCalculationVersions(calculation.id)
+                    .then((versions) => setVersionsByCalculation((previous) => ({
+                        ...previous,
+                        [calculation.id]: versions,
+                    })))
+                    .catch((err: Error) => onNotify('Ошибка загрузки версий: ' + err.message, 'error'));
+            });
+
+            return;
+        }
+
+        setExpandedKeys((previous) => expanded
+            ? [...previous, record.key]
+            : previous.filter((key) => key !== record.key));
+
+        if (!expanded || record.kind !== 'calculation' || !record.calculation) return;
+        if (versionsByCalculation[record.calculation.id]) return;
+
+        calculatorApi.getCalculationVersions(record.calculation.id)
+            .then((versions) => setVersionsByCalculation((previous) => ({
+                ...previous,
+                [record.calculation!.id]: versions,
+            })))
+            .catch((err: Error) => onNotify('Ошибка загрузки версий: ' + err.message, 'error'));
+    };
 
     // Удаление расчёта: подтверждение через modal.confirm (App.useApp).
     // Версии не стираются — помечаются удалёнными, чтобы история осталась.
-    const handleDeleteCalculation = (id: string) => {
+    const handleDeleteCalculation = (calculation: CalculationTree) => {
         modal.confirm({
             title: 'Удаление расчёта',
             content: 'Пометить расчёт удалённым? Версии останутся в истории зачёркнутыми.',
@@ -68,14 +196,204 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             cancelText: 'Отмена',
             onOk: async () => {
                 try {
-                    await calculatorApi.deleteCalculation(id);
-                    setCalculations((prev) => prev.filter((c) => c.id !== id));
+                    await calculatorApi.deleteCalculation(calculation.id);
+                    setVersionsByCalculation((previous) => {
+                        const next = { ...previous };
+                        delete next[calculation.id];
+                        return next;
+                    });
                     onNotify('Расчёт помечен удалённым', 'success');
+                    loadTree();
                 } catch (err) {
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
         });
+    };
+
+    // Пометка ветки: версия и её подветки остаются в дереве зачёркнутыми.
+    // Стирание из базы живёт в Настройках → «Удаление данных».
+    const handleDeleteVersion = (version: CalculationVersion) => {
+        modal.confirm({
+            title: `Пометить ветку v${version.version} удалённой`,
+            content: 'Версия и её подветки останутся в истории зачёркнутыми. '
+                + 'Удалить их из базы навсегда можно в Настройках → «Удаление данных».',
+            okText: 'Пометить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deleteCalculation(version.id);
+                    onNotify(`Ветка v${version.version} помечена удалённой`, 'success');
+                    loadTree();
+                } catch (err) {
+                    onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
+                }
+            },
+        });
+    };
+
+    // Пометка заказа: сделка остаётся видимой зачёркнутой, история сохраняется.
+    const handleDeleteOrder = (order: OrderTree) => {
+        modal.confirm({
+            title: `Пометить заказ № ${order.number} удалённым`,
+            content: 'Заказ останется в дереве зачёркнутым. Удалить его из базы навсегда '
+                + 'можно в Настройках → «Удаление данных».',
+            okText: 'Пометить',
+            okButtonProps: { danger: true },
+            cancelText: 'Отмена',
+            onOk: async () => {
+                try {
+                    await calculatorApi.deleteOrder(order.id);
+                    onNotify(`Заказ № ${order.number} помечен удалённым`, 'success');
+                    loadTree();
+                } catch (err) {
+                    onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
+                }
+            },
+        });
+    };
+
+    // Первая колонка ограничена 45 символами: длинные названия расчётов
+    // обрезаются с многоточием, полный текст виден в подсказке.
+    const titleCell = (record: CalculationTreeRow) => (
+        <Flex vertical gap={0} style={{ minWidth: 0 }}>
+            <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                <Tooltip title={record.title}>
+                    <span
+                        style={{
+                            display: 'inline-block',
+                            maxWidth: '45ch',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            verticalAlign: 'bottom',
+                            fontSize: 13,
+                            fontWeight: record.kind === 'customer' ? 600 : 400,
+                        }}
+                    >
+                        {record.title}
+                    </span>
+                </Tooltip>
+                {record.kind === 'calculation' && record.calculation && (
+                    <Tag style={{ fontSize: 11, height: 20, lineHeight: '18px', marginInlineEnd: 0 }}>
+                        v{record.calculation.version}
+                    </Tag>
+                )}
+                {record.kind === 'version' && record.version?.deleted && (
+                    <Tag style={{ fontSize: 10, height: 18, lineHeight: '16px', marginInlineEnd: 0 }}>
+                        удалена
+                    </Tag>
+                )}
+            </Flex>
+            {record.subtitle && (
+                <Typography.Text type="secondary" style={{ fontSize: 11 }} ellipsis>
+                    {record.subtitle}
+                </Typography.Text>
+            )}
+        </Flex>
+    );
+
+    // Помеченная удалённой версия или расчёт зачёркивается целиком: строка в
+    // истории остаётся, но видно, что она больше не участвует в работе.
+    const rowStyle = (record: CalculationTreeRow) => (
+        record.deleted
+            ? { textDecoration: 'line-through', color: '#9aa0a6' }
+            : undefined
+    );
+
+    const actions = (record: CalculationTreeRow) => {
+        if (record.kind === 'order' && record.order) {
+            return (
+                <Flex justify="flex-end" gap={4}>
+                    <Button
+                        size="small"
+                        type="text"
+                        onClick={() => setOrderTarget({ order: record.order!, edit: false })}
+                        style={{ fontSize: 11 }}
+                    >
+                        Открыть
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        onClick={() => setOrderTarget({ order: record.order!, edit: true })}
+                        style={{ fontSize: 11 }}
+                        disabled={record.order.deleted}
+                    >
+                        Редактировать
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={() => handleDeleteOrder(record.order!)}
+                        style={{ fontSize: 11 }}
+                        disabled={record.order.deleted}
+                    >
+                        Удалить
+                    </Button>
+                </Flex>
+            );
+        }
+        if (record.kind === 'version' && record.version) {
+            return (
+                <Flex justify="flex-end" gap={4}>
+                    <Button size="small" type="text" onClick={() => setViewId(record.version!.id)}
+                        style={{ fontSize: 11 }}>
+                        Открыть
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        disabled={record.version.deleted}
+                        onClick={() => setOrderSource(record.version!)}
+                        style={{ fontSize: 11 }}
+                    >
+                        Заказ
+                    </Button>
+                    <Button
+                        size="small"
+                        type="text"
+                        danger
+                        onClick={() => handleDeleteVersion(record.version!)}
+                        style={{ fontSize: 11 }}
+                        disabled={record.version.deleted}
+                    >
+                        Удалить
+                    </Button>
+                </Flex>
+            );
+        }
+        if (record.kind !== 'calculation' || !record.calculation) return null;
+
+        return (
+            <Flex justify="flex-end" gap={4}>
+                <Button size="small" type="text" onClick={() => setViewId(record.calculation!.id)}
+                    style={{ fontSize: 11 }}>
+                    Открыть
+                </Button>
+                <Button
+                    size="small"
+                    type="text"
+                    onClick={() => openCalculationEditor(record.calculation!.latestId ?? record.calculation!.id)}
+                    style={{ fontSize: 11 }}
+                    disabled={record.calculation.deleted}
+                >
+                    Редактировать
+                </Button>
+                <Button
+                    size="small"
+                    type="text"
+                    danger
+                    onClick={() => handleDeleteCalculation(record.calculation!)}
+                    style={{ fontSize: 11 }}
+                    disabled={record.calculation.deleted}
+                >
+                    Удалить
+                </Button>
+            </Flex>
+        );
     };
 
     return (
@@ -96,10 +414,10 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                             Сохранённые расчёты
                         </Typography.Title>
                         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            Разверните расчёт, чтобы увидеть дерево версий
+                            Клиент → заказ → расчёт. Раскройте расчёт, чтобы увидеть дерево версий.
                         </Typography.Text>
                     </Flex>
-                    <Button size="small" type="text" onClick={loadCalculations} style={{ fontSize: 12 }}>
+                    <Button size="small" type="text" onClick={loadTree} style={{ fontSize: 12 }}>
                         Обновить
                     </Button>
                 </Flex>
@@ -118,142 +436,90 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                     <div style={{ display: 'flex', justifyContent: 'center', padding: 32 }}>
                         <Spin size="large" />
                     </div>
-                ) : calculations.length === 0 ? (
+                ) : rows.length === 0 ? (
                     <Typography.Text style={{ display: 'block', padding: 24, fontSize: 13, color: '#9aa0a6' }}>
                         Нет сохранённых расчётов. Сохраните расчёт на странице калькулятора.
                     </Typography.Text>
                 ) : (
-                    <Table
-                        rowKey="id"
+                    <Table<CalculationTreeRow>
+                        rowKey="key"
                         size="small"
                         pagination={false}
-                        // fixed layout: «Название» держит ровно 30ch, остальное
-                        // свободное место забирает колонка «Клиент» (без width).
                         tableLayout="fixed"
-                        dataSource={calculations}
+                        dataSource={rows}
+                        onRow={(record) => ({ style: rowStyle(record) })}
                         expandable={{
-                            // Дерево версий под строкой: раскрывается по клику,
-                            // у одно-версионных расчётов стрелки нет.
-                            columnWidth: 48,
-                            rowExpandable: (record: SavedCalculation) => (record.versionCount ?? 1) > 1,
-                            expandedRowRender: (record: SavedCalculation) => (
-                                <CalculationVersions rootId={record.id} onOpen={setViewId} />
-                            ),
+                            // Дерево держим раскрытым вручную: версии вложены по
+                            // parentId, поэтому раскрывать можно и версию с ветками.
+                            expandedRowKeys: expandedKeys,
+                            onExpand: handleExpand,
+                            rowExpandable: (record) => (record.children?.length ?? 0) > 0,
+                            indentSize: 18,
                         }}
                         columns={[
                             {
-                                title: 'Название',
-                                dataIndex: 'name',
-                                key: 'name',
-                                width: '30ch',
-                                render: (name: string) => (
-                                    <span
-                                        style={{
-                                            fontSize: 13,
-                                            whiteSpace: 'normal',
-                                            wordBreak: 'break-word',
-                                        }}
-                                    >
-                                        {name}
+                                title: 'Клиент / заказ / расчёт',
+                                dataIndex: 'title',
+                                key: 'title',
+                                render: (_: unknown, record: CalculationTreeRow) => titleCell(record),
+                            },
+                            {
+                                title: 'Себестоимость',
+                                dataIndex: 'cost',
+                                key: 'cost',
+                                width: 160,
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                                render: (cost: number | null | undefined, record: CalculationTreeRow) => (
+                                    <span style={{
+                                        fontSize: 12,
+                                        color: record.kind === 'version' ? '#5f6368' : '#202124',
+                                    }}>
+                                        {money(cost)}
                                     </span>
                                 ),
                             },
                             {
-                                title: 'Клиент',
-                                dataIndex: 'clientName',
-                                key: 'clientName',
-                                render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                            },
-                            {
-                                title: 'Менеджер',
-                                dataIndex: 'managerName',
-                                key: 'managerName',
-                                width: 160,
-                                render: (v: string) => <span style={{ fontSize: 13 }}>{v}</span>,
-                            },
-                            {
-                                // Последняя ветка дерева: полная история — в раскрытой строке.
-                                title: 'Версия',
-                                dataIndex: 'version',
-                                key: 'version',
-                                width: 110,
-                                render: (version: number | undefined, c: SavedCalculation) => (
-                                    <Flex gap={4} align="center">
-                                        <Tag
-                                            color={version && version > 1 ? 'blue' : 'default'}
-                                            style={{ fontSize: 11, height: 22, lineHeight: '20px', marginInlineEnd: 0 }}
-                                        >
-                                            v{version ?? 1}
-                                        </Tag>
-                                        {c.versionCount && c.versionCount > 1 && (
-                                            <Tooltip title={`Версий в дереве: ${c.versionCount}`}>
-                                                <span style={{ fontSize: 11, color: '#5f6368' }}>
-                                                    · {c.versionCount}
-                                                </span>
-                                            </Tooltip>
+                                title: 'Цена клиента',
+                                dataIndex: 'clientPrice',
+                                key: 'clientPrice',
+                                width: 150,
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                                render: (price: number | null | undefined, record: CalculationTreeRow) => (
+                                    <Flex vertical gap={0} align="center">
+                                        <span style={{
+                                            fontSize: 12,
+                                            fontWeight: record.kind === 'customer' ? 600 : 400,
+                                            color: record.kind === 'customer' ? '#202124' : '#5f6368',
+                                        }}>
+                                            {money(price)}
+                                        </span>
+                                        {record.quantity != null && (
+                                            <span style={{ fontSize: 10, color: '#8c8c8c' }}>
+                                                за {QUANTITY.format(record.quantity)} шт
+                                            </span>
                                         )}
                                     </Flex>
                                 ),
                             },
                             {
-                                title: 'Статус',
-                                dataIndex: 'status',
-                                key: 'status',
-                                width: 110,
-                                render: (_: unknown, c: SavedCalculation) => (
-                                    <Tag
-                                        color={STATUS_COLORS[c.status] || 'default'}
-                                        style={{ fontSize: 11, height: 22, lineHeight: '20px' }}
-                                    >
-                                        {STATUS_LABELS[c.status] || c.status}
-                                    </Tag>
-                                ),
-                            },
-                            {
-                                title: 'Создан',
-                                dataIndex: 'createdAt',
-                                key: 'createdAt',
-                                width: 170,
-                                render: (v: string) => (
-                                    <span style={{ fontSize: 12, color: '#5f6368' }}>
-                                        {new Date(v).toLocaleString('ru-RU')}
-                                    </span>
+                                title: 'Обновлён',
+                                dataIndex: 'updatedAt',
+                                key: 'updatedAt',
+                                width: 140,
+                                align: 'center',
+                                onHeaderCell: () => ({ style: { whiteSpace: 'nowrap' } }),
+                                render: (value: string | null | undefined) => (
+                                    <span style={{ fontSize: 11, color: '#5f6368' }}>{formatDate(value)}</span>
                                 ),
                             },
                             {
                                 title: '',
                                 key: 'actions',
-                                width: 250,
+                                width: 260,
                                 align: 'right',
-                                render: (_: unknown, c: SavedCalculation) => (
-                                    <Flex justify="flex-end" gap={4}>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            onClick={() => setViewId(c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Открыть
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            onClick={() => openCalculationEditor(c.latestId ?? c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Редактировать
-                                        </Button>
-                                        <Button
-                                            size="small"
-                                            type="text"
-                                            danger
-                                            onClick={() => handleDeleteCalculation(c.id)}
-                                            style={{ fontSize: 11 }}
-                                        >
-                                            Удалить
-                                        </Button>
-                                    </Flex>
-                                ),
+                                render: (_: unknown, record: CalculationTreeRow) => actions(record),
                             },
                         ]}
                     />
@@ -265,8 +531,38 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                 id={viewId}
                 onClose={() => setViewId(null)}
                 onEdit={openCalculationEditor}
-                onChanged={loadCalculations}
+                onCreateOrder={setOrderSource}
+                onChanged={() => {
+                    // Правка меняет дерево и закэшированные версии — сбрасываем кэш.
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
+            />
+
+            <CreateOrderModal
+                open={!!orderSource}
+                version={orderSource}
+                onClose={() => setOrderSource(null)}
+                onNotify={onNotify}
+                onCreated={() => {
+                    // Заказ виден в дереве: перечитываем и клиентов, и версии.
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
+            />
+
+            <OrderDrawer
+                open={!!orderTarget}
+                order={orderTarget?.order ?? null}
+                startInEdit={orderTarget?.edit ?? false}
+                onClose={() => setOrderTarget(null)}
+                onNotify={onNotify}
+                onSaved={() => {
+                    setVersionsByCalculation({});
+                    loadTree();
+                }}
             />
         </div>
     );
 };
+

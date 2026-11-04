@@ -35,14 +35,6 @@ interface CalculatorPageProps {
     calc: CalculatorModel;
 }
 
-const OPERATION_LABELS: Record<string, string> = {
-    'Печать': 'П',
-    'Лак': 'Лак',
-    'Тиснение': 'Тис',
-    'Конгрев': 'Кон',
-    'Ламинация': 'Лам',
-};
-
 const TIER_LABELS = ['до 9', '10–49', '50–199', '200–499', '500–699', '700–1499', 'от 1500'];
 
 const money = (value: number): string => `${value.toFixed(2)} ₽`;
@@ -294,21 +286,18 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                         </Checkbox>,
                     )}
                     {calc.extras.map((extra) => (
-                        <Tooltip key={extra.name} title={extra.name}>
-                            <Checkbox
-                                checked={Boolean(record.operations?.[extra.name])}
-                                disabled={!record.enabled}
-                                onChange={(event) => calc.updateDetailOperation(
-                                    record.uiKey,
-                                    extra.name,
-                                    event.target.checked,
-                                )}
-                            >
-                                <span style={{ fontSize: 12 }}>
-                                    {OPERATION_LABELS[extra.name] || extra.name.charAt(0)}
-                                </span>
-                            </Checkbox>
-                        </Tooltip>
+                        <Checkbox
+                            key={extra.name}
+                            checked={Boolean(record.operations?.[extra.name])}
+                            disabled={!record.enabled}
+                            onChange={(event) => calc.updateDetailOperation(
+                                record.uiKey,
+                                extra.name,
+                                event.target.checked,
+                            )}
+                        >
+                            <span style={{ fontSize: 12 }}>{extra.name}</span>
+                        </Checkbox>
                     ))}
                 </Space>
             ),
@@ -557,8 +546,8 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 style={{ ...CONTROL_STYLE, width: '20ch' }}
                             />
                         </Form.Item>
-                        <Form.Item label="Лист" style={{ marginBottom: 0 }}>
-                            <Text strong>70 × 100</Text>
+                        <Form.Item style={{ marginBottom: 0 }}>
+                            <Text type="secondary">Лист 70 × 100</Text>
                         </Form.Item>
                     </Form>
                 </Card>
@@ -947,7 +936,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
 
                             <Divider style={{ margin: '16px 0' }} />
 
-                            <Form layout="inline" style={{ marginBottom: 16 }}>
+                            <Form layout="inline" style={{ marginBottom: 16, rowGap: 12 }}>
                                 <Form.Item label="Работа/деталь" style={{ marginBottom: 0 }}>
                                     <InputNumber
                                         min={0}
@@ -962,6 +951,25 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 </Form.Item>
                                 <Text type="secondary" style={{ alignSelf: 'center' }}>
                                     за каждую деталь
+                                </Text>
+                                <Form.Item
+                                    label="Наценка"
+                                    style={{ marginBottom: 0 }}
+                                    tooltip="Надбавка за сложность коробки: у «Кашированной» по умолчанию 200 ₽, у остальных 30 ₽"
+                                >
+                                    <InputNumber
+                                        min={0}
+                                        step={10}
+                                        precision={0}
+                                        controls={false}
+                                        value={calc.marginValue}
+                                        onChange={(value) => calc.setMarginValue(Number(value) || 0)}
+                                        suffix="₽"
+                                        style={{ width: 120 }}
+                                    />
+                                </Form.Item>
+                                <Text type="secondary" style={{ alignSelf: 'center' }}>
+                                    за сложность коробки
                                 </Text>
                             </Form>
 

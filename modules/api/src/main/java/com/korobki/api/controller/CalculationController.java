@@ -5,6 +5,9 @@ import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationSaveRequest;
 import com.korobki.api.dto.CalculationViewDto;
 import com.korobki.api.dto.CalculationVersionDto;
+import com.korobki.api.dto.CustomerTreeDto;
+import com.korobki.api.dto.PurgeRequest;
+import com.korobki.api.dto.PurgeResultDto;
 import com.korobki.api.service.CalculationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -36,10 +39,12 @@ public class CalculationController {
     }
 
     /**
-     * Saves an edited calculation as the next version of its chain.
+     * Saves an edited calculation as the next version of the version being edited.
      *
      * <p>Metadata (name, client, manager) is inherited from the parent version,
-     * so the body carries only the calculation itself.
+     * so the body carries only the calculation itself. Editing v3 of a five
+     * version chain branches from v3: the new version becomes v4 under v3,
+     * while v4 and v5 of the old line stay untouched.
      *
      * @param id      identifier of the version being edited
      * @param request edited calculation request
@@ -60,6 +65,21 @@ public class CalculationController {
     @GetMapping("/list")
     public ResponseEntity<List<CalculationDto>> list() {
         return ResponseEntity.ok(calculationService.list());
+    }
+
+    /**
+     * Returns the customer → order/calculation tree for the list screen.
+     *
+     * <p>Calculation trees stay under their client even after an order is
+     * placed: an order grows from one version and is listed separately with
+     * that version as its source. Rows saved before the reference book existed
+     * fall into a bucket with a null client id.
+     *
+     * @return clients with their orders and calculations
+     */
+    @GetMapping("/tree")
+    public ResponseEntity<List<CustomerTreeDto>> tree() {
+        return ResponseEntity.ok(calculationService.tree());
     }
 
     /**
@@ -113,5 +133,37 @@ public class CalculationController {
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         calculationService.delete(id);
         return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Erases a version and its subtree from the database.
+     *
+     * <p>This is the explicit "remove for good" action for branches that were
+     * created by mistake: unlike {@link #delete(UUID)} nothing stays in the
+     * history. Only a version already marked as deleted may be erased, and a
+     * branch an order grew from is protected — the request fails with the
+     * numbers of those orders.
+     *
+     * @param id version to erase together with its descendants
+     * @return empty response
+     */
+    @DeleteMapping("/{id}/purge")
+    public ResponseEntity<Void> purge(@PathVariable UUID id) {
+        calculationService.purge(id);
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Erases the versions picked in the cleanup block of the settings page.
+     *
+     * <p>Every identifier must already be marked as deleted; the request is
+     * rejected with the names of the versions that are not marked.
+     *
+     * @param request identifiers of the versions to erase
+     * @return number of erased versions
+     */
+    @PostMapping("/purge")
+    public ResponseEntity<PurgeResultDto> purgeAll(@RequestBody PurgeRequest request) {
+        return ResponseEntity.ok(new PurgeResultDto(calculationService.purgeAll(request.getIds())));
     }
 }

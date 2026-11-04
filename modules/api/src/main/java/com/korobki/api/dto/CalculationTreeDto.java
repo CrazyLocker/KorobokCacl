@@ -1,0 +1,51 @@
+package com.korobki.api.dto;
+
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.UUID;
+
+/** One calculation tree inside the customer → calculation tree. */
+@Data
+public class CalculationTreeDto {
+
+    /** Identifier of the tree root (the first version). */
+    private UUID id;
+
+    /** Client the calculation belongs to. */
+    private UUID customerId;
+
+    /** Human-readable calculation name. */
+    private String name;
+
+    /** Manager who created the calculation. */
+    private String managerName;
+
+    /** Identifier of the newest live tip, used by "Редактировать". */
+    private UUID latestId;
+
+    /** Deepest version number in the tree. */
+    private Integer version;
+
+    /** Number of live versions in the tree. */
+    private Long versionCount;
+
+    /**
+     * True when every version of the tree is marked deleted: the node is shown
+     * struck through.
+     */
+    private Boolean deleted;
+
+    /** Cost of the newest version; null when it has no stored snapshot. */
+    private BigDecimal totalCost;
+
+    /** Price for the client (with VAT) of the newest version; null without a snapshot. */
+    private BigDecimal clientPrice;
+
+    /** Print run the newest version was priced for; null when neither mode is enabled. */
+    private Integer quantity;
+
+    /** Last modification timestamp of the tree. */
+    private LocalDateTime updatedAt;
+}

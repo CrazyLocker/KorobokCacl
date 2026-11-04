@@ -10,6 +10,11 @@ import type {
     CalculationSaveRequest,
     CalculationView,
     CalculationVersion,
+    Customer,
+    CustomerSaveRequest,
+    CalculationOrder,
+    CalculationOrderSaveRequest,
+    CustomerTree,
     SavedKnife,
     KnifeSaveRequest,
     KnifeOptions,
@@ -100,7 +105,8 @@ export const calculatorApi = {
     getCalculation: (id: string): Promise<SavedCalculation> =>
         axios.get(`${API_BASE}/calculations/${id}`).then((res) => res.data),
 
-    // Сохранение правки: новая версия цепочки, метаданные наследуются от родителя.
+    // Сохранение правки: новая версия ветки, метаданные наследуются от родителя.
+    // Заказ из версии создаётся отдельно (createOrder) — расчёт остаётся в дереве.
     iterateCalculation: (id: string, data: CalculationRequest): Promise<SavedCalculation> =>
         axios.post(`${API_BASE}/calculations/${id}/iterate`, data).then((res) => res.data),
 
@@ -111,8 +117,48 @@ export const calculatorApi = {
     getCalculationVersions: (id: string): Promise<CalculationVersion[]> =>
         axios.get(`${API_BASE}/calculations/${id}/versions`).then((res) => res.data),
 
+    // Дерево «Клиент → Заказ → Расчёт» для списка сохранённых расчётов.
+    getCalculationTree: (): Promise<CustomerTree[]> =>
+        axios.get(`${API_BASE}/calculations/tree`).then((res) => res.data),
+
+    // === Клиенты ===
+    listCustomers: (): Promise<Customer[]> =>
+        axios.get(`${API_BASE}/customers`).then((res) => res.data),
+
+    createCustomer: (data: CustomerSaveRequest): Promise<Customer> =>
+        axios.post(`${API_BASE}/customers`, data).then((res) => res.data),
+
+    updateCustomer: (id: string, data: CustomerSaveRequest): Promise<Customer> =>
+        axios.put(`${API_BASE}/customers/${id}`, data).then((res) => res.data),
+
+    // === Заказы ===
+    listOrders: (customerId?: string): Promise<CalculationOrder[]> =>
+        axios.get(`${API_BASE}/orders`, { params: customerId ? { customerId } : undefined })
+            .then((res) => res.data),
+
+    createOrder: (data: CalculationOrderSaveRequest): Promise<CalculationOrder> =>
+        axios.post(`${API_BASE}/orders`, data).then((res) => res.data),
+
+    updateOrder: (id: string, data: CalculationOrderSaveRequest): Promise<CalculationOrder> =>
+        axios.put(`${API_BASE}/orders/${id}`, data).then((res) => res.data),
+
+    // Пометка заказа удалённым: строка остаётся в дереве зачёркнутой.
+    deleteOrder: (id: string): Promise<void> =>
+        axios.delete(`${API_BASE}/orders/${id}`).then(() => {}),
+
     deleteCalculation: (id: string): Promise<void> =>
         axios.delete(`${API_BASE}/calculations/${id}`).then(() => {}),
+
+    // Полное удаление ветки: строки исчезают из базы, история их не хранит.
+    purgeCalculation: (id: string): Promise<void> =>
+        axios.delete(`${API_BASE}/calculations/${id}/purge`).then(() => {}),
+
+    // === Блок очистки: только помеченные записи ===
+    purgeCalculations: (ids: string[]): Promise<number> =>
+        axios.post(`${API_BASE}/calculations/purge`, { ids }).then((res) => res.data.deleted),
+
+    purgeOrders: (ids: string[]): Promise<number> =>
+        axios.post(`${API_BASE}/orders/purge`, { ids }).then((res) => res.data.deleted),
 
     // === Сохранённые ножи ===
     saveKnife: (data: KnifeSaveRequest): Promise<SavedKnife> =>
