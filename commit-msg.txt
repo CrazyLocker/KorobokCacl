@@ -1,13 +1,12 @@
-Закрывает P0-1 из docs/alpha-readiness-review.md: изменяющие и удаляющие ручки больше не открыты.
+fix(P0-2): сервер слушает только петлевой интерфейс, CORS сужен, Swagger выключен
 
-- SecurityConfig: GET /api/** остаётся открытым для чтения справочников и расчёта,
-  всё остальное под /api/** требует роль ADMIN; одна учётная запись из AdminProperties,
-  сгенерированный Spring пароль больше не печатается.
-- AdminProperties: fail-fast без ALPHA_ADMIN_PASSWORD, пароль берётся из env.
-- application.yml: baseline-on-migrate выключен (иначе потеря flyway_schema_history
-  грозила повторным прогоном V2..V23 поверх живых данных).
-- AuthController GET /api/auth/me — проверка пароля для фронтенда.
-- Фронт: adminAuth.ts + AdminGate спрашивает пароль один раз за вкладку,
-  сохраняет в sessionStorage, шлёт Basic только в изменяющих запросах.
-- Тесты: 401 без пароля и 200 с ролью для purge и /api/auth/me.
-- Чек-лист релиза: pg_dump с flyway_schema_history и ALPHA_ADMIN_PASSWORD.
+Закрывает P0-2 из docs/alpha-readiness-review.md.
+
+- application.yml: server.address=127.0.0.1 (SERVER_ADDRESS для стенда),
+  springdoc.api-docs и swagger-ui выключены.
+- SecurityConfig: CORS разрешает только http://localhost:5173 и http://127.0.0.1:5173,
+  permitAll для swagger убран.
+- Тесты: preflight с чужого origin → 403 без Access-Control-Allow-Origin,
+  с dev-сервера Vite → 200.
+- Смоук на 8081: constructs 200, /v3/api-docs и /swagger-ui → 401,
+  OPTIONS с evil.example → 403, слушает 127.0.0.1:8081.

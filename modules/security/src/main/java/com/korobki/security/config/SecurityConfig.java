@@ -49,13 +49,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                 // Всё остальное по API — только администратор.
                 .requestMatchers("/api/**").hasRole("ADMIN")
-                .requestMatchers(
-                    "/swagger-ui/**",
-                    "/swagger-ui.html",
-                    "/v3/api-docs/**",
-                    "/swagger-resources/**",
-                    "/webjars/**"
-                ).permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());
@@ -83,12 +76,16 @@ public class SecurityConfig {
     /**
      * Builds the CORS configuration.
      *
+     * <p>Разрешён только dev-сервер Vite: иначе любая открытая в браузере
+     * страница могла бы дёргать API и читать ответы от имени пользователя.
+     * В продакшене фронт раздаётся с того же адреса, и CORS не нужен вовсе.
+     *
      * @return CORS configuration source
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        config.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

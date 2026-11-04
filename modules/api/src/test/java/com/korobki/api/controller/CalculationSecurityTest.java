@@ -21,7 +21,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -86,5 +88,34 @@ class CalculationSecurityTest {
                         .with(httpBasic("admin", "wrong")))
                 .andExpect(status().isUnauthorized());
     }
+
+    /**
+     * P0-2: чужая страница в браузере не должна получать доступ к API.
+     *
+     * @throws Exception on MockMvc failure
+     */
+    @Test
+    void preflightFromForeignOrigin_isRejected() throws Exception {
+        mvc.perform(options("/api/calculations/save")
+                        .header("Origin", "http://evil.example")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden())
+                .andExpect(header().doesNotExist("Access-Control-Allow-Origin"));
+    }
+
+    /**
+     * Dev-сервер Vite остаётся разрешённым, иначе локальная разработка встанет.
+     *
+     * @throws Exception on MockMvc failure
+     */
+    @Test
+    void preflightFromViteDevServer_isAllowed() throws Exception {
+        mvc.perform(options("/api/calculations/save")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
 }
+
 

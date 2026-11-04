@@ -1,7 +1,11 @@
+# Альфа живёт на машине технолога: слушаем только петлевой интерфейс, чтобы
+# приложение не было видно всей локальной сети. Для стенда задать
+# SERVER_ADDRESS=0.0.0.0 и открыть брандмауэр осознанно.
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
 spring:
   application:
     name: korobki-calculator
-
   datasource:
     url: jdbc:postgresql://localhost:5432/korobki
     username: postgres
@@ -57,3 +61,10 @@ app:
       "от 1500": 0.75
     knife-price-per-mm: 3.0
     knife-base-cost: 500.0
+# Swagger в альфе выключен: это внутренний API одного технолога, а открытая
+# документация подсказывает, какие ручки дергать (в том числе purge).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
