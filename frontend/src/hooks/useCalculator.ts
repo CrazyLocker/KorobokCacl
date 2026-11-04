@@ -251,6 +251,11 @@ export function useCalculator() {
             // construction: an empty parts list means an empty calculator.
             setDetails(constructionDetails);
 
+            // Сборка относится к конкретной коробке: у новой конструкции нет
+            // отмеченных «В сборку» деталей, поэтому режим выключается — иначе
+            // калькулятор показывал бы ошибку «отметьте хотя бы одну деталь».
+            setAssemblySettings((prev) => ({ ...prev, enabled: false }));
+
             // Load the price list of this construction. A construction without a
             // price list is normal: the table stays empty until prices are filled in.
             calculatorApi
