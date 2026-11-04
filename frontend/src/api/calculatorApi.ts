@@ -50,8 +50,10 @@ axios.interceptors.response.use(
 
 export const calculatorApi = {
     // === Калькулятор ===
-    calculate: (data: CalculationRequest): Promise<CalculationResponse> =>
-        axios.post(`${API_BASE}/calculator/calculate`, data).then((res) => res.data),
+    // signal отменяет устаревший расчёт: пока пользователь меняет параметры,
+    // предыдущий ответ уже не нужен и не должен перебивать свежий.
+    calculate: (data: CalculationRequest, signal?: AbortSignal): Promise<CalculationResponse> =>
+        axios.post(`${API_BASE}/calculator/calculate`, data, { signal }).then((res) => res.data),
 
     // === Конструкции ===
     getConstructs: (): Promise<Construct[]> =>

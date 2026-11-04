@@ -7,6 +7,9 @@ import { buildDetailRows, readCalculationIdFromLocation } from '../utils/restore
 import { defaultMarginForConstruction } from '../utils/margin';
 import { sortConstructs } from '../utils/sortConstructs';
 import { sortParts } from '../utils/sortParts';
+import { createLatestRequestTracker } from '../utils/latestRequest';
+import { hasUnsavedChanges, stateSignature } from '../utils/stateSignature';
+import { calculationEditorPath } from '../navigation';
 import type {
     CalculationRequest,
     Detail,
@@ -104,6 +107,18 @@ export function useCalculator() {
     // loadConstruction заменил бы его данными из справочника.
     const isRestoredRef = useRef(false);
 
+    // Только последний расчёт актуален: ответ предыдущего отменяется, иначе
+    // медленный ответ перебил бы свежий и на экране осталась бы устаревшая цена.
+    const requestTrackerRef = useRef<ReturnType<typeof createLatestRequestTracker> | null>(null);
+    if (!requestTrackerRef.current) {
+        requestTrackerRef.current = createLatestRequestTracker();
+    }
+
+    // Несохранённые правки: сравниваем подпись состояния с последней
+    // зафиксированной (после загрузки, восстановления или сохранения версии).
+    const [isDirty, setIsDirty] = useState(false);
+    const cleanSignatureRef = useRef<string | null>(null);
+
     // --- Request from the current state ---
     // Один и тот же запрос уходит и в расчёт, и в сохранение версии: иначе
     // сохранённое могло бы разойтись с показанным на экране.
@@ -121,6 +136,60 @@ export function useCalculator() {
         marginValue,
         priceList,
     }), [currentConstruction, details, extras, printSettings, assemblySettings, workPrice, marginValue, priceList]);
+
+    // --- Unsaved changes ---
+    // Правка — это расхождение текущего состояния с последним сохранённым.
+    // Сравнение идёт по подписи, чтобы не держать копию всего состояния.
+    const signature = stateSignature({
+        currentConstruction,
+        details,
+        extras,
+        printSettings,
+        assemblySettings,
+        workPrice,
+        marginValue,
+        priceList,
+    });
+
+    // Токен «чистого» состояния: увеличивается после загрузки конструкции,
+    // восстановления расчёта и сохранения версии.
+    const [cleanToken, setCleanToken] = useState(0);
+    const markClean = useCallback(() => setCleanToken((token) => token + 1), []);
+
+    // Фиксируем подпись в момент смены токена, а не при каждой правке.
+    useEffect(() => {
+        cleanSignatureRef.current = signature;
+        setIsDirty(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cleanToken]);
+
+    useEffect(() => {
+        setIsDirty(hasUnsavedChanges(cleanSignatureRef.current, {
+            currentConstruction,
+            details,
+            extras,
+            printSettings,
+            assemblySettings,
+            workPrice,
+            marginValue,
+            priceList,
+        }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [signature]);
+
+    // Закрытие вкладки с несохранённой правкой — потеря работы мастера.
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!isDirty) return;
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty]);
+
+    // Размонтирование калькулятора отменяет незавершённый расчёт.
+    useEffect(() => () => requestTrackerRef.current?.abort(), []);
 
     // --- Restore a saved calculation for editing ---
     // Детали, операции и прайс берутся строго из сохранённого state: расчёт
@@ -148,7 +217,9 @@ export function useCalculator() {
             customerId: saved.customerId ?? null,
         });
         isRestoredRef.current = true;
-    }, []);
+        // Восстановленный расчёт — исходное состояние, а не несохранённая правка.
+        markClean();
+    }, [markClean]);
 
     // Сохранённая версия (новая или как отдельный расчёт): дальше правка
     // продолжает уже её цепочку.
@@ -162,7 +233,11 @@ export function useCalculator() {
             customerId: saved.customerId ?? null,
         });
         isRestoredRef.current = true;
-    }, []);
+        // Адрес должен открывать именно сохранённую версию: иначе F5 вернёт
+        // прежнюю, и следующая правка ответвится не от той.
+        window.history.replaceState({}, '', calculationEditorPath(saved.id));
+        markClean();
+    }, [markClean]);
 
     // --- Load initial data ---
     useEffect(() => {
@@ -273,8 +348,11 @@ export function useCalculator() {
                     }
                 })
                 .catch(() => setPriceList({}));
+
+            // Новая конструкция — чистое исходное состояние, а не правка.
+            markClean();
         },
-        [constructs],
+        [constructs, markClean],
     );
 
     // --- Reload constructs (edited on another page) ---
@@ -315,21 +393,33 @@ export function useCalculator() {
         // An empty construction is a normal state: the page shows a hint instead of
         // a red "Ошибка расчёта", so skip the request and drop stale prices.
         if (details.length === 0) {
+            requestTrackerRef.current?.abort();
             setResult(null);
             setError(null);
+            setLoading(false);
             return;
         }
+
+        // Новый расчёт отменяет предыдущий: его ответ уже устарел.
+        const tracker = requestTrackerRef.current;
+        if (!tracker) return;
+        const request = tracker.next();
         setLoading(true);
         setError(null);
         try {
-            const response = await calculatorApi.calculate(buildRequest());
+            const response = await calculatorApi.calculate(buildRequest(), request.signal);
+            // Медленный ответ не должен перебить свежий.
+            if (!tracker.isCurrent(request.id)) return;
             setResult(response);
         } catch (err: any) {
+            // Отмена — не отказ сервера: пользователь просто успел изменить параметры.
+            if (tracker.isCancelled(err) || request.signal.aborted) return;
+            if (!tracker.isCurrent(request.id)) return;
             // Текст ошибки уже переведён интерсептором axios: причина отказа
             // калькулятора приходит в errors.error, заголовок — только запасной.
             setError('Ошибка расчёта: ' + err.message);
         } finally {
-            setLoading(false);
+            if (tracker.isCurrent(request.id)) setLoading(false);
         }
     }, [buildRequest, details.length]);
 
@@ -543,6 +633,7 @@ export function useCalculator() {
         result,
         loading,
         error,
+        isDirty,
         restoredCalculation,
         tierLabels: TIER_LABELS,
         // actions

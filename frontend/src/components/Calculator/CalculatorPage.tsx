@@ -3,6 +3,7 @@
 import { DeleteOutlined } from '@ant-design/icons';
 import {
     Alert,
+    App as AntdApp,
     Button,
     Card,
     Checkbox,
@@ -15,6 +16,7 @@ import {
     Row,
     Select,
     Space,
+    Spin,
     Statistic,
     Table,
     Tag,
@@ -70,6 +72,26 @@ const calculateDetailCost = (
  * могла передавать в калькулятор количества деталей.
  */
 export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
+    const { modal } = AntdApp.useApp();
+
+    // Смена конструкции пересобирает детали из справочника, поэтому
+    // несохранённая правка спрашивает подтверждение — как остальные
+    // разрушающие действия в проекте.
+    const handleConstructionChange = (value: string) => {
+        if (value === calc.currentConstruction || !calc.isDirty) {
+            calc.loadConstruction(value);
+            return;
+        }
+        modal.confirm({
+            title: 'Сменить конструкцию?',
+            content: 'Несохранённые изменения текущего расчёта будут потеряны. '
+                + 'Если расчёт нужен, сначала сохраните версию.',
+            okText: 'Сменить',
+            cancelText: 'Отмена',
+            okButtonProps: { danger: true },
+            onOk: () => calc.loadConstruction(value),
+        });
+    };
 
     const activeDetails = calc.details.filter((detail) => detail.enabled && detail.countOnSheet > 0);
     const currentPrintTable = calc.printTables.find((table) => table.formatId === calc.printSettings.format);
@@ -541,7 +563,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 value={calc.currentConstruction || undefined}
                                 placeholder="Выберите конструкцию"
                                 loading={calc.constructs.length === 0}
-                                onChange={(value: string) => calc.loadConstruction(value)}
+                                onChange={handleConstructionChange}
                                 options={constructionOptions}
                                 style={{ ...CONTROL_STYLE, width: '20ch' }}
                             />
@@ -1022,13 +1044,27 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 <Divider style={{ margin: '16px 0 12px' }} />
 
                                 <Flex justify="space-between" align="center" gap={16}>
-                                    <Text strong>Себестоимость коробки</Text>
+                                    <Space size={8}>
+                                        <Text strong>Себестоимость коробки</Text>
+                                        {/* Пока идёт расчёт, прежняя цифра уже
+                                            не актуальна: показываем, что цена обновляется. */}
+                                        {calc.loading && (
+                                            <Space size={4}>
+                                                <Spin size="small" />
+                                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                                    обновляется
+                                                </Text>
+                                            </Space>
+                                        )}
+                                    </Space>
                                     <Text
                                         strong
                                         style={{
                                             color: '#1677ff',
                                             fontSize: 16,
                                             fontVariantNumeric: 'tabular-nums',
+                                            opacity: calc.loading ? 0.45 : 1,
+                                            transition: 'opacity 0.15s',
                                         }}
                                     >
                                         {money(calc.result?.totalCost ?? totalBoxCost)}
