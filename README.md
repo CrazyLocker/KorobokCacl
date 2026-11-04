@@ -35,13 +35,17 @@
 # 1. Роль и база (идемпотентно, пароль передаётся переменной и не попадает в git)
 psql -U postgres -v app_password='пароль-роли' -f scripts/init-db.sql
 
-# 2. Параметры запуска — необязательно: в application.yml есть дефолты
-#    для локальной базы, IDEA стартует без переменных окружения.
+# 2. Локальный запуск: application-local.yml (в .gitignore) или DB_PASSWORD в env
 Copy-Item scripts\env.example .env   # только для нестандартных кредов
 
 # 3. Схема создаётся сама: Flyway прогонит V1–V23 при первом старте
 .\scripts\dev-env.ps1 -Run
 ```
+
+Пароля БД в `application.yml` нет (`password: ${DB_PASSWORD:}`): локальные креды живут в
+`modules/api/src/main/resources/application-local.yml` (в `.gitignore`, подхватывается через
+`spring.config.import`) либо приходят из `DB_PASSWORD`; переменная окружения имеет приоритет.
+Без пароля приложение не стартует — подключение к БД падает с ошибкой аутентификации.
 
 Аутентификации на альфе нет: всё API открыто, защита — только петлевой интерфейс
 и CORS. Это принятый риск (P0-1 в `docs/alpha-readiness-review.md`).

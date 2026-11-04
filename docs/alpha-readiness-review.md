@@ -107,7 +107,7 @@ CORS `allowedOriginPatterns("*")` + `allowCredentials(true)`; `/swagger-ui/**`, 
 ## Важное (P1) — до или сразу после первого показа
 
 **Установка и воспроизводимость**
-- Креды БД зашиты в `modules/api/src/main/resources/application.yml:6-8` (`postgres` / `4meonl`), профилей и env-переопределения нет; пароль в git-истории.
+- Креды БД зашиты в `modules/api/src/main/resources/application.yml:6-8` (`postgres` / пароль), профилей и env-переопределения нет; пароль в git-истории. Вынесено в `application-local.yml` / `${DB_PASSWORD:}` (см. ниже «Пароль БД»).
 - Нет шага создания БД: Flyway создаёт таблицы, но не саму базу; ни `docker-compose`, ни `scripts/init-db.sql`; версия PostgreSQL не зафиксирована (README «15+», локально 18.6).
 - Нет артефакта фронта рядом с бэкендом: только `npm run dev` на 5173 с прокси на 8080. Для технолога — либо `npm run build` + раздача `dist` из Spring, либо одна инструкция «две консоли».
 - `baseline-on-migrate: true` (`application.yml:22`): при потере `flyway_schema_history` Flyway прогонит V2..V23 поверх живых данных, включая `DELETE FROM constructs` (V3).

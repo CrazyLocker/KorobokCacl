@@ -6,13 +6,19 @@ server:
 spring:
   application:
     name: korobki-calculator
+  # Локальные креды и прочие личные настройки — в application-local.yml
+  # (файл в .gitignore). Импорт необязательный: без файла приложение
+  # поднимется, но без пароля БД подключиться не сможет.
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
-    # Альфа запускается из IDEA без настройки окружения: дефолты ниже —
-    # локальная база разработчика. Для стенда достаточно задать DB_URL,
-    # DB_USER и DB_PASSWORD в окружении или в .env (scripts/dev-env.ps1).
+    # Пароля БД в репозитории нет: значение приходит из application-local.yml
+    # или из переменной окружения DB_PASSWORD. Пустой дефолт специально —
+    # приложение упадёт на подключении с явной ошибкой аутентификации,
+    # а не подключится куда-то по угаданному паролю.
     url: ${DB_URL:jdbc:postgresql://localhost:5432/korobki}
     username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:4meonl}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
 
   jpa:

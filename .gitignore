@@ -43,3 +43,5 @@ frontend/.env.*.local
 *.lock
 # Local secrets
 .env
+# Локальные креды БД для запуска из IDEA (не коммитится)
+modules/api/src/main/resources/application-local.yml
