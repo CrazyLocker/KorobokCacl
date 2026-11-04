@@ -72,6 +72,19 @@ cd frontend; npm run build; npm run preview   # dist на 5173 (+ тот же п
 .\scripts\dev-env.ps1 -Run                    # бэкенд на 127.0.0.1:8080
 ```
 
+## Запуск альфа-артефакта
+
+```powershell
+.\gradlew.bat :modules:api:bootJar
+cd modules\api\build\libs
+$env:DB_PASSWORD = '<пароль>'
+java -jar api-1.0.0.jar
+```
+
+Запуск из каталога с jar: пароль приходит только из `DB_PASSWORD`, файл `application-local.yml`
+рядом с jar не нужен. Остальное — дефолты `application.yml`: `localhost:5432/korobki`, пользователь
+`postgres` (переопределяется `DB_USER`), порт 8080.
+
 ## REST API
 
 Чтение (`GET /api/**`) открыто, всё изменяющее требует роль ADMIN (HTTP Basic).
