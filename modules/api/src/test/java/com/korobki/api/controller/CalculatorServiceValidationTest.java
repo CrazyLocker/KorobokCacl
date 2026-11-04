@@ -3,6 +3,7 @@ package com.korobki.api.controller;
 import com.korobki.api.dto.CalculationRequest;
 import com.korobki.api.dto.CalculationResponse;
 import com.korobki.api.dto.DetailDto;
+import com.korobki.api.dto.PrintSettingsDto;
 import com.korobki.calculator.service.CostCalculator;
 import com.korobki.calculator.service.PrintCostCalculator;
 import com.korobki.pricing.PriceCalculator;
@@ -55,6 +56,10 @@ class CalculatorServiceValidationTest {
         org.mockito.Mockito.when(priceCalculator.getBranch(org.mockito.ArgumentMatchers.any()))
                 .thenReturn("+30");
         org.mockito.Mockito.when(priceCalculator.getVatMultiplier()).thenReturn(new BigDecimal("1.11"));
+        // Formats 1..3 exist in the seeded reference data; tests that need a
+        // missing format override this stub.
+        org.mockito.Mockito.when(printCostCalculator.hasPrintTable(org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(true);
 
         service = new CalculatorService(costCalculator, priceCalculator, printCostCalculator);
     }
@@ -280,6 +285,32 @@ class CalculatorServiceValidationTest {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> service.calculate(request));
         assertTrue(ex.getMessage().contains("Сборка включена, но тираж детали должен быть больше 0"));
+    }
+
+    @Test
+    void assemblyWithUnknownFormat_rejected() {
+        CalculationRequest request = assemblyRequest();
+        request.getAssemblySettings().setFormat(99);
+        org.mockito.Mockito.when(printCostCalculator.hasPrintTable(99)).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.calculate(request));
+        assertTrue(ex.getMessage().contains("Тип сборки не найден: 99"), ex.getMessage());
+    }
+
+    @Test
+    void printWithUnknownFormat_rejected() {
+        CalculationRequest request = validRequest();
+        PrintSettingsDto print = new PrintSettingsDto();
+        print.setEnabled(true);
+        print.setFormat(99);
+        print.setQuantity(300);
+        request.setPrintSettings(print);
+        org.mockito.Mockito.when(printCostCalculator.hasPrintTable(99)).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> service.calculate(request));
+        assertTrue(ex.getMessage().contains("Формат печати не найден: 99"), ex.getMessage());
     }
 
     @Test

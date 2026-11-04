@@ -62,20 +62,50 @@ public class PrintCostCalculator {
     }
 
     /**
+     * Tells whether a print format is configured in {@code print_tables}.
+     *
+     * <p>Used by the API layer to reject an unknown format with a business
+     * error instead of silently calculating a print cost of zero: a zero
+     * print cost is indistinguishable from "no print" for the manager and
+     * understates the price sent to the client.
+     *
+     * @param formatId print format (1, 2, or 3)
+     * @return true when the format exists and has tariff steps
+     */
+    public boolean hasPrintTable(Integer formatId) {
+        if (formatId == null) {
+            return false;
+        }
+        return printTableRepository.findByFormatId(formatId)
+                .filter(table -> table.getSteps() != null && !table.getSteps().isEmpty())
+                .isPresent();
+    }
+
+    /**
      * Calculate the total print cost for a given format and quantity.
      *
      * @param formatId print format (1, 2, or 3)
      * @param quantity print quantity
-     * @return total cost for the print run, or ZERO if format not found
+     * @return total cost for the print run
+     * @throws IllegalArgumentException when the format is not configured in
+     *                                  {@code print_tables} — a silent zero
+     *                                  would understate the client price
      */
     public BigDecimal calcPrintCost(Integer formatId, Integer quantity) {
         PrintTable table = printTableRepository.findByFormatId(formatId)
-                .orElse(null);
-        if (table == null || table.getSteps() == null || table.getSteps().isEmpty()) {
-            return BigDecimal.ZERO;
+                .orElseThrow(() -> missingPrintTable(formatId));
+        if (table.getSteps() == null || table.getSteps().isEmpty()) {
+            throw missingPrintTable(formatId);
         }
         return tariffFor(table, quantity).bill();
     }
+
+    /** Business error for a print format that has no tariff table. */
+    private IllegalArgumentException missingPrintTable(Integer formatId) {
+        return new IllegalArgumentException(
+                "Формат печати не найден: " + formatId + " (таблица печати не настроена)");
+    }
+
 
     /**
      * Resolves the tariff step for a print run: the first step with
@@ -229,8 +259,11 @@ public class PrintCostCalculator {
      * @param quantity run of each detail (number of complete sets)
      * @param details  details placed on the sheet
      * @return resolved run; {@link AssemblyRun#empty()} when the input is
-     *         invalid, nothing can be placed on the sheet, the print table is
-     *         missing or the tariff bill is zero
+     *         invalid, nothing can be placed on the sheet or the tariff bill
+     *         is zero
+     * @throws IllegalArgumentException when the sheet format has no tariff
+     *                                  table — a silent empty run would drop
+     *                                  the assembly cost from the price
      */
     public AssemblyRun calcAssemblyRun(Integer formatId, Integer quantity,
                                        List<DetailSheet> details) {
@@ -257,9 +290,10 @@ public class PrintCostCalculator {
             return AssemblyRun.empty();
         }
 
-        PrintTable table = printTableRepository.findByFormatId(formatId).orElse(null);
-        if (table == null || table.getSteps() == null || table.getSteps().isEmpty()) {
-            return AssemblyRun.empty();
+        PrintTable table = printTableRepository.findByFormatId(formatId)
+                .orElseThrow(() -> missingAssemblyFormat(formatId));
+        if (table.getSteps() == null || table.getSteps().isEmpty()) {
+            throw missingAssemblyFormat(formatId);
         }
 
         Tariff tariff = tariffFor(table, sheets);
@@ -274,6 +308,12 @@ public class PrintCostCalculator {
 
         return new AssemblyRun(sheets, tariff.tariffSheets(), tariff.bill(),
                 pricePerSheet, pricePerPart, totalPartsOnSheet);
+    }
+
+    /** Business error for an assembly sheet format that has no tariff table. */
+    private IllegalArgumentException missingAssemblyFormat(Integer formatId) {
+        return new IllegalArgumentException(
+                "Тип сборки не найден: " + formatId + " (таблица печати для листа сборки не настроена)");
     }
 
     /** Integer ceiling division for positive operands. */

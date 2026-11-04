@@ -130,32 +130,54 @@ class PrintCostCalculatorTest {
     // --- calcPrintCost: missing data ---
 
     @Test
-    void formatNotFound_returnsZero() {
+    void formatNotFound_throwsInsteadOfZero() {
         when(printTableRepository.findByFormatId(99)).thenReturn(Optional.empty());
 
-        assertBD("0", calculator.calcPrintCost(99, 100));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> calculator.calcPrintCost(99, 100));
+
+        assertTrue(error.getMessage().contains("Формат печати не найден"), error.getMessage());
     }
 
     @Test
-    void emptySteps_returnsZero() {
+    void emptySteps_throwsInsteadOfZero() {
         PrintTable t = new PrintTable();
         t.setFormatId(1);
         t.setSteps(new ArrayList<>());
         t.setStepAfter3000(new BigDecimal("1500"));
         stub(1, t);
 
-        assertBD("0", calculator.calcPrintCost(1, 100));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> calculator.calcPrintCost(1, 100));
+
+        assertTrue(error.getMessage().contains("Формат печати не найден"), error.getMessage());
     }
 
     @Test
-    void nullSteps_returnsZero() {
+    void nullSteps_throwsInsteadOfZero() {
         PrintTable t = new PrintTable();
         t.setFormatId(1);
         t.setSteps(null);
         t.setStepAfter3000(new BigDecimal("1500"));
         stub(1, t);
 
-        assertBD("0", calculator.calcPrintCost(1, 100));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> calculator.calcPrintCost(1, 100));
+
+        assertTrue(error.getMessage().contains("Формат печати не найден"), error.getMessage());
+    }
+
+    @Test
+    void hasPrintTable_reportsConfiguredFormats() {
+        PrintTable t = new PrintTable();
+        t.setFormatId(1);
+        t.setSteps(List.of(Map.of("minQty", 100, "price", 5500)));
+        stub(1, t);
+        when(printTableRepository.findByFormatId(99)).thenReturn(Optional.empty());
+
+        assertTrue(calculator.hasPrintTable(1));
+        assertFalse(calculator.hasPrintTable(99));
+        assertFalse(calculator.hasPrintTable(null));
     }
 
     // --- calcPrintPerUnitNoVat ---
@@ -362,15 +384,13 @@ class PrintCostCalculatorTest {
     }
 
     @Test
-    void assembly_missingTable_returnsEmpty() {
+    void assembly_missingTable_throwsInsteadOfEmpty() {
         when(printTableRepository.findByFormatId(99)).thenReturn(Optional.empty());
 
-        PrintCostCalculator.AssemblyRun run = calculator.calcAssemblyRun(99, 200,
-                List.of(cols("Дно", 1)));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> calculator.calcAssemblyRun(99, 200, List.of(cols("Дно", 1))));
 
-        assertEquals(0, run.sheets());
-        assertBD("0", run.pricePerPart());
-        assertFalse(run.priced());
+        assertTrue(error.getMessage().contains("Тип сборки не найден"), error.getMessage());
     }
 
     @Test

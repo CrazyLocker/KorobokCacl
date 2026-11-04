@@ -295,12 +295,20 @@ public class CalculatorService {
             if (ps.getQuantity() == null || ps.getQuantity() <= 0) {
                 throw new IllegalArgumentException("Печать включена, но тираж должен быть больше 0");
             }
+            // A format without a tariff table would calculate a print cost of
+            // zero and understate the client price without any warning.
+            if (!printCostCalculator.hasPrintTable(ps.getFormat())) {
+                throw new IllegalArgumentException("Формат печати не найден: " + ps.getFormat());
+            }
         }
 
         AssemblySettingsDto assembly = request.getAssemblySettings();
         if (assembly != null && Boolean.TRUE.equals(assembly.getEnabled())) {
             if (assembly.getFormat() == null) {
                 throw new IllegalArgumentException("Сборка включена, но не выбран формат листа");
+            }
+            if (!printCostCalculator.hasPrintTable(assembly.getFormat())) {
+                throw new IllegalArgumentException("Тип сборки не найден: " + assembly.getFormat());
             }
             if (assembly.getQuantity() == null || assembly.getQuantity() <= 0) {
                 throw new IllegalArgumentException(
