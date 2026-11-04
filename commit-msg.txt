@@ -1,0 +1,13 @@
+Закрывает P0-1 из docs/alpha-readiness-review.md: изменяющие и удаляющие ручки больше не открыты.
+
+- SecurityConfig: GET /api/** остаётся открытым для чтения справочников и расчёта,
+  всё остальное под /api/** требует роль ADMIN; одна учётная запись из AdminProperties,
+  сгенерированный Spring пароль больше не печатается.
+- AdminProperties: fail-fast без ALPHA_ADMIN_PASSWORD, пароль берётся из env.
+- application.yml: baseline-on-migrate выключен (иначе потеря flyway_schema_history
+  грозила повторным прогоном V2..V23 поверх живых данных).
+- AuthController GET /api/auth/me — проверка пароля для фронтенда.
+- Фронт: adminAuth.ts + AdminGate спрашивает пароль один раз за вкладку,
+  сохраняет в sessionStorage, шлёт Basic только в изменяющих запросах.
+- Тесты: 401 без пароля и 200 с ролью для purge и /api/auth/me.
+- Чек-лист релиза: pg_dump с flyway_schema_history и ALPHA_ADMIN_PASSWORD.

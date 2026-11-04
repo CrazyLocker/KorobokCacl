@@ -22,8 +22,45 @@ import type {
     Operation,
 } from '../types';
 import { buildKnifeRequest } from '../utils/knifeRequest';
+import { adminAuthHeader, isMutatingRequest } from './adminAuth';
 
 const API_BASE = '/api';
+
+/**
+ * Изменяющие запросы получают пароль администратора, если он уже введён.
+ *
+ * <p>Чтение справочников открыто, поэтому заголовок добавляется только к
+ * POST/PUT/DELETE: так пароль не уходит в запросах, которым он не нужен.
+ */
+axios.interceptors.request.use((config) => {
+    if (isMutatingRequest(config.method)) {
+        const header = adminAuthHeader();
+        if (header) {
+            config.headers.set('Authorization', header.Authorization);
+        }
+    }
+    return config;
+});
+
+/**
+ * Проверяет пару логин/пароль администратора отдельным запросом.
+ *
+ * @param user     логин
+ * @param password пароль
+ * @returns true, если сервер принял учётные данные
+ */
+export const checkAdminAuth = async (user: string, password: string): Promise<boolean> => {
+    const bytes = new TextEncoder().encode(`${user}:${password}`);
+    const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+    try {
+        await axios.get(`${API_BASE}/auth/me`, {
+            headers: { Authorization: `Basic ${window.btoa(binary)}` },
+        });
+        return true;
+    } catch {
+        return false;
+    }
+};
 
 /**
  * Все сообщения об ошибках в интерфейсе — на русском, поэтому технический
@@ -188,3 +225,4 @@ export const calculatorApi = {
             .post(`${API_BASE}/knife/calculate`, buildKnifeRequest(svgContent, options))
             .then((res) => res.data),
 };
+

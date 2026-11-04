@@ -5,6 +5,7 @@ import { calculatorApi } from '../../api/calculatorApi';
 import type { CalculationRequest, Customer, SavedCalculation } from '../../types';
 import type { RestoredCalculation } from '../../hooks/useCalculator';
 import { toApiDetails } from '../../utils/calculationRequest';
+import { useAdminGate } from '../common/adminGateContext';
 
 interface Props {
     open: boolean;
@@ -54,6 +55,7 @@ export const SaveCalculationModal = ({
     restored,
     onSaved,
 }: Props) => {
+    const { ensureAdmin } = useAdminGate();
     const [form] = Form.useForm<SaveFormValues>();
     const [saving, setSaving] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -116,6 +118,7 @@ export const SaveCalculationModal = ({
         } catch {
             return;
         }
+        if (!(await ensureAdmin())) return;
 
         setSaving(true);
         try {
@@ -140,6 +143,7 @@ export const SaveCalculationModal = ({
     // --- Сохранение правки как новой версии ---
     const handleSaveVersion = async () => {
         if (!restored) return;
+        if (!(await ensureAdmin())) return;
 
         setSaving(true);
         try {
@@ -294,3 +298,4 @@ export const SaveCalculationModal = ({
         </Modal>
     );
 };
+

@@ -6,6 +6,8 @@ import {
 } from 'antd';
 import type { CalculationTree, CalculationVersion, CustomerTree, OrderTree } from '../../types';
 import { calculatorApi } from '../../api/calculatorApi';
+import { clearAdminAuth, isUnauthorized } from '../../api/adminAuth';
+import { useAdminGate } from '../common/adminGateContext';
 import { openCalculationEditor } from '../../navigation';
 import { buildCalculationTreeRows, collectDescendantKeys, type CalculationTreeRow } from '../../utils/calculationTree';
 import { CalculationViewDrawer } from '../Settings/CalculationViewDrawer';
@@ -55,6 +57,7 @@ const formatDate = (value?: string | null): string => {
  */
 export const CalculationsPage = ({ onNotify }: Props) => {
     const { modal } = AntdApp.useApp();
+    const { ensureAdmin } = useAdminGate();
     const [customers, setCustomers] = useState<CustomerTree[]>([]);
     const [versionsByCalculation, setVersionsByCalculation] = useState<
         Record<string, CalculationVersion[]>
@@ -195,6 +198,7 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
+                if (!(await ensureAdmin())) return;
                 try {
                     await calculatorApi.deleteCalculation(calculation.id);
                     setVersionsByCalculation((previous) => {
@@ -205,6 +209,11 @@ export const CalculationsPage = ({ onNotify }: Props) => {
                     onNotify('Расчёт помечен удалённым', 'success');
                     loadTree();
                 } catch (err) {
+                    if (isUnauthorized(err)) {
+                        clearAdminAuth();
+                        onNotify('Неверный пароль администратора', 'error');
+                        return;
+                    }
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
@@ -222,11 +231,17 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
+                if (!(await ensureAdmin())) return;
                 try {
                     await calculatorApi.deleteCalculation(version.id);
                     onNotify(`Ветка v${version.version} помечена удалённой`, 'success');
                     loadTree();
                 } catch (err) {
+                    if (isUnauthorized(err)) {
+                        clearAdminAuth();
+                        onNotify('Неверный пароль администратора', 'error');
+                        return;
+                    }
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
@@ -243,11 +258,17 @@ export const CalculationsPage = ({ onNotify }: Props) => {
             okButtonProps: { danger: true },
             cancelText: 'Отмена',
             onOk: async () => {
+                if (!(await ensureAdmin())) return;
                 try {
                     await calculatorApi.deleteOrder(order.id);
                     onNotify(`Заказ № ${order.number} помечен удалённым`, 'success');
                     loadTree();
                 } catch (err) {
+                    if (isUnauthorized(err)) {
+                        clearAdminAuth();
+                        onNotify('Неверный пароль администратора', 'error');
+                        return;
+                    }
                     onNotify('Ошибка удаления: ' + (err as Error).message, 'error');
                 }
             },
@@ -565,4 +586,6 @@ export const CalculationsPage = ({ onNotify }: Props) => {
         </div>
     );
 };
+
+
 

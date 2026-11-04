@@ -19,13 +19,21 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    # baseline-on-migrate выключен: пустая база без flyway_schema_history
+    # должна падать, а не считаться «уже мигрированной» — иначе таблицы
+    # останутся пустыми при молчаливом пропуске всех миграций.
+    baseline-on-migrate: false
 
 jwt:
   secret: ${JWT_SECRET:very_long_secret_key_for_jwt_at_least_256_bits}
   expiration: 28800000
 
 app:
+  security:
+    # Единственная учётная запись администратора: изменяющие и удаляющие
+    # запросы требуют её, чтение справочников открыто.
+    admin-user: ${ALPHA_ADMIN_USER:admin}
+    admin-password: ${ALPHA_ADMIN_PASSWORD:}
   pricing:
     manufacturing-cost: 5.0
     markup-min: 30.0

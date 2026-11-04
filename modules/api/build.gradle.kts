@@ -19,4 +19,6 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok:1.18.34")
 
     developmentOnly("org.springframework.boot:spring-boot-devtools:3.3.4")
+    testImplementation("org.springframework.boot:spring-boot-starter-test:3.3.4")
+    testImplementation("org.springframework.security:spring-security-test:6.3.3")
 }
