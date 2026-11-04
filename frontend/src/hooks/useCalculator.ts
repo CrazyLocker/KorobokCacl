@@ -256,6 +256,11 @@ export function useCalculator() {
             // калькулятор показывал бы ошибку «отметьте хотя бы одну деталь».
             setAssemblySettings((prev) => ({ ...prev, enabled: false }));
 
+            // Печать и доп. операции тоже принадлежат прежней конструкции:
+            // флажки деталей уже сброшены пересборкой строк, а режим печати
+            // гасим, иначе калькулятор считал бы тираж от чужой коробки.
+            setPrintSettings((prev) => ({ ...prev, enabled: false }));
+
             // Load the price list of this construction. A construction without a
             // price list is normal: the table stays empty until prices are filled in.
             calculatorApi
