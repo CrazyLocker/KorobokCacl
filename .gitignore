@@ -44,4 +44,6 @@ frontend/.env.*.local
 # Local secrets
 .env
 # Локальные креды БД для запуска из IDEA (не коммитится)
+application-local.yml
+# Старый путь до переноса в корень проекта — на случай локальных копий
 modules/api/src/main/resources/application-local.yml

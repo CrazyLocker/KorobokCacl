@@ -6,11 +6,15 @@ server:
 spring:
   application:
     name: korobki-calculator
-  # Локальные креды и прочие личные настройки — в application-local.yml
-  # (файл в .gitignore). Импорт необязательный: без файла приложение
-  # поднимется, но без пароля БД подключиться не сможет.
+  # Локальные креды и прочие личные настройки — в application-local.yml в корне
+  # проекта (файл в .gitignore, в jar не попадает). Оба пути необязательные:
+  # рабочий каталог зависит от способа запуска — из IDEA это модуль
+  # modules/api, а из корня идёт `./gradlew bootRun`/`java -jar`.
+  # Переменные окружения всё равно имеют приоритет над файлами.
   config:
-    import: optional:classpath:application-local.yml
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:../../application-local.yml
   datasource:
     # Пароля БД в репозитории нет: значение приходит из application-local.yml
     # или из переменной окружения DB_PASSWORD. Пустой дефолт специально —
