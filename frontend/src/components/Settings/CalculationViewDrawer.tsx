@@ -12,6 +12,7 @@ import { calculatorApi } from '../../api/calculatorApi';
 import { normalizeSavedCalculation } from '../../utils/normalizeSavedCalculation';
 import { STATUS_COLORS, STATUS_LABELS } from '../../utils/calculationStatus';
 import { detailHasPriceEffect, extraHasPriceEffect, splitPriced } from '../../utils/pricedRows';
+import { pricedQuantity, tierLabelForQuantity } from '../../utils/priceTiers';
 import { VersionTree } from './VersionTree';
 
 interface Props {
@@ -160,7 +161,12 @@ const EXTRA_COLUMNS: TableColumnsType<Extra> = [
     },
 ];
 
-const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
+// Колонки таблицы цен зависят от тиража расчёта: строка, в которую он
+// попадает, получает метку с тиражом, поэтому фабрика, а не константа.
+const priceColumns = (
+    runTierLabel: string | null,
+    runQuantity: number | null,
+): TableColumnsType<PriceRow> => [
     { title: 'Тир', dataIndex: 'label', key: 'label', width: 110 },
     {
         title: 'Без НДС',
@@ -197,8 +203,13 @@ const PRICE_COLUMNS: TableColumnsType<PriceRow> = [
         render: (_value: unknown, row: PriceRow) => (
             <Flex gap={4} wrap>
                 {row.isBase && <Tag color="gold" style={{ marginInlineEnd: 0 }}>базовая</Tag>}
-                {row.isPriceListUsed && <Tag color="blue" style={{ marginInlineEnd: 0 }}>прайс-лист</Tag>}
-                {!row.isBase && !row.isPriceListUsed && <span style={MUTED}>—</span>}
+                {row.label === runTierLabel && runQuantity != null && (
+                    <Tag color="blue" style={{ marginInlineEnd: 0 }}>тираж {runQuantity}</Tag>
+                )}
+                {row.isPriceListUsed && <Tag color="cyan" style={{ marginInlineEnd: 0 }}>прайс-лист</Tag>}
+                {!row.isBase && !row.isPriceListUsed && row.label !== runTierLabel && (
+                    <span style={MUTED}>—</span>
+                )}
             </Flex>
         ),
     },
@@ -275,6 +286,15 @@ export const CalculationViewDrawer = ({
 
     const { request, error: normalizeError } = normalizeViewRequest(view?.request);
     const result = view?.result ?? null;
+
+    // Тираж коробки известен, когда включена печать или сборка: по нему
+    // подсвечиваем строку, в которую он попадает. Базовой строке подсветка
+    // больше не нужна — у неё остаётся только метка «базовая».
+    const runQuantity = pricedQuantity(request);
+    const runTierLabel = tierLabelForQuantity(
+        (result?.prices ?? []).map((row) => row.label),
+        runQuantity,
+    );
 
     const shownVersion = versions.find((version) => version.id === shownId) ?? null;
     const hasChildren = versions.some((version) => version.parentId === shownId);
@@ -533,10 +553,12 @@ export const CalculationViewDrawer = ({
                                 pagination={false}
                                 dataSource={result.prices ?? []}
                                 rowKey={(row) => row.label}
-                                columns={PRICE_COLUMNS}
+                                columns={priceColumns(runTierLabel, runQuantity)}
                                 scroll={{ x: 640 }}
                                 onRow={(row) => ({
-                                    style: row.isBase ? { background: '#fffbe6' } : undefined,
+                                    style: row.label === runTierLabel
+                                        ? { background: '#e6f4ff' }
+                                        : undefined,
                                 })}
                             />
                         </Flex>
