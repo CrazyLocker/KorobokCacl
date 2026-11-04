@@ -41,3 +41,5 @@ frontend/.env.*.local
 # Application-specific
 *.pid
 *.lock
+# Local secrets
+.env
