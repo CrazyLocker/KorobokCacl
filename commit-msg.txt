@@ -1,12 +1,9 @@
-fix(P0-2): сервер слушает только петлевой интерфейс, CORS сужен, Swagger выключен
+docs(P0): стоп-гейт двух формул пройден на «Паллена 9»
 
-Закрывает P0-2 из docs/alpha-readiness-review.md.
+Пункт 7 чек-листа в docs/alpha-readiness-review.md: локальная формула блока
+«Коробка» и calc.result.totalCost совпали.
 
-- application.yml: server.address=127.0.0.1 (SERVER_ADDRESS для стенда),
-  springdoc.api-docs и swagger-ui выключены.
-- SecurityConfig: CORS разрешает только http://localhost:5173 и http://127.0.0.1:5173,
-  permitAll для swagger убран.
-- Тесты: preflight с чужого origin → 403 без Access-Control-Allow-Origin,
-  с dev-сервера Vite → 200.
-- Смоук на 8081: constructs 200, /v3/api-docs и /swagger-ui → 401,
-  OPTIONS с evil.example → 403, слушает 127.0.0.1:8081.
+- без печати: 29.0000000000 против 28.9999999999 (в UI оба 29.00);
+- печать 500*350, тираж 49: 365.7346938775 против 365.7346938775 (в UI оба 365.73).
+Расхождение — погрешность double, на копейку не выходит; sheetPrice = 0
+у деталей из раскладки вынесен отдельно как P1.
