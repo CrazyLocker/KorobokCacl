@@ -43,6 +43,9 @@ Copy-Item scripts\env.example .env   # только для нестандарт�
 .\scripts\dev-env.ps1 -Run
 ```
 
+`scripts/init-db.sql` создаёт базу с `ENCODING 'UTF8' TEMPLATE template0` — кодировка не зависит
+от шаблона кластера: на кластере с WIN1251 база всё равно будет UTF8.
+
 Пароля БД в `application.yml` нет (`password: ${DB_PASSWORD:}`): локальные креды живут в
 `application-local.yml` в корне проекта (в `.gitignore`, подхватывается через `spring.config.import`,
 в jar не попадает) либо приходят из `DB_PASSWORD`; переменная окружения имеет приоритет.
