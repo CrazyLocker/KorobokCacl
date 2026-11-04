@@ -4,6 +4,7 @@ import { calculatorApi } from '../api/calculatorApi';
 import { createDetailUiKey, toApiDetails } from '../utils/calculationRequest';
 import { normalizeSavedCalculation } from '../utils/normalizeSavedCalculation';
 import { buildDetailRows, readCalculationIdFromLocation } from '../utils/restoreCalculation';
+import { defaultMarginForConstruction } from '../utils/margin';
 import { sortConstructs } from '../utils/sortConstructs';
 import { sortParts } from '../utils/sortParts';
 import type {
@@ -218,6 +219,11 @@ export function useCalculator() {
             if (!constr) return;
 
             setCurrentConstruction(name);
+
+            // Наценка зависит от конструкции: у «Кашированной» она выше,
+            // потому что коробка сложнее. Значение задаётся заново при каждом
+            // переключении конструкции, а правки руками живут до переключения.
+            setMarginValue(defaultMarginForConstruction(name));
 
             // Details are built from the construction itself: the reference book is
             // the single source of truth. A part deleted there disappears here after

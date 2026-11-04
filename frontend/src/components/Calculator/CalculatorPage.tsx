@@ -936,7 +936,7 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
 
                             <Divider style={{ margin: '16px 0' }} />
 
-                            <Form layout="inline" style={{ marginBottom: 16 }}>
+                            <Form layout="inline" style={{ marginBottom: 16, rowGap: 12 }}>
                                 <Form.Item label="Работа/деталь" style={{ marginBottom: 0 }}>
                                     <InputNumber
                                         min={0}
@@ -951,6 +951,25 @@ export const CalculatorPage = ({ calc }: CalculatorPageProps) => {
                                 </Form.Item>
                                 <Text type="secondary" style={{ alignSelf: 'center' }}>
                                     за каждую деталь
+                                </Text>
+                                <Form.Item
+                                    label="Наценка"
+                                    style={{ marginBottom: 0 }}
+                                    tooltip="Надбавка за сложность коробки: у «Кашированной» по умолчанию 200 ₽, у остальных 30 ₽"
+                                >
+                                    <InputNumber
+                                        min={0}
+                                        step={10}
+                                        precision={0}
+                                        controls={false}
+                                        value={calc.marginValue}
+                                        onChange={(value) => calc.setMarginValue(Number(value) || 0)}
+                                        suffix="₽"
+                                        style={{ width: 120 }}
+                                    />
+                                </Form.Item>
+                                <Text type="secondary" style={{ alignSelf: 'center' }}>
+                                    за сложность коробки
                                 </Text>
                             </Form>
 
