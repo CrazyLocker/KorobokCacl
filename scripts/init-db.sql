@@ -14,7 +14,9 @@ $$;
 
 ALTER ROLE korobki PASSWORD :'app_password';
 
-SELECT 'CREATE DATABASE korobki OWNER korobki'
+-- База создаётся в UTF8 из template0, поэтому кодировка не зависит от шаблона
+-- кластера: на кластере с WIN1251 база всё равно будет UTF8.
+SELECT 'CREATE DATABASE korobki OWNER korobki ENCODING ''UTF8'' TEMPLATE template0'
 WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'korobki')
 \gexec
 
